@@ -11,9 +11,31 @@ import {
 } from '../src/net/toy';
 
 describe('isToyEnvironment', () => {
-  const inside = { hostname: 'www.bilibili.com', pathname: '/toy/shatterver/index.html' };
-  it('is true on a Toy page path', () => {
-    expect(isToyEnvironment(inside)).toBe(true);
+  // What the game sees inside a real Toy: the shell on bilibili.com frames the package from a
+  // package host, with no referrer, so the package's own address is the only evidence.
+  const pkg = { hostname: 'www.bilibilitoy.com', pathname: '/toy/AvH7meolWcHU0v7D/index.html' };
+  it('is true inside a Toy package on bilibilitoy.com', () => {
+    expect(isToyEnvironment(pkg)).toBe(true);
+    expect(
+      isToyEnvironment({
+        hostname: 'www.bilibilitoy.com',
+        pathname: '/toy/AvH7meolWcHU0v7D/59024141719552-v12615/index.html',
+      }),
+    ).toBe(true);
+  });
+  it('is true inside a Toy package on the other package hosts', () => {
+    expect(isToyEnvironment({ hostname: 'www.bebox.net', pathname: '/toy/x/index.html' })).toBe(true);
+    expect(isToyEnvironment({ hostname: 'uat-www.bebox.net', pathname: '/toy/x/' })).toBe(true);
+    expect(isToyEnvironment({ hostname: 'pre-www.bebox.net', pathname: '/toy/x/' })).toBe(true);
+  });
+  it('does not care about the path or the hostname case on a package host', () => {
+    expect(isToyEnvironment({ ...pkg, pathname: '/' })).toBe(true);
+    expect(isToyEnvironment({ ...pkg, hostname: 'WWW.BILIBILITOY.COM' })).toBe(true);
+  });
+  it('is true on a bilibili.com Toy page path', () => {
+    expect(isToyEnvironment({ hostname: 'www.bilibili.com', pathname: '/toy/shatterver/index.html' })).toBe(
+      true,
+    );
   });
   it('is true on the Toy root', () => {
     expect(isToyEnvironment({ hostname: 'www.bilibili.com', pathname: '/toy/' })).toBe(true);
@@ -24,7 +46,12 @@ describe('isToyEnvironment', () => {
   });
   it('is false on other hosts, whatever the path', () => {
     expect(isToyEnvironment({ hostname: 'ikaros-521.github.io', pathname: '/SHATTERVER/toy/' })).toBe(false);
+    expect(isToyEnvironment({ hostname: 'localhost', pathname: '/toy/' })).toBe(false);
     expect(isToyEnvironment({ hostname: 'fakebilibili.com', pathname: '/toy/' })).toBe(false);
+  });
+  it('matches the package hosts exactly, not by suffix', () => {
+    expect(isToyEnvironment({ hostname: 'fakebilibilitoy.com', pathname: '/toy/' })).toBe(false);
+    expect(isToyEnvironment({ hostname: 'www.bebox.net.example.com', pathname: '/toy/' })).toBe(false);
   });
   it('accepts Bilibili subdomains', () => {
     expect(isToyEnvironment({ hostname: 'm.bilibili.com', pathname: '/toy/x/' })).toBe(true);

@@ -31,7 +31,7 @@ import { Cloud } from './net/cloud';
 import { CLOUD_CONFIG, cloudEnabled } from './net/config';
 import { loadIdentity, storeIdentity } from './net/identity';
 import type { Leaderboard } from './net/leaderboard';
-import { isToyEnvironment } from './net/toy';
+import { isToyEnvironment, loadToySdk } from './net/toy';
 import { ToyChannel } from './net/toychannel';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
 import { UI, type PerfInfo, type UiActions } from './ui/ui';
@@ -85,12 +85,16 @@ function createCloud(): Cloud {
 }
 
 /**
- * Builds the B站 Toy channel when the page is served from a Bilibili Toy path. The platform is
- * the identity provider there (the player's B站 nickname, Chinese included), so the Chedda
- * identity flow does not apply; the Chedda client is handed over read-only, feeding the
+ * Builds the B站 Toy channel when the game runs as a Bilibili Toy (see `isToyEnvironment`). The
+ * platform is the identity provider there (the player's B站 nickname, Chinese included), so the
+ * Chedda identity flow does not apply; the Chedda client is handed over read-only, feeding the
  * 「全球榜」mirror tab on the leaderboard screen.
  */
 function createToyChannel(): ToyChannel {
+  // The SDK has to load and shake hands with the Toy shell before its first call. Start that now,
+  // as a static SDK tag in `index.html` would, rather than at the click that opens the board or
+  // the submit that ends a run.
+  void loadToySdk();
   return new ToyChannel({
     chedda: new CheddaBoards({ gameId: CLOUD_CONFIG.gameId, apiKey: CLOUD_CONFIG.apiKey }),
   });
@@ -110,7 +114,7 @@ export class App implements UiActions {
   readonly ui: UI;
   /**
    * The cloud leaderboard mirror, or null when the feature is off. The backing service is picked
-   * once, by environment: a Bilibili Toy page talks to the Toy boards, everything else talks to
+   * once, by environment: a Bilibili Toy package talks to the Toy boards, everything else talks to
    * CheddaBoards — see `net/leaderboard.ts`.
    */
   readonly cloud: Leaderboard | null;

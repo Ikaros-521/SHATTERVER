@@ -11,9 +11,9 @@
  * - **Boards are numbered slots, not named boards.** Five slots (1–5) per Toy is the whole budget,
  *   so the mapping lives in {@link TOY_BOARDS} and the time dimension rides the free `period`
  *   parameter instead of separate boards.
- * - **The SDK arrives at runtime.** It is a script tag on the Toy host, absent everywhere else, so
- *   it is loaded lazily through {@link loadToySdk} and never bundled — this project ships no
- *   runtime npm dependencies, and a script injection is what the platform documents.
+ * - **The SDK arrives at runtime.** It is a script the package itself includes, so it is loaded
+ *   through {@link loadToySdk} rather than bundled — this project ships no runtime npm
+ *   dependencies — and only inside a Toy, so no other host ever requests it.
  *
  * Scores are clamped to the platform's ±16 777 215 integer range before leaving this file.
  */
@@ -22,12 +22,31 @@
 export const TOY_SDK_SRC = 'https://s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js';
 
 /**
- * True when the page is served from a Bilibili Toy path (`https://www.bilibili.com/toy/<slug>/`).
- * The URL decides the channel — not `window.toy`, which only appears after the SDK script loads
- * and would make the choice asynchronous and racy.
+ * Hosts the Toy platform serves an uploaded package from. The Toy page on bilibili.com is only a
+ * shell: it frames the package from one of these, so they are the `location` the game itself runs
+ * on. The same list is what `toy-host.js` accepts SDK messages from — its closing `rs()` is the
+ * place to re-check if the platform ever adds a package host.
+ */
+const TOY_PACKAGE_HOSTS: ReadonlySet<string> = new Set([
+  'www.bilibilitoy.com',
+  'www.bebox.net',
+  'uat-www.bebox.net',
+  'pre-www.bebox.net',
+]);
+
+/**
+ * True when the game runs as a Bilibili Toy. The URL decides the channel — not `window.toy`, which
+ * only appears after the SDK script loads and would make the choice asynchronous and racy.
+ *
+ * What the package sees is its own address on a package host, not the Toy page's: the shell at
+ * `https://www.bilibili.com/toy/<slug>/` frames it with `referrerpolicy="no-referrer"`, so
+ * neither the shell's hostname nor a referrer is visible from inside. A page served on
+ * bilibili.com under `/toy/` counts as well, so the rule still holds if the platform ever hosts a
+ * package itself.
  */
 export function isToyEnvironment(loc: { hostname: string; pathname: string } = location): boolean {
   const host = loc.hostname.toLowerCase();
+  if (TOY_PACKAGE_HOSTS.has(host)) return true;
   if (host !== 'www.bilibili.com' && !host.endsWith('.bilibili.com')) return false;
   return loc.pathname.startsWith('/toy/');
 }
@@ -125,7 +144,8 @@ type ToyWindow = { toy?: ToyLike };
  * Loads the Toy SDK by script tag and resolves to `window.toy`. Idempotent: concurrent callers
  * share one injection, and a load that fails resets itself so a later call (the next run, the
  * next panel open) can retry — a transient network failure must not kill the channel forever.
- * Resolves `null` outside the Toy host, where the script has no reason to load at all.
+ * Resolves `null` when the script fails to load or defines nothing; it is only ever requested
+ * inside a Toy, see {@link isToyEnvironment}.
  */
 export function loadToySdk(doc: Document = document): Promise<ToyLike | null> {
   const win = doc.defaultView as (Window & ToyWindow) | null;

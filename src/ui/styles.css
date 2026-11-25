@@ -2527,6 +2527,19 @@ button.sigil-tile:hover {
   animation: fade-in 0.25s ease-out;
 }
 
+/* The illustrated scene on a page: a framed mini screenshot of the real arena, renderer palette. */
+.tut-art {
+  margin: 0 0 12px;
+}
+
+.tut-art svg {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin: 0 auto;
+}
+
 .tut-body p {
   margin: 0 0 10px;
 }
@@ -2620,6 +2633,10 @@ button.sigil-tile:hover {
   .tut-body {
     font-size: 13.5px;
     line-height: 1.65;
+  }
+
+  .tut-art {
+    margin-bottom: 10px;
   }
 
   .tut-grid {

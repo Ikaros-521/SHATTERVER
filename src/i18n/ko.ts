@@ -261,6 +261,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 02',
         title: '패들과 공',
+        art: 'paddle',
         html: `
       <p><b>마우스나 손가락</b>으로 패들을 조작합니다. 바닥에 떨어진 공은 <b>사라지지 않습니다</b>. 잠시 후 패들에서 다시 발사됩니다.</p>
       <p>받치는 위치가 반사각을 정합니다. <b>가장자리</b>는 크게, <b>중앙</b>은 수직으로. 정중앙은 <b>퍼펙트 캐치</b>로 충전량이 가장 큽니다.</p>
@@ -270,6 +271,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 03',
         title: '실드와 피격',
+        art: 'danger',
         html: `
       <p>화면 왼쪽 위의 빛나는 칸이 당신의 <b>실드</b>(생명)입니다. 초기값은 {maxHp}이고 일부 업그레이드로 상한을 높일 수 있습니다.</p>
       <p>실드가 줄어드는 길은 두 가지뿐입니다:</p>
@@ -292,6 +294,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 05',
         title: '스테이지 변이와 장애',
+        art: 'threats',
         mutators: true,
         html: `
       <p>스테이지에 따라서는 개막에 <b>변이</b>가 공고됩니다: 스테이지 전체의 규칙이 다시 쓰이는 것으로, 성가신 것도 있고 오히려 이로운 것도 있습니다.</p>

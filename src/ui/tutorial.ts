@@ -5,6 +5,7 @@ import { MODIFIERS } from '../game/levels/definitions';
 import { mutatorDesc, mutatorName } from '../i18n/content';
 import type { TutorialPage } from '../i18n/zh';
 import { byId, el, hexCss } from './dom';
+import { TUTORIAL_ART } from './tutorialArt';
 
 /**
  * The first-run tutorial: a short slide deck over the main menu that explains the goal, the
@@ -166,6 +167,8 @@ export class Tutorial {
     this.next.textContent = this.page >= pages.length - 1 ? t('tutorial.start') : t('tutorial.next');
     this.dots.setAttribute('aria-label', t('tutorial.dotsLabel'));
     this.body.replaceChildren();
+    const art = current.art ? TUTORIAL_ART[current.art] : undefined;
+    if (art) this.body.insertAdjacentHTML('beforeend', `<div class="tut-art">${art}</div>`);
     this.body.insertAdjacentHTML('beforeend', current.html);
     if (current.mutators) this.body.append(el('div', { class: 'tut-grid' }, ...mutatorSection()));
     this.body.scrollTop = 0;

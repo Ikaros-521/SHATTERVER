@@ -260,6 +260,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 02',
         title: 'パドルとボール',
+        art: 'paddle',
         html: `
       <p><b>マウスか指</b>でパドルを操作。底に落ちたボールは<b>失われません</b>。少ししてパドルから再発射されます。</p>
       <p>受ける位置で反発角が変わります：<b>端</b>なら大きく、<b>中央</b>なら真上。ど真ん中は<b>パーフェクトキャッチ</b>で、チャージ量も最大です。</p>
@@ -269,6 +270,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 03',
         title: 'シールドと被弾',
+        art: 'danger',
         html: `
       <p>画面左上の光るマスがあなたの<b>シールド</b>（ライフ）です。初期値は{maxHp}で、一部のアップグレードで上限を上げられます。</p>
       <p>シールドが減るのは次の2つだけ：</p>
@@ -291,6 +293,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 05',
         title: 'ステージ変異と障害',
+        art: 'threats',
         mutators: true,
         html: `
       <p>ステージによっては開幕に<b>変異</b>が告知されます：ステージ全体のルールが書き換わるもので、邪魔をするものもあれば、得になるものも。</p>

@@ -4,6 +4,7 @@ import { MAX_HP_BASE, OVERDRIVE_DURATION } from '../src/game/config';
 import { MODIFIERS } from '../src/game/levels/definitions';
 import { DEFAULT_SETTINGS } from '../src/core/storage';
 import { shouldAutoShow } from '../src/ui/tutorial';
+import { TUTORIAL_ART } from '../src/ui/tutorialArt';
 
 import { dict } from '../src/core/i18n';
 
@@ -55,6 +56,19 @@ describe('TUTORIAL_PAGES', () => {
     const mutatorPages = pages().filter((page) => page.mutators);
     expect(mutatorPages).toHaveLength(1);
     expect(MODIFIERS.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('references only illustrations that exist, and illustrates the hands-on pages', () => {
+    const named = pages().filter((page): page is typeof page & { art: string } => Boolean(page.art));
+    expect(named.length).toBeGreaterThanOrEqual(3);
+    for (const page of named) {
+      const art = TUTORIAL_ART[page.art];
+      expect(art, `page ${page.eyebrow} references missing art "${page.art}"`).toBeTruthy();
+      expect(art).toMatch(/^<svg /);
+      // Pictures stay language-neutral: no words in any locale, only shapes (numbers like −1 are fine).
+      expect(art).not.toMatch(/<text[^>]*>[^<]*[A-Za-z\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/);
+    }
+    expect(TUTORIAL_ART.danger).toContain('#ff2fb0'); // boss bullets keep their in-game magenta
   });
 });
 

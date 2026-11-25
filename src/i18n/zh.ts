@@ -6,11 +6,15 @@
  * placeholders in values are filled by `t()`.
  */
 
-/** One tutorial slide. `mutators` renders the level-mutator grid under the page text. */
+/**
+ * One tutorial slide. `art` names an illustration from `ui/tutorialArt.ts` shown above the text;
+ * `mutators` renders the level-mutator grid under the page text.
+ */
 export interface TutorialPage {
   eyebrow: string;
   title: string;
   html: string;
+  art?: string;
   mutators?: boolean;
 }
 
@@ -261,6 +265,7 @@ export const zh = {
         {
           eyebrow: 'TUTORIAL · 02',
           title: '挡板与球',
+          art: 'paddle',
           html: `
       <p>移动<b>鼠标或手指</b>控制挡板。球落到底部<b>不会丢失</b>，稍后会从挡板重新发射。</p>
       <p>用挡板的不同位置接球控制回弹角度：<b>边缘</b>打出大角度，<b>中心</b>垂直弹回。正中接球是<b>完美接球</b>，充能最多。</p>
@@ -270,6 +275,7 @@ export const zh = {
         {
           eyebrow: 'TUTORIAL · 03',
           title: '护盾与受损',
+          art: 'danger',
           html: `
       <p>画面左上角那排发光小格就是你的<b>护盾</b>（生命值）：开局 {maxHp} 格，部分强化能提高上限。</p>
       <p>护盾只从两个地方掉：</p>
@@ -292,6 +298,7 @@ export const zh = {
         {
           eyebrow: 'TUTORIAL · 05',
           title: '关卡变异与阻碍',
+          art: 'threats',
           mutators: true,
           html: `
       <p>部分关卡开场会预告一条<b>变异</b>：整关的规则被改写，有的添乱，有的反而给甜头。</p>

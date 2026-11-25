@@ -262,6 +262,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 02',
         title: 'The paddle and the balls',
+        art: 'paddle',
         html: `
       <p>Steer the paddle with your <b>mouse or finger</b>. A ball that reaches the bottom is <b>never lost</b> — it relaunches from the paddle shortly after.</p>
       <p>Where you catch the ball steers its return angle: the <b>edges</b> send it wide, the <b>center</b> sends it straight up. A dead-center catch is a <b>perfect catch</b> and charges the most.</p>
@@ -271,6 +272,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 03',
         title: 'The shield and taking hits',
+        art: 'danger',
         html: `
       <p>The row of glowing cells in the top-left corner is your <b>shield</b> (your life): it starts at {maxHp}, and some upgrades raise the cap.</p>
       <p>The shield only drops in two ways:</p>
@@ -293,6 +295,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       {
         eyebrow: 'TUTORIAL · 05',
         title: 'Mutators and hazards',
+        art: 'threats',
         mutators: true,
         html: `
       <p>Some levels open with a <b>mutator</b> announcement: the whole level plays by altered rules — some make trouble, some pay out.</p>

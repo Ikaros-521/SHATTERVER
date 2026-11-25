@@ -1,6 +1,8 @@
+中文 | [English](README.en.md)
+
 # 碎界 SHATTERVERSE
 
-越打越离谱的肉鸽打砖块。Web 游戏，零运行时依赖：TypeScript + 自研 WebGL2 渲染管线 + Web Audio 合成音频。
+越打越离谱的肉鸽打砖块。Web 游戏，零运行时依赖：TypeScript + 自研 WebGL2 渲染管线 + Web Audio 合成音频。界面语言可在设置里切换：中文 / English / 日本語 / 한국어，默认中文。
 
 **在线游玩：<https://ikaros-521.github.io/SHATTERVER/>** —— 推送 `main` 后由 GitHub Actions 自动构建并部署。
 

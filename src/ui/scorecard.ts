@@ -1,3 +1,4 @@
+import { t } from '../core/i18n';
 import { cssHex, formatNumber, formatScore, formatTime } from '../core/math';
 import type { RunMode } from '../game/run';
 import { sigil } from './sigil';
@@ -167,7 +168,7 @@ function drawChrome(ctx: Ctx2D, accent: number, date: number, mode: RunMode): vo
   ctx.stroke();
 
   // Header.
-  text(ctx, 'RUN REPORT · 战绩报告', M, 128, {
+  text(ctx, t('scorecard.report'), M, 128, {
     size: 21,
     weight: 700,
     fill: 'rgba(234,242,255,0.55)',
@@ -191,7 +192,7 @@ function drawChrome(ctx: Ctx2D, accent: number, date: number, mode: RunMode): vo
     200,
     { size: 22, weight: 600, fill: 'rgba(234,242,255,0.6)', align: 'right', spacing: 3 },
   );
-  text(ctx, mode === 'campaign' ? 'CAMPAIGN · 闯关模式' : 'ENDLESS · 无尽模式', W - M, 238, {
+  text(ctx, mode === 'campaign' ? t('scorecard.modeCampaign') : t('scorecard.modeEndless'), W - M, 238, {
     size: 17,
     weight: 700,
     fill: 'rgba(234,242,255,0.4)',
@@ -208,7 +209,7 @@ function drawChrome(ctx: Ctx2D, accent: number, date: number, mode: RunMode): vo
 
 function drawScore(ctx: Ctx2D, data: ScorecardData): void {
   const { accent } = data;
-  text(ctx, '最终得分 · FINAL SCORE', M, 360, {
+  text(ctx, t('scorecard.finalScore'), M, 360, {
     size: 21,
     weight: 700,
     fill: 'rgba(234,242,255,0.5)',
@@ -224,7 +225,7 @@ function drawScore(ctx: Ctx2D, data: ScorecardData): void {
   });
 
   // Record badge, or the rank the run landed at.
-  const label = data.newRecord ? '新纪录 NEW RECORD' : `历史第 ${data.rank} 名 · RANK #${data.rank}`;
+  const label = data.newRecord ? t('scorecard.newRecord') : t('scorecard.rank', { rank: data.rank });
   const color = data.newRecord ? 0xffd24a : accent;
   ctx.font = `700 21px ${FONT}`;
   const width = ctx.measureText(label).width + 48;
@@ -237,7 +238,7 @@ function drawScore(ctx: Ctx2D, data: ScorecardData): void {
   ctx.stroke();
   text(ctx, label, M + 24, y + 30, { size: 21, weight: 800, fill: cssHex(color), spacing: 3 });
   if (data.total > 1 && !data.newRecord) {
-    text(ctx, `本地 ${data.total} 局`, M + width + 18, y + 30, {
+    text(ctx, t('scorecard.localCount', { n: data.total }), M + width + 18, y + 30, {
       size: 19,
       weight: 600,
       fill: 'rgba(234,242,255,0.45)',
@@ -245,23 +246,39 @@ function drawScore(ctx: Ctx2D, data: ScorecardData): void {
     });
   }
 
-  const where = data.won ? '通关全部扇区' : `止步 ${data.code} ${data.name}`.trim();
-  text(ctx, `${data.mode === 'campaign' ? '闯关模式' : '无尽模式'} · ${where} · SEED ${data.seed}`, M, 656, {
-    size: 25,
-    weight: 500,
-    fill: 'rgba(234,242,255,0.62)',
-    spacing: 2,
-  });
+  const where = data.won
+    ? t('scorecard.clearedAll')
+    : t('scorecard.stoppedAt', { code: data.code, name: data.name }).trim();
+  text(
+    ctx,
+    `${data.mode === 'campaign' ? t('scorecard.modeCampaignShort') : t('scorecard.modeEndlessShort')} · ${where} · SEED ${data.seed}`,
+    M,
+    656,
+    {
+      size: 25,
+      weight: 500,
+      fill: 'rgba(234,242,255,0.62)',
+      spacing: 2,
+    },
+  );
 }
 
 function drawTiles(ctx: Ctx2D, data: ScorecardData): void {
   const tiles: [string, string][] = [
-    ['抵达关卡', data.mode === 'campaign' ? data.code : `第 ${data.level} 关`],
-    ['总伤害', formatNumber(data.damage)],
-    ['最高连击', formatNumber(data.combo)],
-    ['击碎砖块', formatNumber(data.kills)],
-    ['存活时间', formatTime(data.time)],
-    ['历史排名', data.total > 0 ? `第 ${data.rank} / ${data.total} 局` : '首次出击'],
+    [
+      t('scorecard.tileLevel'),
+      data.mode === 'campaign' ? data.code : t('scorecard.endlessLevel', { n: data.level }),
+    ],
+    [t('scorecard.tileDamage'), formatNumber(data.damage)],
+    [t('scorecard.tileCombo'), formatNumber(data.combo)],
+    [t('scorecard.tileBricks'), formatNumber(data.kills)],
+    [t('scorecard.tileTime'), formatTime(data.time)],
+    [
+      t('scorecard.tileRank'),
+      data.total > 0
+        ? t('scorecard.rankOf', { rank: data.rank, total: data.total })
+        : t('scorecard.firstRun'),
+    ],
   ];
   const tileW = (W - 2 * M - 2 * 24) / 3;
   const tileH = 118;
@@ -281,7 +298,7 @@ function drawTiles(ctx: Ctx2D, data: ScorecardData): void {
 
 async function drawBuild(ctx: Ctx2D, data: ScorecardData): Promise<void> {
   const y = 1054;
-  text(ctx, 'FINAL BUILD · 最终构筑', M, y, {
+  text(ctx, t('scorecard.build'), M, y, {
     size: 21,
     weight: 700,
     fill: 'rgba(234,242,255,0.5)',
@@ -320,7 +337,7 @@ async function drawBuild(ctx: Ctx2D, data: ScorecardData): Promise<void> {
     });
   }
   if (icons.length === 0) {
-    text(ctx, '白板开局 · 没有携带任何强化', M, y + size + 40, {
+    text(ctx, t('scorecard.noBuild'), M, y + size + 40, {
       size: 20,
       weight: 500,
       fill: 'rgba(234,242,255,0.35)',
@@ -332,7 +349,7 @@ async function drawBuild(ctx: Ctx2D, data: ScorecardData): Promise<void> {
 function drawFooter(ctx: Ctx2D, accent: number): void {
   ctx.fillStyle = 'rgba(255,255,255,0.1)';
   ctx.fillRect(M, 1320, W - 2 * M, 1);
-  text(ctx, '越打越离谱 · ROGUELITE BREAKOUT', M, 1368, {
+  text(ctx, t('scorecard.tagline'), M, 1368, {
     size: 19,
     weight: 600,
     fill: 'rgba(234,242,255,0.4)',

@@ -1,5 +1,6 @@
 import './ui/styles.css';
 import { App } from './app';
+import { t } from './core/i18n';
 
 /** Shown when the game cannot start at all. The player should never have to open the console to learn why. */
 function fatal(error: unknown): void {
@@ -8,9 +9,9 @@ function fatal(error: unknown): void {
   const overlay = document.createElement('div');
   overlay.className = 'fatal';
   overlay.innerHTML = `
-    <div class="fatal-title">碎界 <span>SHATTERVERSE</span></div>
-    <h1>${noWebgl ? '无法启动' : '启动时出错'}</h1>
-    <p>${noWebgl ? '当前浏览器或设备不支持 WebGL2。请使用最新版 Chrome、Edge 或 Firefox，并确认已开启硬件加速。' : '请刷新页面重试。如果问题持续，请把下面的信息反馈给开发者。'}</p>
+    <div class="fatal-title">${t('boot.fatalTitle')} <span>SHATTERVERSE</span></div>
+    <h1>${noWebgl ? t('boot.fatalCannotStart') : t('boot.fatalErrored')}</h1>
+    <p>${noWebgl ? t('boot.fatalNoWebgl') : t('boot.fatalGeneric')}</p>
     <pre></pre>`;
   (overlay.querySelector('pre') as HTMLElement).textContent = message;
   document.body.replaceChildren(overlay);

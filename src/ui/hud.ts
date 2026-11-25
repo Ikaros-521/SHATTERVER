@@ -1,3 +1,5 @@
+import { t } from '../core/i18n';
+import { comboTierLabel, reactionName, tagName, upgradeName } from '../i18n/content';
 import { formatNumber, formatScore } from '../core/math';
 import { COMBO_TIME } from '../game/config';
 import { COMBO_TIERS, REACTIONS } from '../game/levels/definitions';
@@ -94,9 +96,7 @@ export class HUD {
     if (boss) {
       this.put(this.levelCode, boss.def.en);
       this.put(this.levelName, boss.def.name);
-      this.progressTrack.dataset.phase = boss.enraged
-        ? '狂暴 ENRAGED'
-        : `阶段 ${boss.phase} · PHASE ${boss.phase}`;
+      this.progressTrack.dataset.phase = boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase });
       setWidth(this.progress, boss.hp / boss.maxHp);
     } else {
       this.put(this.levelCode, world.level.code);
@@ -123,7 +123,9 @@ export class HUD {
         ...keep(
           ...run.reactions.map((id) => {
             const info = REACTIONS.find((r) => r.id === id);
-            return info ? el('span', { class: 'chip', style: `--c:${hexCss(info.color)}` }, info.name) : null;
+            return info
+              ? el('span', { class: 'chip', style: `--c:${hexCss(info.color)}` }, reactionName(info))
+              : null;
           }),
         ),
       );
@@ -136,7 +138,7 @@ export class HUD {
     if (comboSignature !== this.comboSignature) {
       this.comboSignature = comboSignature;
       this.comboBlock.style.setProperty('--tier', tier ? hexCss(tier.color) : 'transparent');
-      this.put(this.comboTier, tier ? `${tier.name} · ${tier.cn}` : '');
+      this.put(this.comboTier, tier ? `${tier.name} · ${comboTierLabel(world.comboTier)}` : '');
     }
     this.put(this.comboValue, String(world.combo));
     setWidth(this.comboFill, world.combo > 0 ? world.comboTimer / COMBO_TIME : 0);
@@ -151,15 +153,15 @@ export class HUD {
     const s = run.stats;
     const rows: [string, string][] = [
       ['DPS', formatNumber(dps)],
-      ['总伤害', formatNumber(run.totalDamage + world.totalDamage)],
-      ['球体', String(world.balls.filter((ball) => ball.alive && !ball.child).length)],
+      [t('hud.statDamage'), formatNumber(run.totalDamage + world.totalDamage)],
+      [t('hud.statBalls'), String(world.balls.filter((ball) => ball.alive && !ball.child).length)],
       [
-        '连击加成',
+        t('hud.statComboBonus'),
         s.comboDamagePer10 > 0
           ? `+${Math.round(Math.floor(world.combo / 10) * s.comboDamagePer10 * 100)}%`
           : '—',
       ],
-      ['暴击率', `${Math.round(Math.min(1, s.critChance) * 100)}%`],
+      [t('hud.statCrit'), `${Math.round(Math.min(1, s.critChance) * 100)}%`],
     ];
     if (this.statsList.childElementCount !== rows.length) {
       this.statsList.replaceChildren(...rows.map(() => el('div', { class: 'stat' }, el('dt'), el('dd'))));
@@ -195,7 +197,7 @@ export class HUD {
       type: interactive ? 'button' : undefined,
       'data-id': def.id,
       style: `--c:${hexCss(color)};--rarity:${hexCss(RARITY_INFO[def.rarity].color)}`,
-      'aria-label': `${def.name} Lv${level}`,
+      'aria-label': `${upgradeName(def)} Lv${level}`,
     });
     if (level >= def.maxLevel) node.classList.add('maxed');
     node.append(
@@ -243,6 +245,6 @@ export class HUD {
 export function tagChips(def: UpgradeDef): HTMLElement[] {
   return def.tags.map((tag) => {
     const info = TAG_INFO[tag];
-    return el('span', { class: 'chip', style: `--c:${hexCss(info.color)}` }, info.name);
+    return el('span', { class: 'chip', style: `--c:${hexCss(info.color)}` }, tagName(tag));
   });
 }

@@ -1,3 +1,4 @@
+import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
@@ -15,6 +16,8 @@ export interface Settings {
   difficulty: DifficultyId;
   /** True once the first-run tutorial has been shown (finished or skipped) on this device. */
   tutorialSeen: boolean;
+  /** Interface language. Chinese is the default regardless of the browser locale. */
+  language: Lang;
 }
 
 export interface Records {
@@ -80,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   seed: '',
   difficulty: DEFAULT_DIFFICULTY,
   tutorialSeen: false,
+  language: DEFAULT_LANG,
 };
 
 export const DEFAULT_RECORDS: Records = {
@@ -133,6 +137,7 @@ export function loadSave(): SaveData {
     seed: typeof settings.seed === 'string' ? settings.seed.slice(0, 24) : '',
     difficulty: isDifficultyId(settings.difficulty) ? settings.difficulty : DEFAULT_DIFFICULTY,
     tutorialSeen: bool(settings.tutorialSeen, DEFAULT_SETTINGS.tutorialSeen),
+    language: isLang(settings.language) ? settings.language : DEFAULT_SETTINGS.language,
   };
   save.records = {
     bestCampaign: Math.floor(num(records.bestCampaign, 0)),

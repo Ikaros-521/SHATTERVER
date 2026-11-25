@@ -1,8 +1,7 @@
+import { b, pct } from './format';
 import type { UpgradeDef } from './types';
 
 const def = (u: UpgradeDef): UpgradeDef => u;
-const b = (v: string | number): string => `<b>${v}</b>`;
-const pct = (v: number): string => `${Math.round(v * 100)}%`;
 
 /**
  * The upgrade pool. 39 upgrades across five rarities.

@@ -11,13 +11,13 @@
     <title>碎界 SHATTERVERSE</title>
   </head>
   <body data-screen="none">
-    <canvas id="gl" aria-label="游戏画面"></canvas>
+    <canvas id="gl" aria-label="游戏画面" data-i18n-aria="boot.canvasLabel"></canvas>
 
     <div id="ui">
       <!-- ───────────── in-game HUD ───────────── -->
       <div id="hud" hidden>
         <header id="hud-top" class="hud-top">
-          <div id="hud-lives" class="hud-lives" title="护盾"></div>
+          <div id="hud-lives" class="hud-lives" title="护盾" data-i18n-title="hud.shield"></div>
           <div class="hud-level">
             <div class="hud-level-text">
               <span id="hud-level-code" class="hud-code"></span>
@@ -34,9 +34,9 @@
         </header>
 
         <aside id="panel-build" class="panel">
-          <h3 class="panel-title">BUILD<span>构筑</span></h3>
+          <h3 class="panel-title">BUILD<span data-i18n="hud.build">构筑</span></h3>
           <div id="build-icons" class="build-icons"></div>
-          <p id="build-empty" class="build-empty">每通过一关，三选一。</p>
+          <p id="build-empty" class="build-empty" data-i18n="hud.buildEmpty">每通过一关，三选一。</p>
           <div id="build-reactions" class="chips" hidden></div>
         </aside>
 
@@ -54,7 +54,7 @@
         </div>
 
         <button id="od-hint" class="od-hint" type="button" hidden>
-          <kbd>空格</kbd><span>超载就绪 · 点击</span>
+          <kbd data-i18n="hud.keySpace">空格</kbd><span data-i18n="hud.odReady">超载就绪 · 点击</span>
         </button>
         <div id="banner" class="banner"></div>
       </div>
@@ -66,41 +66,47 @@
             <!-- The glitch layers are CSS pseudo-elements reading data-text; label the heading so they are not read aloud. -->
             <h1 class="logo-cn" data-text="碎界" aria-label="碎界 SHATTERVERSE">碎界</h1>
             <div class="logo-en">SHATTERVERSE</div>
-            <p class="logo-tag">越打越离谱的肉鸽打砖块</p>
+            <p class="logo-tag" data-i18n="menu.tagline">越打越离谱的肉鸽打砖块</p>
           </div>
           <nav class="menu-list">
             <button class="menu-item" type="button" data-action="campaign">
               <span class="menu-index">01</span>
-              <span class="menu-label">开始闯关<em>CAMPAIGN · 15 SECTORS</em></span>
+              <span class="menu-label"
+                ><span data-i18n="menu.campaign">开始闯关</span><em>CAMPAIGN · 15 SECTORS</em></span
+              >
             </button>
             <button class="menu-item" type="button" data-action="endless">
               <span class="menu-index">02</span>
-              <span class="menu-label">无尽模式<em>ENDLESS</em></span>
+              <span class="menu-label"><span data-i18n="menu.endless">无尽模式</span><em>ENDLESS</em></span>
             </button>
             <button class="menu-item" type="button" data-action="tutorial">
               <span class="menu-index">03</span>
-              <span class="menu-label">新手说明<em>TUTORIAL</em></span>
+              <span class="menu-label"><span data-i18n="menu.tutorial">新手说明</span><em>TUTORIAL</em></span>
             </button>
             <button class="menu-item" type="button" data-action="codex">
               <span class="menu-index">04</span>
-              <span class="menu-label">强化图鉴<em>CODEX</em></span>
+              <span class="menu-label"><span data-i18n="menu.codex">强化图鉴</span><em>CODEX</em></span>
             </button>
             <button class="menu-item" type="button" data-action="history">
               <span class="menu-index">05</span>
-              <span class="menu-label">战绩排行<em>RECORDS</em></span>
+              <span class="menu-label"><span data-i18n="menu.history">战绩排行</span><em>RECORDS</em></span>
             </button>
             <button id="menu-cloud" class="menu-item" type="button" data-action="cloud">
               <span class="menu-index">06</span>
-              <span class="menu-label">云端排行榜<em>CLOUD BOARD</em></span>
+              <span class="menu-label"
+                ><span data-i18n="menu.cloud">云端排行榜</span><em>CLOUD BOARD</em></span
+              >
             </button>
             <button class="menu-item" type="button" data-action="settings">
               <span class="menu-index">07</span>
-              <span class="menu-label">设置<em>SETTINGS</em></span>
+              <span class="menu-label"><span data-i18n="menu.settings">设置</span><em>SETTINGS</em></span>
             </button>
           </nav>
           <footer class="menu-foot">
             <span id="menu-records" class="menu-records"></span>
-            <span class="menu-help">移动鼠标 控制挡板 · <kbd>空格</kbd>/点击 超载 · <kbd>P</kbd> 暂停</span>
+            <span class="menu-help" data-i18n-html="menu.help"
+              >移动鼠标 控制挡板 · <kbd>空格</kbd>/点击 超载 · <kbd>P</kbd> 暂停</span
+            >
           </footer>
         </div>
       </section>
@@ -109,14 +115,18 @@
         <div class="dialog dialog-wide">
           <header class="dialog-head">
             <div class="eyebrow" id="starter-eyebrow">CAMPAIGN</div>
-            <h2>选择初始协议</h2>
-            <p class="dialog-sub">协议决定这局构筑的起点。之后的每一次三选一，都由你决定。</p>
+            <h2 data-i18n="starter.title">选择初始协议</h2>
+            <p class="dialog-sub" data-i18n="starter.sub">
+              协议决定这局构筑的起点。之后的每一次三选一，都由你决定。
+            </p>
           </header>
           <div id="diff-row" class="diff-row" role="group" aria-label="难度"></div>
           <p id="diff-detail" class="diff-detail"></p>
           <div id="starter-grid" class="cards cards-starter"></div>
           <footer class="dialog-foot">
-            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+            <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
+              返回
+            </button>
           </footer>
         </div>
       </section>
@@ -126,17 +136,17 @@
           <header class="draft-head">
             <div>
               <div class="eyebrow" id="draft-eyebrow">SECTOR CLEAR</div>
-              <h2>选择一项强化</h2>
+              <h2 data-i18n="draft.title">选择一项强化</h2>
             </div>
             <span id="draft-crystals" class="crystal crystal-big"></span>
           </header>
           <div id="draft-cards" class="cards"></div>
           <footer class="draft-foot">
             <button id="btn-reroll" class="btn" type="button" data-action="reroll">
-              刷新<span id="reroll-cost" class="cost"></span>
+              <span data-i18n="draft.reroll">刷新</span><span id="reroll-cost" class="cost"></span>
             </button>
             <button id="btn-skip" class="btn btn-ghost" type="button" data-action="skip">
-              跳过<span id="skip-reward" class="gain"></span>
+              <span data-i18n="draft.skip">跳过</span><span id="skip-reward" class="gain"></span>
             </button>
           </footer>
         </div>
@@ -146,17 +156,19 @@
         <div class="dialog dialog-narrow">
           <header class="dialog-head">
             <div class="eyebrow">PAUSED</div>
-            <h2>已暂停</h2>
+            <h2 data-i18n="pause.title">已暂停</h2>
           </header>
           <nav class="menu-list compact">
             <button class="menu-item" type="button" data-action="resume">
-              <span class="menu-label">继续<em>RESUME</em></span>
+              <span class="menu-label"><span data-i18n="pause.resume">继续</span><em>RESUME</em></span>
             </button>
             <button class="menu-item" type="button" data-action="settings">
-              <span class="menu-label">设置<em>SETTINGS</em></span>
+              <span class="menu-label"><span data-i18n="pause.settings">设置</span><em>SETTINGS</em></span>
             </button>
             <button class="menu-item danger" type="button" data-action="quit">
-              <span class="menu-label">放弃本局<em>ABANDON RUN</em></span>
+              <span class="menu-label"
+                ><span data-i18n="pause.abandon">放弃本局</span><em>ABANDON RUN</em></span
+              >
             </button>
           </nav>
           <footer class="dialog-foot">
@@ -180,13 +192,21 @@
           </div>
           <div id="over-timeline" class="timeline"></div>
           <footer class="dialog-foot">
-            <button class="btn" type="button" data-action="retry">再来一局<em>RETRY</em></button>
-            <button id="btn-shot" class="btn btn-ghost" type="button" data-action="shot">
-              <span class="shot-text">保存战绩截图</span>
+            <button class="btn" type="button" data-action="retry">
+              <span data-i18n="over.retry">再来一局</span><em>RETRY</em>
             </button>
-            <button class="btn btn-ghost" type="button" data-action="history">查看战绩</button>
-            <button class="btn btn-ghost" type="button" data-action="cloud">云端榜单</button>
-            <button class="btn btn-ghost" type="button" data-action="quit">返回主菜单</button>
+            <button id="btn-shot" class="btn btn-ghost" type="button" data-action="shot">
+              <span class="shot-text" data-i18n="over.saveShot">保存战绩截图</span>
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="history" data-i18n="over.viewHistory">
+              查看战绩
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="cloud" data-i18n="over.cloudBoard">
+              云端榜单
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="quit" data-i18n="over.backToMenu">
+              返回主菜单
+            </button>
           </footer>
         </div>
       </section>
@@ -195,16 +215,20 @@
         <div class="dialog dialog-wide dialog-tall">
           <header class="dialog-head">
             <div class="eyebrow">RECORDS</div>
-            <h2>战绩排行</h2>
+            <h2 data-i18n="history.title">战绩排行</h2>
             <p id="history-summary" class="dialog-sub"></p>
           </header>
           <div class="tabs" id="history-tabs">
-            <button class="tab" type="button" data-tab="campaign">闯关</button>
-            <button class="tab" type="button" data-tab="endless">无尽</button>
+            <button class="tab" type="button" data-tab="campaign" data-i18n="history.tabCampaign">
+              闯关
+            </button>
+            <button class="tab" type="button" data-tab="endless" data-i18n="history.tabEndless">无尽</button>
           </div>
           <div id="history-body" class="history-body"></div>
           <footer class="dialog-foot">
-            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+            <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
+              返回
+            </button>
           </footer>
         </div>
       </section>
@@ -213,25 +237,28 @@
         <div class="dialog dialog-wide dialog-tall">
           <header class="dialog-head">
             <div class="eyebrow">CLOUD · CHEDDABOARDS</div>
-            <h2>云端排行榜</h2>
-            <p class="dialog-sub">
+            <h2 data-i18n="cloud.title">云端排行榜</h2>
+            <p class="dialog-sub" data-i18n="cloud.sub">
               成绩自动上传。总榜混合所有难度，难度与模式各有独立榜单（需在服务后台创建后自动出现）。
             </p>
           </header>
 
           <div class="cloud-name">
             <label class="cloud-name-field">
-              <span>昵称</span>
+              <span data-i18n="cloud.nicknameLabel">昵称</span>
               <input
                 id="cloud-nickname"
                 type="text"
                 maxlength="16"
                 placeholder="3–16 位英文字母、数字或下划线"
+                data-i18n-placeholder="cloud.nicknamePlaceholder"
                 autocomplete="off"
                 spellcheck="false"
               />
             </label>
-            <button id="cloud-save-name" class="btn btn-small" type="button">保存昵称</button>
+            <button id="cloud-save-name" class="btn btn-small" type="button" data-i18n="cloud.saveName">
+              保存昵称
+            </button>
           </div>
           <p id="cloud-name-note" class="setting-note" hidden></p>
 
@@ -240,7 +267,9 @@
 
           <footer class="dialog-foot">
             <span id="cloud-foot" class="cloud-foot"></span>
-            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+            <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
+              返回
+            </button>
           </footer>
         </div>
       </section>
@@ -249,17 +278,21 @@
         <div class="dialog dialog-wide dialog-tall">
           <header class="dialog-head">
             <div class="eyebrow">CODEX</div>
-            <h2>强化图鉴</h2>
+            <h2 data-i18n="codex.title">强化图鉴</h2>
             <p id="codex-progress" class="dialog-sub"></p>
           </header>
           <div class="tabs" id="codex-tabs">
-            <button class="tab" type="button" data-tab="upgrades">强化</button>
-            <button class="tab" type="button" data-tab="reactions">元素反应</button>
-            <button class="tab" type="button" data-tab="rules">玩法</button>
+            <button class="tab" type="button" data-tab="upgrades" data-i18n="codex.tabUpgrades">强化</button>
+            <button class="tab" type="button" data-tab="reactions" data-i18n="codex.tabReactions">
+              元素反应
+            </button>
+            <button class="tab" type="button" data-tab="rules" data-i18n="codex.tabRules">玩法</button>
           </div>
           <div id="codex-body" class="codex-body"></div>
           <footer class="dialog-foot">
-            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+            <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
+              返回
+            </button>
           </footer>
         </div>
       </section>
@@ -268,47 +301,70 @@
         <div class="dialog dialog-narrow">
           <header class="dialog-head">
             <div class="eyebrow">SETTINGS</div>
-            <h2>设置</h2>
+            <h2 data-i18n="settings.title">设置</h2>
           </header>
           <div class="settings">
             <label class="setting"
-              ><span>音乐音量</span><input id="set-music" type="range" min="0" max="1" step="0.01"
-            /></label>
-            <label class="setting"
-              ><span>音效音量</span><input id="set-sfx" type="range" min="0" max="1" step="0.01"
-            /></label>
-            <label class="setting"><span>屏幕震动</span><input id="set-shake" type="checkbox" /></label>
-            <label class="setting"><span>闪烁效果</span><input id="set-flash" type="checkbox" /></label>
-            <label class="setting"
-              ><span>画质</span>
-              <select id="set-quality">
-                <option value="low">低 · 流畅优先</option>
-                <option value="medium">中</option>
-                <option value="high">高 · 全特效</option>
+              ><span data-i18n="settings.language">语言</span>
+              <select id="set-language">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
               </select>
             </label>
             <label class="setting"
-              ><span>固定种子</span
+              ><span data-i18n="settings.music">音乐音量</span
+              ><input id="set-music" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="setting"
+              ><span data-i18n="settings.sfx">音效音量</span
+              ><input id="set-sfx" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="setting"
+              ><span data-i18n="settings.shake">屏幕震动</span><input id="set-shake" type="checkbox"
+            /></label>
+            <label class="setting"
+              ><span data-i18n="settings.flashes">闪烁效果</span><input id="set-flash" type="checkbox"
+            /></label>
+            <label class="setting"
+              ><span data-i18n="settings.quality">画质</span>
+              <select id="set-quality">
+                <option value="low" data-i18n="settings.qualityLow">低 · 流畅优先</option>
+                <option value="medium" data-i18n="settings.qualityMedium">中</option>
+                <option value="high" data-i18n="settings.qualityHigh">高 · 全特效</option>
+              </select>
+            </label>
+            <label class="setting"
+              ><span data-i18n="settings.seed">固定种子</span
               ><input
                 id="set-seed"
                 type="text"
                 maxlength="24"
                 placeholder="留空则每局随机"
+                data-i18n-placeholder="settings.seedPlaceholder"
                 autocomplete="off"
                 spellcheck="false"
             /></label>
           </div>
           <p id="quality-note" class="setting-note" hidden></p>
-          <section class="perf" aria-label="性能诊断">
+          <section class="perf" aria-label="性能诊断" data-i18n-aria="settings.perfHead">
             <div class="perf-head">
-              <span>性能诊断</span>
-              <span id="perf-line">正在采集…</span>
+              <span data-i18n="settings.perfHead">性能诊断</span>
+              <span id="perf-line" data-i18n="settings.perfCollecting">正在采集…</span>
             </div>
             <p id="perf-gpu" class="perf-gpu" hidden></p>
-            <button id="btn-perf" class="btn btn-ghost btn-small" type="button">检测渲染耗时</button>
+            <button
+              id="btn-perf"
+              class="btn btn-ghost btn-small"
+              type="button"
+              data-i18n="settings.perfButton"
+            >
+              检测渲染耗时
+            </button>
           </section>
           <footer class="dialog-foot">
-            <button class="btn" type="button" data-action="back">完成</button>
+            <button class="btn" type="button" data-action="back" data-i18n="settings.done">完成</button>
           </footer>
         </div>
       </section>
@@ -316,7 +372,9 @@
       <div id="tooltip" class="tooltip" hidden></div>
     </div>
 
-    <noscript><p class="noscript">需要启用 JavaScript 才能运行《碎界》。</p></noscript>
+    <noscript
+      ><p class="noscript" data-i18n="boot.noscript">需要启用 JavaScript 才能运行《碎界》。</p></noscript
+    >
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

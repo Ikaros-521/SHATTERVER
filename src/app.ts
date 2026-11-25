@@ -1,4 +1,5 @@
 import { FrameTimes } from './core/frametimes';
+import { applyDom, setLang, t } from './core/i18n';
 import { clamp } from './core/math';
 import { hashString, randomSeed, RNG } from './core/rng';
 import {
@@ -18,6 +19,7 @@ import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
 import type { RunMode } from './game/run';
 import { Session } from './game/session';
 import { STARTERS, type Starter } from './game/starters';
+import { comboTierLabel, reactionDesc, reactionName, reactionRecipe } from './i18n/content';
 import type { UpgradeDef } from './game/upgrades/types';
 import { RARITY_INFO, upgradeColor } from './game/upgrades/present';
 import type { World } from './game/world';
@@ -254,6 +256,9 @@ export class App implements UiActions {
   }
 
   start(): void {
+    // The saved language drives both the module state and the static markup before the first screen.
+    setLang(this.save.settings.language);
+    applyDom();
     this.ui.showMenu();
     this.lastTime = performance.now();
     requestAnimationFrame(this.frame);
@@ -346,7 +351,7 @@ export class App implements UiActions {
           if (info)
             this.ui.banner({
               title: info.name,
-              sub: info.cn,
+              sub: comboTierLabel(tier),
               color: info.color,
               small: true,
               duration: 1.1,
@@ -359,7 +364,7 @@ export class App implements UiActions {
           if (perfect)
             this.ui.banner({
               title: 'PERFECT',
-              sub: '完美接球',
+              sub: t('callouts.perfectSub'),
               color: 0x7dffe0,
               small: true,
               duration: 0.75,
@@ -371,18 +376,27 @@ export class App implements UiActions {
         whenPlaying(() => {
           const info = REACTIONS.find((r) => r.id === id);
           if (first && info)
-            this.ui.toast(`元素反应 · ${info.name}`, `${info.recipe}：${info.desc}`, info.color);
+            this.ui.toast(
+              t('callouts.reactionToast', { name: reactionName(info) }),
+              t('callouts.reactionDetail', { recipe: reactionRecipe(info), desc: reactionDesc(info) }),
+              info.color,
+            );
         }),
       ),
       world.events.on('boss', ({ phase }) =>
         whenPlaying(() => {
           const boss = world.boss;
           if (phase === 'die')
-            this.ui.banner({ title: 'BOSS DOWN', sub: '首领击破', color: 0xffd24a, duration: 2 });
+            this.ui.banner({
+              title: 'BOSS DOWN',
+              sub: t('callouts.bossDownSub'),
+              color: 0xffd24a,
+              duration: 2,
+            });
           else if (phase === 'enrage')
             this.ui.banner({
               title: 'ENRAGED',
-              sub: 'BOSS 狂暴',
+              sub: t('callouts.enragedSub'),
               color: 0xff3d5a,
               small: true,
               duration: 1.3,
@@ -391,7 +405,7 @@ export class App implements UiActions {
           else if (boss)
             this.ui.banner({
               title: `PHASE ${boss.phase}`,
-              sub: `阶段 ${boss.phase}`,
+              sub: t('callouts.phaseSub', { n: boss.phase }),
               color: 0xff2fb0,
               small: true,
               duration: 1.1,
@@ -404,7 +418,7 @@ export class App implements UiActions {
           if (phase === 'start')
             this.ui.banner({
               title: 'OVERDRIVE',
-              sub: '超载',
+              sub: t('callouts.overdriveSub'),
               color: 0x9ff3ff,
               small: true,
               duration: 1,
@@ -417,7 +431,7 @@ export class App implements UiActions {
           if (phase === 'start')
             this.ui.banner({
               title: 'TIME STOP',
-              sub: '时停',
+              sub: t('callouts.timeStopSub'),
               color: 0xcfe6ff,
               small: true,
               duration: 1.1,
@@ -426,7 +440,9 @@ export class App implements UiActions {
         }),
       ),
       world.events.on('clear', () =>
-        whenPlaying(() => this.ui.banner({ title: 'SECTOR CLEAR', sub: '关卡清除', duration: 1.5 })),
+        whenPlaying(() =>
+          this.ui.banner({ title: 'SECTOR CLEAR', sub: t('callouts.sectorClearSub'), duration: 1.5 }),
+        ),
       ),
     ];
     return () => {
@@ -528,6 +544,11 @@ export class App implements UiActions {
       // A choice made by hand outranks everything the governor has learned about this device.
       this.governor.choose(tierOf(patch.quality));
       this.save.device = null;
+    }
+    if (patch.language) {
+      // The static markup sweep plus a re-render of whatever is on screen; the HUD self-heals.
+      setLang(patch.language);
+      this.ui.applyLanguage();
     }
     storeSave(this.save);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
@@ -870,20 +891,15 @@ export class App implements UiActions {
       // instead of stumbling through the same seconds of stutter again.
       this.rememberStep(event.tier);
       this.ui.toast(
-        '画质已自动调整',
-        `本机帧率不足，现为「${tierLabel(event.tier)}」，已为这台设备记住。可在设置里手动改回`,
+        t('callouts.qualityAdjustedTitle'),
+        t('callouts.qualityAdjustedBody', { tier: tierLabel(event.tier) }),
         0xffd24a,
         'quality',
       );
     }
     if (event.gaveUp) {
       this.rememberStep(event.tier);
-      this.ui.toast(
-        '已恢复你选择的画质',
-        '降低画质并没有提高帧率，卡顿另有原因（常见于系统省电模式限制帧率）',
-        0x9ff3ff,
-        'quality',
-      );
+      this.ui.toast(t('callouts.qualityGaveUpTitle'), t('callouts.qualityGaveUpBody'), 0x9ff3ff, 'quality');
     }
   }
 

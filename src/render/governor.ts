@@ -1,4 +1,5 @@
 import { OUTLIER_MS, SLOW_MS } from '../core/frametimes';
+import { t } from '../core/i18n';
 import type { QualityLevel } from './layout';
 
 /** A step the renderer can sit on: a quality tier plus a scale on its pixel ratio. */
@@ -31,13 +32,16 @@ export const STRUGGLING = 0.8;
 /** A step helped when the mean frame time fell to this share of what it was, or lower. */
 export const RELIEF = 0.85;
 
-const QUALITY_NAME: Record<QualityLevel, string> = { high: '高', medium: '中', low: '低' };
-
-/** Player-facing name of a step, e.g. "低" or "低（75% 渲染分辨率）". */
+/** Player-facing name of a step, e.g. "低" or "低（75% 渲染分辨率）" — in the active language. */
 export function tierLabel(tier: Tier): string {
-  return tier.scale < 1
-    ? `${QUALITY_NAME[tier.quality]}（${Math.round(tier.scale * 100)}% 渲染分辨率）`
-    : QUALITY_NAME[tier.quality];
+  const key =
+    tier.quality === 'high'
+      ? 'governor.qualityHigh'
+      : tier.quality === 'medium'
+        ? 'governor.qualityMedium'
+        : 'governor.qualityLow';
+  const name = t(key);
+  return tier.scale < 1 ? t('governor.scaled', { name, pct: Math.round(tier.scale * 100) }) : name;
 }
 
 /** The step a player's choice names: that tier at full resolution. */

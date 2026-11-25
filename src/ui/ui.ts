@@ -1,6 +1,26 @@
 import type { AudioDirector } from '../audio/director';
+import { applyDom, isLang, t } from '../core/i18n';
 import { formatNumber, formatScore, formatTime, mixHex } from '../core/math';
 import type { SaveData, Settings } from '../core/storage';
+import {
+  bossName,
+  bossTitle,
+  difficultyDetail,
+  difficultyName,
+  levelName,
+  mutatorDesc,
+  mutatorName,
+  rarityName,
+  reactionDesc,
+  reactionName,
+  reactionRecipe,
+  starterDesc,
+  starterName,
+  upgradeDescribe,
+  upgradeFlavor,
+  upgradeName,
+  upgradeNameById,
+} from '../i18n/content';
 import { difficultyOf, DIFFICULTIES, type DifficultyId } from '../game/difficulty';
 import { CAMPAIGN_LENGTH } from '../game/levels/generator';
 import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
@@ -109,6 +129,10 @@ export class UI implements HudHost {
   private accent = DEFAULT_ACCENT;
   /** Levels of the run currently on screen, for tooltips. */
   private levels: Record<string, number> = {};
+  /** Last shown draft, so a language switch can re-render it in place. */
+  private lastDraft: { info: SessionEvents['draft']; session: Session } | null = null;
+  /** Last shown results, same purpose; `showResults` is sound-free so it can simply re-run. */
+  private lastResults: Parameters<UI['showResults']> | null = null;
 
   private readonly tooltip = byId('tooltip');
   private readonly bannerHost = byId('banner');
@@ -190,12 +214,17 @@ export class UI implements HudHost {
 
     const patch = (change: Partial<Settings>): void => this.actions.updateSettings(change);
     // Capture the elements: `event.currentTarget` is only reliably typed inside the dispatch.
+    const language = byId<HTMLSelectElement>('set-language');
     const music = byId<HTMLInputElement>('set-music');
     const sfx = byId<HTMLInputElement>('set-sfx');
     const shake = byId<HTMLInputElement>('set-shake');
     const flash = byId<HTMLInputElement>('set-flash');
     const quality = byId<HTMLSelectElement>('set-quality');
     const seed = byId<HTMLInputElement>('set-seed');
+    language.addEventListener('change', () => {
+      const value = language.value;
+      if (isLang(value)) patch({ language: value });
+    });
     music.addEventListener('input', () => patch({ music: Number(music.value) }));
     sfx.addEventListener('input', () => patch({ sfx: Number(sfx.value) }));
     shake.addEventListener('change', () => patch({ shake: shake.checked }));
@@ -308,15 +337,15 @@ export class UI implements HudHost {
     if (records.bestCampaign > 0) {
       const boss = Math.floor(records.bestCampaign / 5);
       parts.push(
-        `闯关最深 ${records.bestCampaign}${records.bestCampaign >= CAMPAIGN_LENGTH ? '' : `（击败 BOSS ×${boss}）`}`,
+        t('menu.recordCampaignDepth', { n: records.bestCampaign }) +
+          (records.bestCampaign >= CAMPAIGN_LENGTH ? '' : t('menu.recordBossNote', { n: boss })),
       );
     }
-    if (records.bestEndless > 0) parts.push(`无尽最深 第 ${records.bestEndless} 关`);
-    if (records.bestScore > 0) parts.push(`最高分 ${formatScore(records.bestScore)}`);
-    if (records.wins > 0) parts.push(`通关 ${records.wins} 次`);
-    if (records.runs > 0) parts.push(`已打 ${records.runs} 局`);
-    byId('menu-records').textContent =
-      parts.length > 0 ? parts.join(' · ') : '还没有记录。第一局，从这里开始。';
+    if (records.bestEndless > 0) parts.push(t('menu.recordEndlessDepth', { n: records.bestEndless }));
+    if (records.bestScore > 0) parts.push(t('menu.recordBestScore', { n: formatScore(records.bestScore) }));
+    if (records.wins > 0) parts.push(t('menu.recordWins', { n: records.wins }));
+    if (records.runs > 0) parts.push(t('menu.recordRuns', { n: records.runs }));
+    byId('menu-records').textContent = parts.length > 0 ? parts.join(' · ') : t('menu.recordsEmpty');
     // A build without credentials simply has no cloud section: no dead menu entry.
     byId('menu-cloud').hidden = this.cloudPanel === null;
     // First launch of a fresh save opens the deck on top of the menu; veterans keep their menu.
@@ -332,7 +361,7 @@ export class UI implements HudHost {
   showStarter(mode: RunMode): void {
     this.starterMode = mode;
     byId('starter-eyebrow').textContent =
-      mode === 'campaign' ? 'CAMPAIGN · 15 SECTORS · 3 BOSSES' : 'ENDLESS · 没有终点';
+      mode === 'campaign' ? t('starter.campaignEyebrow') : t('starter.endlessEyebrow');
     this.renderDifficulty();
     const grid = byId('starter-grid');
     grid.replaceChildren(
@@ -359,7 +388,7 @@ export class UI implements HudHost {
             style: `--c:#${tier.color.toString(16).padStart(6, '0')}`,
             'aria-pressed': String(selected),
           },
-          el('b', { text: tier.name }),
+          el('b', { text: difficultyName(tier) }),
           el('span', { text: `${tier.en} · ×${tier.scoreMult}` }),
         );
         button.addEventListener('click', () => {
@@ -372,10 +401,18 @@ export class UI implements HudHost {
         return button;
       }),
     );
-    setText(byId('diff-detail'), difficultyOf(this.difficulty).detail.join(' · '));
+    setText(byId('diff-detail'), difficultyDetail(this.difficulty).join(' · '));
   }
 
   showDraft(info: SessionEvents['draft'], session: Session): void {
+    this.lastDraft = { info, session };
+    this.renderDraft(info, session);
+    this.show('draft');
+    this.audio.ui('draft');
+  }
+
+  /** Rebuilds the draft screen's body; `showDraft` adds the screen switch and the sound cue. */
+  private renderDraft(info: SessionEvents['draft'], session: Session): void {
     const cards = byId('draft-cards');
     cards.replaceChildren();
     info.options.forEach((def, i) => {
@@ -384,13 +421,11 @@ export class UI implements HudHost {
       card.style.animationDelay = `${i * 90}ms`;
       cards.append(card);
     });
-    setText(byId('draft-eyebrow'), `SECTOR ${session.world.level.code} CLEAR`);
+    setText(byId('draft-eyebrow'), t('draft.eyebrow', { code: session.world.level.code }));
     setText(byId('draft-crystals'), formatNumber(session.run.crystals));
     setText(byId('reroll-cost'), `◆ ${info.rerollCost}`);
     setText(byId('skip-reward'), `+◆ ${info.skipReward}`);
     byId<HTMLButtonElement>('btn-reroll').disabled = session.run.crystals < info.rerollCost;
-    this.show('draft');
-    this.audio.ui('draft');
   }
 
   showPause(session: Session): void {
@@ -405,37 +440,39 @@ export class UI implements HudHost {
     newRecords: string[],
     rank: { rank: number; total: number } | null,
   ): void {
+    this.lastResults = [session, won, newRecords, rank];
     const run = session.run;
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
-    const tierLabel = tier.id !== 'standard' ? `${tier.name}难度 · ` : '';
+    const tierSuffix = tier.id !== 'standard' ? t('over.diffSuffix', { name: difficultyName(tier) }) : '';
+    const localizedLevel = levelName(level.chapter, level.name);
     // The upload line belongs to this run; the app fills it in when the submit settles.
     byId('over-cloud').hidden = true;
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
-    setText(byId('over-title'), won ? '深渊已被碾碎' : '护盾击穿');
+    setText(byId('over-title'), won ? t('over.titleWon') : t('over.titleLost'));
     setText(
       byId('over-sub'),
       won
-        ? `三个 BOSS，十五个扇区，一套离谱到没边的构筑。${tierLabel ? `（${tier.name}）` : ''}`
-        : `${tierLabel}${run.mode === 'campaign' ? '闯关模式' : '无尽模式'} · 止步 ${run.mode === 'campaign' ? `${level.code} ` : ''}${level.name}`,
+        ? `${t('over.subWon')}${tierSuffix ? `（${difficultyName(tier)}）` : ''}`
+        : `${tierSuffix}${run.mode === 'campaign' ? t('over.campaignMode') : t('over.endlessMode')} · ${t('over.stopAt', { code: run.mode === 'campaign' ? `${level.code} ` : '', name: localizedLevel })}`,
     );
 
     const scoreNote = newRecords.includes('score')
-      ? '新纪录'
+      ? t('over.newRecord')
       : rank && rank.total > 1
-        ? `历史第 ${rank.rank} 名 · 共 ${rank.total} 局`
+        ? t('over.rankNote', { rank: rank.rank, total: rank.total })
         : undefined;
     const tiles: [string, string, string?][] = [
-      ['最终得分', formatScore(run.score), scoreNote],
+      [t('over.tileScore'), formatScore(run.score), scoreNote],
       [
-        '抵达关卡',
-        run.mode === 'campaign' ? level.code : `第 ${run.level} 关`,
-        newRecords.includes('level') ? '新纪录' : undefined,
+        t('over.tileLevel'),
+        run.mode === 'campaign' ? level.code : t('over.endlessLevel', { n: run.level }),
+        newRecords.includes('level') ? t('over.newRecord') : undefined,
       ],
-      ['总伤害', formatNumber(run.totalDamage)],
-      ['最高连击', String(run.maxCombo)],
-      ['击碎砖块', formatNumber(run.kills)],
-      ['存活时间', formatTime(run.time)],
+      [t('over.tileDamage'), formatNumber(run.totalDamage)],
+      [t('over.tileCombo'), String(run.maxCombo)],
+      [t('over.tileBricks'), formatNumber(run.kills)],
+      [t('over.tileTime'), formatTime(run.time)],
     ];
     byId('over-stats').replaceChildren(
       ...tiles.map(([label, value, note], i) =>
@@ -461,7 +498,12 @@ export class UI implements HudHost {
         const bar = el('div', {
           class: `tl-bar${record.level % 5 === 0 ? ' boss' : ''}`,
           style: `height:${Math.max(10, (record.time / longest) * 100).toFixed(1)}%;--c:${hexCss(color)}`,
-          title: `${record.level} ${record.name} · ${record.time.toFixed(1)} 秒 · 受创 ${record.damageTaken}`,
+          title: t('over.timelineTip', {
+            level: record.level,
+            name: record.name,
+            time: record.time.toFixed(1),
+            n: record.damageTaken,
+          }),
         });
         bar.style.animationDelay = `${Math.min(i, 20) * 35}ms`;
         return bar;
@@ -510,7 +552,11 @@ export class UI implements HudHost {
     });
     setText(
       byId('history-summary'),
-      `本地共 ${records.runs} 局 · 通关 ${records.wins} 次 · 累计击碎 ${formatNumber(records.bricks)} 块砖`,
+      t('history.summary', {
+        runs: records.runs,
+        wins: records.wins,
+        bricks: formatNumber(records.bricks),
+      }),
     );
     const body = byId('history-body');
     body.replaceChildren();
@@ -524,10 +570,7 @@ export class UI implements HudHost {
       body.append(
         el('div', {
           class: 'history-empty',
-          text:
-            this.historyTab === 'campaign'
-              ? '还没有闯关记录。第一局，从主菜单开始。'
-              : '还没有无尽模式记录。',
+          text: this.historyTab === 'campaign' ? t('history.emptyCampaign') : t('history.emptyEndless'),
         }),
       );
       return;
@@ -536,8 +579,11 @@ export class UI implements HudHost {
       const rank = i + 1;
       const where =
         entry.mode === 'campaign'
-          ? `${entry.won ? '通关' : '止步'} ${entry.code} ${entry.name}`.trim()
-          : `第 ${entry.level} 关`;
+          ? t(entry.won ? 'history.whereWon' : 'history.whereLost', {
+              code: entry.code,
+              name: entry.name,
+            }).trim()
+          : t('history.whereEndless', { level: entry.level });
       const icons = this.miniBuild(entry.build);
       const row = el(
         'div',
@@ -554,16 +600,24 @@ export class UI implements HudHost {
               ? el('span', {
                   class: 'rank-chip diff',
                   style: `--c:#${difficultyOf(entry.difficulty).color.toString(16).padStart(6, '0')}`,
-                  text: difficultyOf(entry.difficulty).name,
+                  text: difficultyName(difficultyOf(entry.difficulty)),
                 })
               : null,
             entry.won ? el('span', { class: 'rank-chip win', text: 'WIN' }) : null,
-            entry.date === newest ? el('span', { class: 'rank-chip new', text: '最新' }) : null,
+            entry.date === newest
+              ? el('span', { class: 'rank-chip new', text: t('history.chipLatest') })
+              : null,
             icons.length > 0 ? el('span', { class: 'rank-build' }, ...icons) : null,
           ),
           el('div', {
             class: 'rank-meta',
-            text: `${where} · 连击 ${formatNumber(entry.combo)} · 伤害 ${formatNumber(entry.damage)} · ${formatTime(entry.time)} · ${this.dateLabel(entry.date)}`,
+            text: t('history.metaRow', {
+              where,
+              combo: formatNumber(entry.combo),
+              damage: formatNumber(entry.damage),
+              time: formatTime(entry.time),
+              date: this.dateLabel(entry.date),
+            }),
           }),
         ),
       );
@@ -583,8 +637,8 @@ export class UI implements HudHost {
     const icons: HTMLElement[] = entries.slice(0, 8).map(({ def, level }) =>
       el('img', {
         src: sigil(def.id, upgradeColor(def.tags, def.rarity)),
-        alt: def.name,
-        title: `${def.name} Lv${level}`,
+        alt: upgradeName(def),
+        title: `${upgradeName(def)} Lv${level}`,
       }),
     );
     if (entries.length > 8)
@@ -602,11 +656,11 @@ export class UI implements HudHost {
   private async takeScorecard(): Promise<void> {
     const button = byId<HTMLButtonElement>('btn-shot');
     const label = button.querySelector<HTMLElement>('.shot-text') ?? button;
-    const original = label.textContent ?? '保存战绩截图';
+    const original = t('over.saveShot');
     button.disabled = true;
     const ok = await this.actions.downloadScorecard().catch(() => false);
     button.disabled = false;
-    label.textContent = ok ? '已保存 ✓' : '生成失败';
+    label.textContent = ok ? t('over.shotSaved') : t('over.shotFailed');
     if (ok) this.audio.ui('pick', 2);
     window.setTimeout(() => {
       label.textContent = original;
@@ -616,6 +670,7 @@ export class UI implements HudHost {
   showSettings(): void {
     this.returnTo = this.current === 'pause' ? 'pause' : 'menu';
     const s = this.save.settings;
+    byId<HTMLSelectElement>('set-language').value = s.language;
     byId<HTMLInputElement>('set-music').value = String(s.music);
     byId<HTMLInputElement>('set-sfx').value = String(s.sfx);
     byId<HTMLInputElement>('set-shake').checked = s.shake;
@@ -631,18 +686,19 @@ export class UI implements HudHost {
     setText(
       byId('perf-line'),
       info.samples < 30
-        ? '正在采集…'
-        : `平均 ${Math.round(info.fps)} fps · 低帧 ${Math.round(info.lowFps)} fps · 卡顿 ${Math.round(info.jank * 100)}%`,
+        ? t('settings.perfCollecting')
+        : t('settings.perfLine', {
+            fps: Math.round(info.fps),
+            low: Math.round(info.lowFps),
+            jank: Math.round(info.jank * 100),
+          }),
     );
     const note = byId('quality-note');
     note.hidden = !info.adjusted && !info.gaveUp;
     if (info.adjusted) {
-      setText(
-        note,
-        `实际生效：${tierLabel(info.tier)}。本机帧率不足时游戏会自动降档并记住；手动选择画质后，会按你的选择重新尝试。`,
-      );
+      setText(note, t('settings.perfAdjusted', { tier: tierLabel(info.tier) }));
     } else if (info.gaveUp) {
-      setText(note, '检测到帧率偏低，但降低画质并不能改善——多半是系统省电模式限制了帧率，与画质无关。');
+      setText(note, t('settings.perfGaveUp'));
     }
   }
 
@@ -655,25 +711,22 @@ export class UI implements HudHost {
     const out = byId('perf-gpu');
     out.hidden = false;
     if (!passes || !(passes.total > 0)) {
-      setText(out, '未能测得渲染耗时。');
+      setText(out, t('settings.perfFail'));
       return;
     }
     const names: [string, string][] = [
-      ['composite', '合成'],
-      ['backdrop', '背景'],
-      ['lights', '光效'],
-      ['surfaces', '砖与球'],
-      ['bloom', '泛光'],
-      ['nebula', '星云'],
-      ['text', '数字'],
+      ['composite', t('settings.gpuComposite')],
+      ['backdrop', t('settings.gpuBackdrop')],
+      ['lights', t('settings.gpuLights')],
+      ['surfaces', t('settings.gpuSurfaces')],
+      ['bloom', t('settings.gpuBloom')],
+      ['nebula', t('settings.gpuNebula')],
+      ['text', t('settings.gpuText')],
     ];
     const parts = names
       .filter(([key]) => (passes[key] ?? 0) > 0)
       .map(([key, label]) => `${label} ${Math.round(((passes[key] ?? 0) / passes.total) * 100)}%`);
-    setText(
-      out,
-      `GPU 每帧约 ${passes.total.toFixed(1)} ms — ${parts.join(' · ')}（每个通道含约 0.1ms 测量开销）`,
-    );
+    setText(out, t('settings.gpuLine', { ms: passes.total.toFixed(1), parts: parts.join(' · ') }));
   }
 
   // ───────────────────────────── call-outs ─────────────────────────────
@@ -731,14 +784,20 @@ export class UI implements HudHost {
         el(
           'div',
           { class: 'tt-head' },
-          el('span', { class: 'tt-rarity', text: rarity.name }),
-          el('span', { class: 'tt-level', text: level > 0 ? `Lv ${level} / ${def.maxLevel}` : '尚未获得' }),
+          el('span', { class: 'tt-rarity', text: rarityName(def.rarity) }),
+          el('span', {
+            class: 'tt-level',
+            text: level > 0 ? `Lv ${level} / ${def.maxLevel}` : t('codex.notOwned'),
+          }),
         ),
-        el('div', { class: 'tt-name' }, def.name, el('span', { text: def.code })),
-        el('div', { class: 'tt-flavor', text: def.flavor }),
-        el('p', { class: 'desc', html: level > 0 ? def.describe(level) : def.describe(1) }),
+        el('div', { class: 'tt-name' }, upgradeName(def), el('span', { text: def.code })),
+        el('div', { class: 'tt-flavor', text: upgradeFlavor(def) }),
+        el('p', { class: 'desc', html: upgradeDescribe(def, level > 0 ? level : 1) }),
         level > 0 && level < def.maxLevel
-          ? el('p', { class: 'desc next', html: `下一级：${def.describe(level + 1)}` })
+          ? el('p', {
+              class: 'desc next',
+              html: t('codex.nextLevel', { desc: upgradeDescribe(def, level + 1) }),
+            })
           : null,
         el('div', { class: 'chips' }, ...tagChips(def)),
       ),
@@ -788,9 +847,9 @@ export class UI implements HudHost {
     const next = level + 1;
     const levelText =
       level === 0
-        ? 'NEW · 新强化'
+        ? t('draft.newUpgrade')
         : next >= def.maxLevel
-          ? `Lv ${level} → ${next} · 满级`
+          ? `Lv ${level} → ${next} · ${t('draft.maxed')}`
           : `Lv ${level} → ${next}`;
     const card = el(
       'button',
@@ -798,21 +857,21 @@ export class UI implements HudHost {
         class: `card rarity-${def.rarity}`,
         type: 'button',
         style: `--rarity:${hexCss(rarity.color)};--c:${hexCss(color)}`,
-        'aria-label': `${def.name}，${rarity.name}`,
+        'aria-label': `${upgradeName(def)}，${rarityName(def.rarity)}`,
         onClick: onPick,
       },
       el(
         'span',
         { class: 'card-rarity' },
-        el('span', { text: rarity.name }),
+        el('span', { text: rarityName(def.rarity) }),
         el('span', { class: 'card-rarity-en', text: rarity.en }),
       ),
       el('div', { class: 'card-art' }, el('img', { src: sigil(def.id, color), alt: '', draggable: 'false' })),
-      el('h3', { class: 'card-name', text: def.name }),
+      el('h3', { class: 'card-name', text: upgradeName(def) }),
       el('div', { class: 'card-code', text: def.code }),
-      el('p', { class: 'card-flavor', text: def.flavor }),
+      el('p', { class: 'card-flavor', text: upgradeFlavor(def) }),
       el('div', { class: 'card-rule' }),
-      el('p', { class: 'card-desc', html: def.describe(next) }),
+      el('p', { class: 'card-desc', html: upgradeDescribe(def, next) }),
       el('div', { class: `card-level${level === 0 ? ' new' : ''}`, text: levelText }),
       el('div', { class: 'card-tags' }, ...tagChips(def)),
     );
@@ -822,7 +881,7 @@ export class UI implements HudHost {
 
   private starterCard(starter: Starter, index: number): HTMLElement {
     const grants = Object.entries(starter.grants)
-      .map(([id, level]) => (UPGRADE_MAP[id] ? `${UPGRADE_MAP[id].name} Lv${level}` : null))
+      .map(([id, level]) => (UPGRADE_MAP[id] ? `${upgradeNameById(id)} Lv${level}` : null))
       .filter((text): text is string => text !== null);
     const card = el(
       'button',
@@ -830,7 +889,7 @@ export class UI implements HudHost {
         class: 'card card-starter',
         type: 'button',
         style: `--rarity:${hexCss(starter.color)};--c:${hexCss(starter.color)}`,
-        'aria-label': starter.name,
+        'aria-label': starterName(starter),
         onClick: () => this.actions.startRun(this.starterMode, starter, this.difficulty),
       },
       el('span', { class: 'card-rarity' }, el('span', { text: `PROTOCOL 0${index + 1}` })),
@@ -839,12 +898,12 @@ export class UI implements HudHost {
         { class: 'card-art' },
         el('img', { src: sigil(`starter:${starter.id}`, starter.color), alt: '', draggable: 'false' }),
       ),
-      el('h3', { class: 'card-name', text: starter.name }),
+      el('h3', { class: 'card-name', text: starterName(starter) }),
       el('div', { class: 'card-code', text: starter.en }),
-      el('p', { class: 'card-flavor', text: starter.desc }),
+      el('p', { class: 'card-flavor', text: starterDesc(starter) }),
       el('div', {
         class: 'card-level',
-        text: grants.length > 0 ? grants.join(' · ') : `+${starter.crystals} 碎晶`,
+        text: grants.length > 0 ? grants.join(' · ') : t('starter.crystals', { n: starter.crystals }),
       }),
     );
     this.tilt(card);
@@ -865,7 +924,7 @@ export class UI implements HudHost {
     if (this.codexTab === 'upgrades') {
       setText(
         byId('codex-progress'),
-        `已遇到 ${discovered.size} / ${UPGRADES.length} 种强化。同体系的强化更容易一起出现。`,
+        t('codex.progressUpgrades', { n: discovered.size, total: UPGRADES.length }),
       );
       for (const rarity of [...RARITY_ORDER].reverse()) {
         const defs = UPGRADES.filter((def) => def.rarity === rarity);
@@ -874,12 +933,12 @@ export class UI implements HudHost {
           el(
             'section',
             { class: 'codex-group', style: `--rarity:${hexCss(info.color)}` },
-            el('h3', { text: `${info.en} · ${info.name} × ${defs.length}` }),
+            el('h3', { text: `${info.en} · ${rarityName(rarity)} × ${defs.length}` }),
             ...defs.map((def) => {
               const color = upgradeColor(def.tags, def.rarity);
               const requires = def.requires
                 ? Object.entries(def.requires)
-                    .map(([id, min]) => `${UPGRADE_MAP[id]?.name ?? id} Lv${min}`)
+                    .map(([id, min]) => `${upgradeNameById(id)} Lv${min}`)
                     .join('、')
                 : '';
               return el(
@@ -892,16 +951,24 @@ export class UI implements HudHost {
                   el(
                     'header',
                     {},
-                    el('h4', { text: def.name }),
+                    el('h4', { text: upgradeName(def) }),
                     el('span', { class: 'code', text: def.code }),
-                    el('span', { class: 'lv', text: def.maxLevel > 1 ? `最高 Lv ${def.maxLevel}` : '唯一' }),
-                    discovered.has(def.id) ? null : el('span', { class: 'lv', text: '未遇到' }),
+                    el('span', {
+                      class: 'lv',
+                      text: def.maxLevel > 1 ? t('codex.maxLevel', { n: def.maxLevel }) : t('codex.unique'),
+                    }),
+                    discovered.has(def.id)
+                      ? null
+                      : el('span', { class: 'lv', text: t('codex.undiscovered') }),
                   ),
-                  el('p', { class: 'desc', html: def.describe(1) }),
+                  el('p', { class: 'desc', html: upgradeDescribe(def, 1) }),
                   def.maxLevel > 1
-                    ? el('p', { class: 'desc next', html: `满级：${def.describe(def.maxLevel)}` })
+                    ? el('p', {
+                        class: 'desc next',
+                        html: t('codex.maxedDesc', { desc: upgradeDescribe(def, def.maxLevel) }),
+                      })
                     : null,
-                  requires ? el('p', { class: 'req', text: `需要 ${requires}` }) : null,
+                  requires ? el('p', { class: 'req', text: t('codex.requires', { list: requires }) }) : null,
                   el('div', { class: 'chips' }, ...tagChips(def)),
                 ),
               );
@@ -913,7 +980,7 @@ export class UI implements HudHost {
     }
 
     if (this.codexTab === 'reactions') {
-      setText(byId('codex-progress'), '同时拥有两种元素时自动解锁。反应按固定节奏触发，不会每一下都炸。');
+      setText(byId('codex-progress'), t('codex.progressReactions'));
       body.append(
         el(
           'section',
@@ -936,11 +1003,11 @@ export class UI implements HudHost {
                 el(
                   'header',
                   {},
-                  el('h4', { text: reaction.name }),
+                  el('h4', { text: reactionName(reaction) }),
                   el('span', { class: 'code', text: reaction.en }),
                 ),
-                el('p', { class: 'recipe', text: reaction.recipe }),
-                el('p', { class: 'desc', text: reaction.desc }),
+                el('p', { class: 'recipe', text: reactionRecipe(reaction) }),
+                el('p', { class: 'desc', text: reactionDesc(reaction) }),
               ),
             ),
           ),
@@ -949,31 +1016,23 @@ export class UI implements HudHost {
       return;
     }
 
-    setText(byId('codex-progress'), '三十秒上手，一辈子变强。');
+    setText(byId('codex-progress'), t('codex.progressRules'));
     body.append(
       el(
         'div',
         { class: 'rules' },
-        el('h3', { text: '目标' }),
-        el('p', {
-          html: '清空每一关的砖块。砖墙会不断下沉，<b>沉过红色警戒线</b>的砖块会击碎一点护盾；护盾归零，本局结束。',
-        }),
-        el('h3', { text: '接球与瞄准' }),
-        el('p', {
-          html: '球落到底部<b>不会丢失</b>，稍后从挡板重新发射。用挡板的不同位置接球可以控制回弹角度：边缘打出大角度，中心垂直弹回。正中接球是<b>完美接球</b>，大量充能。',
-        }),
-        el('h3', { text: '弹幕' }),
-        el('p', {
-          html: '炮台与 BOSS 会发射弹幕。<b>用挡板拦截</b>即可，漏到底部才会损失护盾。球和激光也能摧毁弹幕。',
-        }),
-        el('h3', { text: '超载' }),
-        el('p', { html: '击中与接球会为挡板充能。充满后按 <b>空格</b> 或点击，获得数秒的伤害与速度爆发。' }),
-        el('h3', { text: '构筑' }),
-        el('p', {
-          html: '每通过一关三选一，共 39 种强化、5 个稀有度。同体系的强化更容易一起出现；传说与神话以对应体系的强化为前提。集齐两种元素会自动解锁<b>元素反应</b>。',
-        }),
-        el('h3', { text: '碎晶' }),
-        el('p', { html: '击碎砖块掉落碎晶，可用于<b>刷新</b>三选一，或<b>跳过</b>换取更多碎晶。' }),
+        el('h3', { text: t('codex.ruleTarget') }),
+        el('p', { html: t('codex.ruleTargetBody') }),
+        el('h3', { text: t('codex.ruleCatch') }),
+        el('p', { html: t('codex.ruleCatchBody') }),
+        el('h3', { text: t('codex.ruleBullets') }),
+        el('p', { html: t('codex.ruleBulletsBody') }),
+        el('h3', { text: t('codex.ruleOverdrive') }),
+        el('p', { html: t('codex.ruleOverdriveBody') }),
+        el('h3', { text: t('codex.ruleBuild') }),
+        el('p', { html: t('codex.ruleBuildBody') }),
+        el('h3', { text: t('codex.ruleCrystals') }),
+        el('p', { html: t('codex.ruleCrystalsBody') }),
       ),
     );
   }
@@ -985,29 +1044,74 @@ export class UI implements HudHost {
     if (session.run.level === 1 && session.run.levelsCleared === 0) {
       const tier = difficultyOf(session.run.difficulty);
       if (tier.id !== 'standard') {
-        this.toast(`${tier.name}难度 · ${tier.en}`, tier.detail.join(' · '), tier.color);
+        this.toast(
+          t('callouts.difficultyToast', { name: difficultyName(tier), en: tier.en }),
+          difficultyDetail(session.run.difficulty).join(' · '),
+          tier.color,
+        );
       }
-      this.toast(
-        '移动鼠标控制挡板',
-        '球落到底部不会丢失。用挡板边缘接球可以打出大角度，正中接球大量充能。',
-        0x7dffe0,
-      );
+      this.toast(t('callouts.firstToastTitle'), t('callouts.firstToastBody'), 0x7dffe0);
     }
     if (plan.boss) {
       this.banner({
         title: plan.boss.en,
-        sub: plan.boss.name,
-        note: plan.boss.title,
+        sub: bossName(plan.boss),
+        note: bossTitle(plan.boss),
         color: 0xff2fb0,
         duration: 2.6,
       });
     } else {
       this.banner({
         title: `SECTOR ${plan.code}`,
-        sub: plan.name,
-        note: plan.modifier ? `变异 · ${plan.modifier.name} — ${plan.modifier.desc}` : undefined,
+        sub: levelName(plan.chapter, plan.name),
+        note: plan.modifier
+          ? t('callouts.bannerMutator', {
+              name: mutatorName(plan.modifier),
+              desc: mutatorDesc(plan.modifier),
+            })
+          : undefined,
         duration: plan.modifier ? 2.8 : 1.7,
       });
+    }
+  }
+
+  // ───────────────────────────── language ─────────────────────────────
+
+  /**
+   * Applies a language switch to everything currently on screen: the static markup sweep, then a
+   * re-render of whichever screen is up. Data-driven screens re-render from cached args; the
+   * in-game HUD picks the new language up on its next frame by itself.
+   */
+  applyLanguage(): void {
+    applyDom();
+    this.tutorial.applyLanguage();
+    switch (this.current) {
+      case 'menu':
+        this.showMenu();
+        break;
+      case 'starter':
+        this.showStarter(this.starterMode);
+        break;
+      case 'draft':
+        if (this.lastDraft) this.renderDraft(this.lastDraft.info, this.lastDraft.session);
+        break;
+      case 'over':
+        if (this.lastResults) this.showResults(...this.lastResults);
+        break;
+      case 'codex':
+        this.renderCodex();
+        break;
+      case 'history':
+        this.renderHistory();
+        break;
+      case 'cloud':
+        this.cloudPanel?.applyLanguage();
+        break;
+      case 'settings':
+        this.showSettings();
+        break;
+      default:
+        break; // In play or on the static pause screen: swept markup + the next HUD frame suffice.
     }
   }
 }

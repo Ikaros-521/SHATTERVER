@@ -18,6 +18,7 @@
  */
 
 import type { AudioDirector } from '../audio/director';
+import { t } from '../core/i18n';
 import { formatNumber, formatScore } from '../core/math';
 import type { BoardInfo } from '../net/cheddaboards';
 import type { Leaderboard } from '../net/leaderboard';
@@ -25,6 +26,22 @@ import { NICKNAME_MAX, NICKNAME_MIN, checkNickname } from '../net/nickname';
 import { byId, el, scoreEl, setText } from './dom';
 
 type Tone = 'ok' | 'warn' | 'info';
+
+/** Display keys for the boards whose names this game defines; operator boards keep server names. */
+const BOARD_KEYS: Record<string, string> = {
+  'all-time': 'net.boardAllTime',
+  weekly: 'net.boardWeekly',
+  daily: 'net.boardDaily',
+  'mode-endless': 'net.boardEndless',
+  'mode-campaign': 'net.boardCampaign',
+  'diff-abyss': 'net.boardAbyss',
+  'cb-global': 'net.boardGlobal',
+};
+
+function boardLabel(board: BoardInfo): string {
+  const key = BOARD_KEYS[board.scoreboardId];
+  return key ? t(key) : board.name;
+}
 
 export class CloudPanel {
   private boardId = 'all-time';
@@ -56,36 +73,49 @@ export class CloudPanel {
     this.input.addEventListener('input', () => {
       const raw = this.input.value.trim();
       if (raw.length === 0) {
-        this.setNote(`云榜昵称需 ${NICKNAME_MIN}–${NICKNAME_MAX} 位英文字母、数字或下划线。`, 'info');
+        this.setNote(t('cloud.noteRule', { min: NICKNAME_MIN, max: NICKNAME_MAX }), 'info');
         return;
       }
       const check = checkNickname(raw);
-      this.setNote(check.ok ? `可以使用「${check.value}」。` : check.message, check.ok ? 'ok' : 'warn');
+      this.setNote(
+        check.ok ? t('cloud.noteOk', { name: check.value }) : check.message,
+        check.ok ? 'ok' : 'warn',
+      );
     });
   }
 
   /** Opens the screen: refreshes everything it shows. */
   open(): void {
     this.audio.ui('uiClick');
+    this.refreshNotes();
     if (this.toy) {
-      this.setNote('云榜显示你的B站昵称（支持中文），无需另外设置。', 'info');
       void this.primeNickname();
-      void this.refresh();
+    }
+    void this.refresh();
+  }
+
+  /** Re-writes the nickname helper line from current state; also the language-switch hook. */
+  private refreshNotes(): void {
+    if (this.toy) {
+      this.setNote(t('cloud.toyNote'), 'info');
       return;
     }
     this.input.value = this.cloud.nickname;
     this.input.maxLength = NICKNAME_MAX;
     if (this.cloud.nickname === '') {
-      this.setNote(
-        `还没有设置昵称。不设置的话，云榜会显示服务器自动分配的 Player_ 编号。只能使用 ${NICKNAME_MIN}–${NICKNAME_MAX} 位英文字母、数字或下划线。`,
-        'info',
-      );
+      this.setNote(t('cloud.noNickname', { min: NICKNAME_MIN, max: NICKNAME_MAX }), 'info');
     } else if (this.cloud.nicknamePending) {
-      this.setNote(`「${this.cloud.nickname}」会在下一局成绩上传后出现在云榜上。`, 'info');
+      this.setNote(t('cloud.pendingNickname', { name: this.cloud.nickname }), 'info');
     } else {
-      this.setNote(`当前昵称：${this.cloud.nickname}`, 'ok');
+      this.setNote(t('cloud.currentNickname', { name: this.cloud.nickname }), 'ok');
     }
-    void this.refresh();
+  }
+
+  /** Re-renders the screen's copy in the active language. */
+  applyLanguage(): void {
+    if (this.toy) this.adaptToToy();
+    this.refreshNotes();
+    this.renderTabs();
   }
 
   private setNote(text: string, tone: Tone): void {
@@ -103,13 +133,8 @@ export class CloudPanel {
     const head = document.querySelector('#screen-cloud .dialog-head');
     const eyebrow = head?.querySelector<HTMLElement>('.eyebrow');
     const sub = head?.querySelector<HTMLElement>('.dialog-sub');
-    if (eyebrow) setText(eyebrow, 'CLOUD · BILIBILI TOY');
-    if (sub) {
-      setText(
-        sub,
-        '成绩自动上传到B站排行榜：总榜 / 本周 / 今日，另有无尽、战役与深渊榜。 「全球榜」是 CheddaBoards 全球榜的只读镜像。',
-      );
-    }
+    if (eyebrow) setText(eyebrow, t('cloud.toyEyebrow'));
+    if (sub) setText(sub, t('cloud.toySub'));
     const row = this.input.closest<HTMLElement>('.cloud-name');
     if (row) row.hidden = true;
   }
@@ -123,7 +148,7 @@ export class CloudPanel {
   private async primeNickname(): Promise<void> {
     const name = (await this.cloud.loadNickname?.()) ?? null;
     if (!name) return;
-    this.setNote(`云榜显示你的B站昵称：${name}`, 'ok');
+    this.setNote(t('cloud.toyNoteNamed', { name }), 'ok');
     void this.refreshBody(++this.generation);
   }
 
@@ -140,7 +165,7 @@ export class CloudPanel {
     }
     this.busy = true;
     this.saveButton.disabled = true;
-    this.setNote('正在保存…', 'info');
+    this.setNote(t('cloud.saving'), 'info');
     const outcome = await this.cloud.rename(raw);
     this.busy = false;
     this.saveButton.disabled = false;
@@ -170,7 +195,7 @@ export class CloudPanel {
         const tab = el('button', {
           class: 'tab',
           type: 'button',
-          text: board.name,
+          text: boardLabel(board),
           'aria-selected': String(board.scoreboardId === this.boardId),
         });
         tab.addEventListener('click', () => {
@@ -189,7 +214,7 @@ export class CloudPanel {
 
   private async refreshBody(generation: number): Promise<void> {
     const boardId = this.boardId;
-    this.body.replaceChildren(el('p', { class: 'cloud-empty', text: '读取中…' }));
+    this.body.replaceChildren(el('p', { class: 'cloud-empty', text: t('cloud.loading') }));
 
     const [view, rank] = await Promise.all([
       // Read depth is the board's display cap: top 100 on every channel. The Toy platform's
@@ -201,20 +226,13 @@ export class CloudPanel {
 
     this.foot.replaceChildren();
     if (!view) {
-      this.body.replaceChildren(
-        el('p', {
-          class: 'cloud-empty',
-          text: '连不上云榜。成绩和昵称都还在本机，网络恢复后打开这里再试。',
-        }),
-      );
+      this.body.replaceChildren(el('p', { class: 'cloud-empty', text: t('cloud.offline') }));
       return;
     }
 
     const entries = view.entries ?? [];
     if (entries.length === 0) {
-      this.body.replaceChildren(
-        el('p', { class: 'cloud-empty', text: '这个榜还没有成绩。打一局，你就是第一条。' }),
-      );
+      this.body.replaceChildren(el('p', { class: 'cloud-empty', text: t('cloud.emptyBoard') }));
     } else {
       const mine = this.cloud.nickname;
       this.body.replaceChildren(
@@ -231,11 +249,11 @@ export class CloudPanel {
                 'div',
                 { class: 'rank-scoreline' },
                 el('span', { class: 'rank-name', text: entry.nickname }),
-                isMine ? el('span', { class: 'rank-chip new', text: '你' }) : null,
+                isMine ? el('span', { class: 'rank-chip new', text: t('cloud.you') }) : null,
               ),
               el('div', {
                 class: 'rank-meta',
-                text: entry.streak > 0 ? `最高连击 ${formatNumber(entry.streak)}` : '',
+                text: entry.streak > 0 ? t('cloud.streak', { n: formatNumber(entry.streak) }) : '',
               }),
             ),
             scoreEl(formatScore(entry.score)),
@@ -249,10 +267,13 @@ export class CloudPanel {
     // The Toy platform does not report board totals, so the count is only shown when it is known;
     // a "共 N 条" that counted the visible slice would be a lie.
     const parts: string[] = [];
-    if (typeof view.totalEntries === 'number') parts.push(`共 ${formatNumber(view.totalEntries)} 条`);
+    if (typeof view.totalEntries === 'number')
+      parts.push(t('cloud.totalEntries', { n: formatNumber(view.totalEntries) }));
     if (rank) {
       parts.push(
-        rank.totalPlayers > 0 ? `你排第 ${rank.rank} / ${rank.totalPlayers}` : `你排第 ${rank.rank}`,
+        rank.totalPlayers > 0
+          ? t('cloud.myRankOf', { rank: rank.rank, total: rank.totalPlayers })
+          : t('cloud.myRank', { rank: rank.rank }),
       );
     }
     this.foot.append(el('span', { class: 'cloud-foot-text', text: parts.join(' · ') }));

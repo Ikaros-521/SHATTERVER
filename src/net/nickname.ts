@@ -14,6 +14,7 @@
  * submit path never has to trust a name it did not check itself.
  */
 
+import { t } from '../core/i18n';
 import {
   BLOCKED_CJK,
   BLOCKED_SUBSTRINGS,
@@ -46,10 +47,7 @@ export type NicknameCheck = NicknameAccepted | NicknameRejected;
 const INVISIBLE =
   /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
 
-const LENGTH_MESSAGE = `昵称需为 ${NICKNAME_MIN}–${NICKNAME_MAX} 个字符`;
-const CHARSET_MESSAGE = '昵称只能使用英文字母、数字和下划线（云榜不支持中文、空格与表情）';
-const BLOCKED_MESSAGE = '这个昵称不可用，请换一个';
-const RESERVED_MESSAGE = '这个昵称被系统保留，请换一个';
+/** Messages read through `t()` at check time, so a language switch takes effect immediately. */
 
 /** Folds fullwidth forms to ASCII and removes invisibles. Does not validate. */
 export function cleanNickname(raw: string): string {
@@ -67,15 +65,19 @@ export function isAsciiOnly(text: string): boolean {
  */
 export function checkNickname(raw: string): NicknameCheck {
   const value = cleanNickname(raw);
-  if (value.length === 0) return { ok: false, problem: 'empty', message: '昵称不能为空' };
+  if (value.length === 0) return { ok: false, problem: 'empty', message: t('net.nickEmpty') };
   if (value.length < NICKNAME_MIN || value.length > NICKNAME_MAX) {
-    return { ok: false, problem: 'length', message: LENGTH_MESSAGE };
+    return {
+      ok: false,
+      problem: 'length',
+      message: t('net.nickLength', { min: NICKNAME_MIN, max: NICKNAME_MAX }),
+    };
   }
   if (!/^[A-Za-z0-9_]+$/.test(value)) {
-    return { ok: false, problem: 'charset', message: CHARSET_MESSAGE };
+    return { ok: false, problem: 'charset', message: t('net.nickCharset') };
   }
-  if (isBlockedName(value)) return { ok: false, problem: 'blocked', message: BLOCKED_MESSAGE };
-  if (isReservedName(value)) return { ok: false, problem: 'reserved', message: RESERVED_MESSAGE };
+  if (isBlockedName(value)) return { ok: false, problem: 'blocked', message: t('net.nickBlocked') };
+  if (isReservedName(value)) return { ok: false, problem: 'reserved', message: t('net.nickReserved') };
   return { ok: true, value };
 }
 

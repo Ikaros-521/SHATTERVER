@@ -16,6 +16,7 @@
  * - **ASCII handles only.** Enforced in `nickname.ts`; the reason is a hard 400 from the server.
  */
 
+import { t } from '../core/i18n';
 import type { RunRecord } from '../core/storage';
 import type { DifficultyId } from '../game/difficulty';
 import type { RunMode } from '../game/run';
@@ -157,8 +158,8 @@ export class Cloud {
       nickname: applied,
       pending: this.pending,
       message: this.pending
-        ? `已保存「${applied}」，会在第一次提交成绩后出现在云榜上。`
-        : `昵称已更新为「${applied}」。`,
+        ? t('net.renamePending', { name: applied })
+        : t('net.renameApplied', { name: applied }),
     };
   }
 
@@ -205,7 +206,7 @@ export class Cloud {
    */
   async finishRun(record: RunRecord): Promise<CloudOutcome> {
     const score = Math.max(0, Math.round(record.score));
-    if (score <= 0) return { ok: false, message: '本局没有得分，未上传。', boards: [] };
+    if (score <= 0) return { ok: false, message: t('net.scoreZero'), boards: [] };
 
     const token = await this.sessionTokenForSubmit();
     const game = await this.gameInfo();
@@ -250,8 +251,8 @@ export class Cloud {
       ok: fanout.ok,
       message: fanout.ok
         ? rank
-          ? `已上传云榜 · 全球第 ${rank.rank} / ${rank.totalPlayers}`
-          : '已上传云榜'
+          ? t('net.uploadedRank', { rank: rank.rank, total: rank.totalPlayers })
+          : t('net.uploaded')
         : submitFailureMessage(fanout),
       boards: landed,
       ...(rank ? { rank: { rank: rank.rank, total: rank.totalPlayers } } : {}),
@@ -393,17 +394,17 @@ export class Cloud {
 function renameFailureMessage(failure: CbFailure): string {
   if (failure.kind === 'nickname') {
     // The server's own wording is precise; the local check should have caught it, so show it as-is
-    // with a short Chinese hint.
-    return `昵称被拒绝：${failure.error}`;
+    // with a short localized hint.
+    return t('net.renameRejected', { error: failure.error });
   }
-  if (failure.kind === 'rate-limited') return '操作太频繁，请稍后再试。';
-  if (failure.kind === 'network' || failure.kind === 'timeout') return '连不上云榜，昵称只保存在本机。';
-  return `昵称未能保存：${failure.error}`;
+  if (failure.kind === 'rate-limited') return t('net.renameRateLimited');
+  if (failure.kind === 'network' || failure.kind === 'timeout') return t('net.renameOffline');
+  return t('net.renameFailed', { error: failure.error });
 }
 
 function submitFailureMessage(failure: CbFailure): string {
-  if (failure.kind === 'rejected') return '成绩未通过校验，已保存在本地。';
-  if (failure.kind === 'rate-limited') return '提交太频繁，本局成绩下次再传。';
-  if (failure.kind === 'network' || failure.kind === 'timeout') return '连不上云榜，成绩已保存在本地。';
-  return '成绩未上传，已保存在本地。';
+  if (failure.kind === 'rejected') return t('net.scoreRejected');
+  if (failure.kind === 'rate-limited') return t('net.scoreRateLimited');
+  if (failure.kind === 'network' || failure.kind === 'timeout') return t('net.scoreOffline');
+  return t('net.scoreFailed');
 }

@@ -18,6 +18,7 @@
  * player populations, and writing both would double-count nobody while confusing everyone.
  */
 
+import { t } from '../core/i18n';
 import type { RunRecord } from '../core/storage';
 import type { RunMode } from '../game/run';
 import type { BoardInfo, BoardView, CloudApi, PlayerRank } from './cheddaboards';
@@ -38,6 +39,7 @@ const PERIOD_BY_TAB: Record<string, 'all' | 'week' | 'day'> = {
 
 /** Tabs beyond the fan-out trio, in display order. Ids keep the Chedda naming for the shared UI. */
 const CATEGORY_TABS: readonly BoardInfo[] = [
+  // Names are translated in the UI by scoreboardId; these are the canonical zh fallbacks.
   { scoreboardId: 'mode-endless', name: '无尽榜' },
   { scoreboardId: 'mode-campaign', name: '战役榜' },
   { scoreboardId: 'diff-abyss', name: '深渊榜' },
@@ -66,9 +68,9 @@ function modeTab(mode: RunMode): string {
 }
 
 function submitFailure(failure: ToyFailure): string {
-  if (failure.kind === 'not-logged-in') return '还未登录B站，成绩已保存在本地。';
-  if (failure.kind === 'rate-limited') return '提交太频繁，本局成绩下次再传。';
-  return '成绩未上传到B站，已保存在本地。';
+  if (failure.kind === 'not-logged-in') return t('net.toyNotLoggedIn');
+  if (failure.kind === 'rate-limited') return t('net.scoreRateLimited');
+  return t('net.toyFailed');
 }
 
 export interface ToyChannelDeps {

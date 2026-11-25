@@ -17,6 +17,7 @@
  *
  * Scores are clamped to the platform's ±16 777 215 integer range before leaving this file.
  */
+import { t } from '../core/i18n';
 
 /** Where the platform says the SDK lives. Loaded only inside the Toy environment. */
 export const TOY_SDK_SRC = 'https://s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js';
@@ -126,7 +127,7 @@ export function classifyToyError(error: unknown): ToyFailure {
       ? shaped.message
       : error instanceof Error
         ? error.message
-        : 'B站接口调用失败';
+        : t('net.toyApiFailed');
   if (shaped?.code === 307044 || /307044|请求过于频繁|too frequent/i.test(message)) {
     return { ok: false, kind: 'rate-limited', error: message };
   }

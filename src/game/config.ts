@@ -105,6 +105,16 @@ export const HURT_REPAIR = 1.5;
 export const BASE_DMG = 10;
 export const MAX_HP_BASE = 4;
 
+/**
+ * Every point of score is multiplied by this once, in `applyDamage` — the only place score is
+ * awarded. The Bilibili Toy leaderboards store scores as integers up to 2^24 − 1 = 16 777 215,
+ * and deep endless runs used to earn 10⁷–10⁹ raw points, so entire boards piled up clamped at
+ * the ceiling. Dividing by 100 keeps a hard-mode campaign win around 20–40K and pushes the
+ * ceiling past ~level 40 standard / ~level 35 abyss, beyond any normal run; the client-side
+ * clamp in `net/toy.ts` stays as the last-resort safety valve.
+ */
+export const SCORE_SCALE = 0.01;
+
 export const OVERDRIVE_DURATION = 6;
 /** Seconds of typical play needed to fill the overdrive meter, whatever the hit rate is. */
 export const OVERDRIVE_FILL_SECONDS = 11;

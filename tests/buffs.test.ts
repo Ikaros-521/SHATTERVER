@@ -86,19 +86,19 @@ function assertBallsLegal(world: World): void {
   }
 }
 
-/** Puts a capsule on the field by hand, already in its homing phase, so its collection can be watched. */
-function dropCapsule(world: World, id: BuffId): void {
+/** Puts a capsule on the field by hand, already falling, so its descent can be watched. */
+function dropCapsule(world: World, id: BuffId, x = world.paddle.x, y = 320): void {
   world.pickups.push({
     id: 0,
     kind: 'buff',
     value: 0,
     buff: id,
-    x: 200,
-    y: 500,
+    x,
+    y,
     vx: 0,
     vy: 0,
     spd: 200,
-    t: 1,
+    t: 0.6, // past the pop: it is already on the way down
     dead: false,
   });
 }
@@ -360,7 +360,7 @@ describe('capsules: cadence and choice', () => {
 });
 
 describe('capsules: collection', () => {
-  it('flies to the paddle and starts its buff', () => {
+  it('falls onto the paddle and starts its buff', () => {
     for (const def of BUFFS.filter((entry) => entry.duration > 0)) {
       const world = makeWorld({}, { seed: 3, bot: false, level: 5 });
       startPlaying(world);
@@ -392,6 +392,39 @@ describe('capsules: collection', () => {
     expect(world.energy).toBe(100);
     expect(meter).toEqual(['ready']);
     expect(world.buffs).toHaveLength(0);
+  });
+
+  it('is lost when it lands where the paddle is not', () => {
+    const world = makeWorld({}, { seed: 3, bot: false });
+    startPlaying(world);
+    clearCourt(world);
+    parkBalls(world);
+    const started: BuffId[] = [];
+    const lost: number[] = [];
+    world.events.on('buff', (event) => started.push(event.id));
+    world.events.on('capsuleLost', (event) => lost.push(event.x));
+    dropCapsule(world, 'rage', 60); // the idle paddle sits mid-arena
+    runUntil(world, () => world.pickups.length === 0, 4);
+    expect(started).toEqual([]);
+    expect(lost).toHaveLength(1);
+    expect(lost[0]).toBeCloseTo(60, 0);
+    expect(world.hasBuff('rage')).toBe(false);
+  });
+
+  it('a magnetic field pulls falling capsules in', () => {
+    const world = makeWorld({}, { seed: 3, bot: false });
+    startPlaying(world);
+    clearCourt(world);
+    parkBalls(world);
+    // The SUPER MAGNET buff: its field reaches far around the paddle, well past the drop.
+    expect(world.activateBuff('magnet')).toBe(true);
+    expect(world.live.magnetRadius).toBeGreaterThanOrEqual(300);
+    const started: BuffId[] = [];
+    world.events.on('buff', (event) => started.push(event.id));
+    dropCapsule(world, 'rage', 60);
+    runUntil(world, () => started.length > 0, 4);
+    expect(started).toEqual(['rage']);
+    expect(world.pickups.length).toBe(0);
   });
 
   it('does nothing for a level that is not being played', () => {

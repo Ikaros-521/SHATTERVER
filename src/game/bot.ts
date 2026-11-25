@@ -1,6 +1,6 @@
 import { clamp } from '../core/math';
 import { ARENA_W, PADDLE_BOUNCE_SPREAD, PADDLE_H, WALL } from './config';
-import type { Ball, Bullet } from './entities';
+import type { Ball, Bullet, Pickup } from './entities';
 import type { World } from './world';
 
 /** Where a descending ball will cross the paddle line, with wall bounces folded in. */
@@ -72,23 +72,44 @@ export function botTarget(world: World): number {
     }
   }
 
-  const landing = ball ? landingOf(ball, world).x : null;
+  // A falling capsule is the one prize that can be missed, so the soonest one stands in for the
+  // catch whenever it would arrive first. Barrages still outrank it: a buff is never worth a life.
+  let capsule: Pickup | null = null;
+  let capsuleT = Infinity;
+  for (const candidate of world.pickups) {
+    if (candidate.dead || candidate.kind !== 'buff' || candidate.vy <= 0) continue;
+    const t = (paddle.y - 10 - candidate.y) / candidate.vy;
+    if (t < capsuleT) {
+      capsuleT = t;
+      capsule = candidate;
+    }
+  }
+
+  const capsuleFirst = capsule !== null && capsuleT <= ballT;
+  const catchT = capsuleFirst ? capsuleT : ballT;
+  const landing = !capsuleFirst && ball ? landingOf(ball, world).x : null;
   const blockX = bullet ? clamp(bullet.x + bullet.vx * bulletT, minX, maxX) : null;
+  // A capsule only asks for the paddle to be under it; a ball is caught off-centre on purpose,
+  // to aim its return.
   const catchX =
-    ball && landing !== null ? clamp(landing - aimOffset(world, landing) * paddle.halfW, minX, maxX) : null;
-  const catchDue = ball !== null && ballT < 1.4;
+    capsuleFirst && capsule
+      ? clamp(capsule.x, minX, maxX)
+      : ball && landing !== null
+        ? clamp(landing - aimOffset(world, landing) * paddle.halfW, minX, maxX)
+        : null;
+  const catchDue = capsuleFirst ? capsuleT < 1.4 : ball !== null && ballT < 1.4;
   const bulletDue = bullet !== null && bulletT < 1.6;
   // One paddle position can cover both when their landing spots are close enough to straddle.
   const coverBoth = catchX !== null && blockX !== null && Math.abs(catchX - blockX) <= paddle.halfW * 2 - 24;
 
   // Handle whatever reaches the paddle line first. The paddle closes ~95% of any gap in 0.1s,
-  // so a bullet that lands clearly before the ball can be blocked and the catch still made.
-  if (bulletDue && (!catchDue || bulletT < ballT - 0.15)) {
+  // so a bullet that lands clearly before the catch can be blocked and the catch still made.
+  if (bulletDue && (!catchDue || bulletT < catchT - 0.15)) {
     return catchDue && coverBoth ? ((catchX as number) + (blockX as number)) / 2 : (blockX as number);
   }
   if (catchDue) {
     // Simultaneous and out of reach of each other: protect the life, sacrifice the catch.
-    if (bulletDue && !coverBoth && Math.abs(bulletT - ballT) < 0.3) return blockX as number;
+    if (bulletDue && !coverBoth && Math.abs(bulletT - catchT) < 0.3) return blockX as number;
     return catchX as number;
   }
   if (bulletDue) return blockX as number;

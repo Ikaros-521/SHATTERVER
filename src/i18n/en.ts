@@ -158,7 +158,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     progressReactions:
       'Unlocks automatically once your build owns both elements. Reactions fire on a fixed rhythm — not every single hit.',
     progressBuffs:
-      'Bricks drop capsules now and then. Catch one and its power-up lasts a few seconds — for the current level only.',
+      'Bricks drop capsules now and then; a capsule falls straight down and must be caught on the paddle (a magnet pulls it in). Its power-up lasts a few seconds — for the current level only.',
     buffTimed: '{n}s',
     buffInstant: 'Instant',
     progressRules: 'Thirty seconds to learn, a lifetime to escalate.',
@@ -186,7 +186,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       'Each cleared level offers a three-way draft — {n} upgrades across 5 rarities. Upgrades from the same school appear together more often; legendaries and mythics presuppose their school. Owning two elements unlocks <b>elemental reactions</b>.',
     ruleBuffs: 'Power-ups',
     ruleBuffsBody:
-      'Shattering bricks drops <b>capsules</b> from time to time — ball splits, giant balls, a longer paddle, time stop… Catch one and its power-up lasts a few seconds, with the time left shown on screen. Power-ups last for the current level only; the <b>Resonance</b> school makes them come sooner and last longer.',
+      'Shattering bricks drops <b>capsules</b> from time to time — ball splits, giant balls, a longer paddle, time stop… A capsule falls straight down from where it dropped: catch it on the paddle or it is gone for good; a <b>magnet</b> pulls it in. A caught power-up lasts a few seconds, with the time left shown on screen. Power-ups last for the current level only; the <b>Resonance</b> school makes them come sooner and last longer.',
     ruleCrystals: 'Crystals',
     ruleCrystalsBody:
       'Shattered bricks drop crystals ◆ — spend them to <b>reroll</b> a draft, or <b>skip</b> the draft to bank more.',
@@ -302,7 +302,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       <p>Every cleared level offers a <b>choice of one of three</b> upgrades; they last for the run and stack into your school of thought. There are {upgrades} upgrades across 5 rarities: common → rare → epic → legendary → mythic.</p>
       <p>Upgrades belong to schools — Ball / Paddle / Damage / Flame / Frost / Shock / Corrode / Void / Blast / Laser / Time / Greed / Survival / Overdrive / Resonance. <b>Upgrades from the same school appear together more often</b>.</p>
       <p><b>Elemental reactions</b>: owning two of the elements (frost, flame, shock, corrode) unlocks combo effects automatically — like Melt from frost + flame.</p>
-      <p><b>Power-ups</b>: shattered bricks now and then drop <b>capsules</b> — ball splits, giant balls, a longer paddle, time stop… Catch one and it lasts a few seconds, for the current level only. The <b>Resonance</b> school is built around them.</p>
+      <p><b>Power-ups</b>: shattered bricks now and then drop <b>capsules</b> — ball splits, giant balls, a longer paddle, time stop… A capsule falls straight down: catch it on the paddle or it is gone; a magnet pulls it in. A caught one lasts a few seconds, for the current level only. The <b>Resonance</b> school is built around them.</p>
       <p><b>Crystals</b>: shattered bricks drop crystals ◆. Spend them to <b>reroll</b> a draft, or <b>skip</b> the draft to bank them for later.</p>`,
       },
       {
@@ -474,7 +474,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Magnet Anchor',
         flavor: 'You can miss, but the ball will not.',
         describe: (lv) =>
-          `A ${b('magnetic field')} forms above the paddle (range ${b(110 * lv)}), pulling falling balls in.`,
+          `A ${b('magnetic field')} forms above the paddle (range ${b(110 * lv)}), pulling falling balls and power-up capsules in.`,
       },
       empower: {
         name: 'Charged Return',
@@ -721,7 +721,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       magnet: {
         name: 'Super Magnet',
-        desc: 'A strong field pulls falling balls onto the paddle.',
+        desc: 'A strong field pulls falling balls and power-up capsules onto the paddle.',
       },
       ghost: {
         name: 'Phase',

@@ -14,7 +14,7 @@
 3. **Absurd Yet Readable Roguelite Builds**: Draft 1 of 3 upgrades after every cleared sector. Stack up to 18 balls, black holes (Singularity), supernovas, time stops, and chain reactions with per-frame FX budgets, HDR tone mapping, and merged damage numbers.
 4. **Elemental Reactions**: Combining two elements automatically triggers reactions — Melt (Frost + Flame), Overload (Flame + Shock), Superconduct (Frost + Shock), and Venom Burst (Corrode + Flame).
 5. **Zero Audio Files, Pure Synthesis**: Every sound effect and a 16-step adaptive music sequencer are synthesized in real time via Web Audio API with procedural convolution reverb.
-6. **Power-up Capsules**: Bricks drop capsules on a steady clock; catching one grants a few seconds of a rule-changing buff, shown as a draining chip in the HUD.
+6. **Power-up Capsules**: Bricks drop capsules on a steady clock; a capsule falls straight down and must be caught on the paddle (a magnet pulls it in). A caught one grants a few seconds of a rule-changing buff, shown as a draining chip in the HUD.
 7. **Zero Runtime Dependencies**: Only TypeScript, WebGL2, and Web Audio API in production (`dist/` is a self-contained static bundle).
 
 ## Content Scale

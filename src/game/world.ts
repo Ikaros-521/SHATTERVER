@@ -14,6 +14,7 @@ import {
   BUFF_FIRST_MIN,
   BUFF_INTERVAL_MAX,
   BUFF_INTERVAL_MIN,
+  CAPSULE_FALL_SPEED,
   CATCH_ENERGY,
   COMBO_TIME,
   CRITICAL_MASS_BONUS,
@@ -185,6 +186,8 @@ export interface WorldEvents {
   buffEnd: { id: BuffId };
   /** A brick dropped a capsule; it is falling towards the paddle. */
   capsule: { x: number; y: number; id: BuffId };
+  /** A capsule nobody caught fell past the floor. */
+  capsuleLost: { x: number };
   /** The Aegis line under the paddle swallowed a bullet. */
   aegis: { x: number };
   /** A hit that would have cost shield was dodged outright. */
@@ -1303,7 +1306,7 @@ export class World {
       buff: def.id,
       x: brick.x,
       y: brick.y,
-      vx: this.buffRng.range(-140, 140),
+      vx: this.buffRng.range(-40, 40),
       vy: this.buffRng.range(-460, -260),
       spd: 170,
       t: 0,
@@ -1324,8 +1327,40 @@ export class World {
         pickup.vy += 1500 * dt;
         pickup.x += pickup.vx * dt;
         pickup.y += pickup.vy * dt;
+      } else if (pickup.kind === 'buff') {
+        // …but a capsule is a catch, not a gift: it falls straight down from where it dropped,
+        // and only a magnetic field pulls it aside. One that reaches the floor is gone.
+        const magnet = this.live.magnetRadius;
+        const inField =
+          magnet > 0 &&
+          pickup.y < paddle.y &&
+          paddle.y - pickup.y < magnet + 180 &&
+          Math.abs(paddle.x - pickup.x) < magnet * 1.6;
+        if (inField) {
+          const dx = paddle.x - pickup.x;
+          const dy = paddle.y - 10 - pickup.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          pickup.spd = Math.min(1700, pickup.spd + 3800 * dt);
+          pickup.x += (dx / dist) * pickup.spd * dt;
+          pickup.y += (dy / dist) * pickup.spd * dt;
+        } else {
+          pickup.vy = Math.min(pickup.vy + 1500 * dt, CAPSULE_FALL_SPEED);
+          pickup.x += pickup.vx * dt;
+          pickup.y += pickup.vy * dt;
+          const left = WALL + 8;
+          const right = ARENA_W - WALL - 8;
+          if (pickup.x <= left || pickup.x >= right) {
+            pickup.x = clamp(pickup.x, left, right);
+            pickup.vx = -pickup.vx * 0.5;
+          }
+          if (pickup.y > ARENA_H + 16) {
+            pickup.dead = true;
+            this.events.emit('capsuleLost', { x: pickup.x });
+            continue;
+          }
+        }
       } else {
-        // …then it homes in on the paddle. Loot is never lost.
+        // …then crystals and hearts home in on the paddle. Currency is never lost.
         const dx = paddle.x - pickup.x;
         const dy = paddle.y - 10 - pickup.y;
         const dist = Math.hypot(dx, dy) || 1;

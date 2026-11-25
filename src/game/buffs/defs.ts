@@ -96,7 +96,7 @@ export const BUFFS: readonly BuffDef[] = [
     id: 'magnet',
     name: '超级磁铁',
     code: 'SUPER MAGNET',
-    desc: '强力磁力场把下落的球吸向挡板。',
+    desc: '强力磁力场把下落的球与增益胶囊吸向挡板。',
     color: 0x9ff3ff,
     duration: 10,
     weight: 7,

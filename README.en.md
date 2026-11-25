@@ -73,7 +73,7 @@ This project uses a custom non-commercial license (see [LICENSE](./LICENSE)). In
 - **The brick wall sinks.** Bricks past the red warning line shatter and cost one shield. At zero shields the run ends.
 - **Intercept barrages with the paddle.** Turret and boss barrages only cost shield when they slip past the bottom; balls and lasers can destroy them too.
 - **Every cleared level, a three-way draft.** Crystals reroll the options, or skipping banks more crystals.
-- **Power-up capsules.** Shattered bricks drop capsules now and then: ball splits, giant balls, a longer paddle, time stop, rage… Catch one and it lasts a few seconds, for the current level only. A wall closing on the warning line is offered more of what tears it down, and a low shield sees repair come round sooner. The **Resonance** school of upgrades is built around them.
+- **Power-up capsules.** Shattered bricks drop capsules now and then: ball splits, giant balls, a longer paddle, time stop, rage… A capsule falls straight down — catch it on the paddle or it is gone (a magnet pulls it in). A caught one lasts a few seconds, for the current level only. A wall closing on the warning line is offered more of what tears it down, and a low shield sees repair come round sooner. The **Resonance** school of upgrades is built around them.
 - **Pick your difficulty**: 5 tiers (Standard → Abyss) at the starter screen. Higher tiers sink the wall faster, thicken brick health and count, narrow the paddle, suppress ball speed, densify barrages; Hard and above field **ball-eating eraser bricks**, and Abyss erases one surplus ball every 16 seconds. Higher tiers multiply score ×1.5–×4 — leaderboard rank is bought with difficulty.
 - **Records stay local.** Every run lands on the local leaderboard (main menu → Records, ranked by score); the results screen can **save a score card** — a shareable PNG of the final frame with all the numbers and the final build.
 - Owning two elements unlocks **elemental reactions** automatically: Melt (frost+flame), Overload (flame+shock), Superconduct (frost+shock), Venom Burst (corrode+flame).
@@ -120,7 +120,7 @@ src/
 
 ### Balance method
 
-`tests/balance.test.ts` has the built-in bot (near-perfect catching and barrage interception) play 8 full campaigns per drafting persona across four personalities, reporting per-level time medians / P95 / max and damage taken, with regression assertions on pacing. The bot is the ceiling; the drafting personas represent player build skill. Current results: level 1 takes about 17 seconds, a full campaign about 5 minutes, and the four personas' clear rates are 88% / 75% / 88% / 88%.
+`tests/balance.test.ts` has the built-in bot (near-perfect catching and barrage interception) play 8 full campaigns per drafting persona across four personalities, reporting per-level time medians / P95 / max and damage taken, with regression assertions on pacing. The bot is the ceiling; the drafting personas represent player build skill. Current results: level 1 takes about 17 seconds, a full campaign about 5 minutes, and the four personas' clear rates are 100% / 100% / 88% / 75%.
 
 ### Debug interface
 
@@ -179,7 +179,7 @@ Beyond the local board, scores sync to [CheddaBoards](https://docs.cheddaboards.
 
 ## Known limitations
 
-- **A larger pool dilutes the damage upgrades.** With the pool grown from 39 to 56 upgrades, the bot playing Endless with the same drafting persona reaches about 22 levels on average across 24 seeds, down from about 23. Isolated to the five Resonance cards being weak on their own (it was 20 before), and mostly won back through capsules that read the field and stronger individual cards; campaign clear rates are higher than before.
+- **A larger pool dilutes the damage upgrades.** With the pool grown from 39 to 56 upgrades, the bot playing Endless with the same drafting persona reaches about 20 levels on average across 24 seeds, down from about 23: most of that is the five Resonance cards being weak on their own (halved through field-aware capsules and stronger individual cards), and the rest is power-up capsules now having to be caught — a judgement call the bot makes worse than a human. Campaign clear rates are higher than before.
 - **Game feel is unverified by human play.** Numbers come from bot simulation; the bot's catching and interception are near-perfect, so real players will find it harder. The first human playtest is the most important step.
 - **Audio is only verified as "has output and does not clip"** (measured peak 0.72, mean RMS 0.08); timbre and mixing have not been tuned by ear.
 - Portrait mobile layout is done (verified across the UI at 390px width); touch styling and the governor's judgement logic have test coverage. But **real-device frame rates have never been measured**: the dev machine has a desktop GPU, and only proxy measurements against phone pixel budgets were possible (finding: GPU time tracks pixel count linearly with even pass shares, so resolution reduction is the main lever). Judge real devices by the settings page's "Diagnostics".

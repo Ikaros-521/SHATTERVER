@@ -297,7 +297,7 @@ export const UPGRADES: UpgradeDef[] = [
     apply: (s, lv) => {
       s.magnetRadius += 110 * lv;
     },
-    describe: (lv) => `挡板上方形成${b('磁力场')}（范围 ${b(110 * lv)}），把下落的球吸向挡板。`,
+    describe: (lv) => `挡板上方形成${b('磁力场')}（范围 ${b(110 * lv)}），把下落的球与增益胶囊吸向挡板。`,
   }),
   def({
     id: 'empower',

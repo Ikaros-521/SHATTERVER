@@ -54,6 +54,8 @@ export const BUFF_FIRST_MIN = 3.5;
 export const BUFF_FIRST_MAX = 6;
 export const BUFF_INTERVAL_MIN = 13;
 export const BUFF_INTERVAL_MAX = 19;
+/** Terminal fall speed of a power-up capsule: fast enough to matter, slow enough to chase. */
+export const CAPSULE_FALL_SPEED = 520;
 
 /** 「球体分裂」: each ball in flight forks into two twins, splayed by this angle either side. */
 export const SPLIT_ANGLE = 0.38;

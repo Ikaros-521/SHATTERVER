@@ -217,6 +217,7 @@ export class Fx {
       on('echo', (e) => this.sparks(e.x, e.y, 3, 0xb06bff, 200, 0.3)),
       // Temporary buffs: a capsule's birth, its arrival, and the quiet moment it runs out.
       on('capsule', (e) => this.onCapsule(e.x, e.y, e.id)),
+      on('capsuleLost', (e) => this.onCapsuleLost(e.x)),
       on('buff', (e) => this.onBuff(e.x, e.id, e.twin)),
       on('buffEnd', (e) => this.onBuffEnd(e.id)),
       on('aegis', (e) => {
@@ -503,6 +504,13 @@ export class Fx {
     this.ring(x, y, 6, 58, color, 0.9, 0.45);
     this.flare(x, y, 12, 50, color, 0.22, 1.8);
     this.sparks(x, y, 8, color, 240, 0.4, 2);
+  }
+
+  /** A capsule nobody caught: a dim burst on the floor line, so the miss is legible. */
+  private onCapsuleLost(x: number): void {
+    this.frameEvents++;
+    this.ring(x, ARENA_H - 8, 8, 54, 0x9fb0cf, 0.6, 0.3);
+    this.sparks(x, ARENA_H - 8, 6, 0x9fb0cf, 170, 0.3, 1.4);
   }
 
   /** A capsule broke on the paddle. The screen-wide part is what makes it an event. */

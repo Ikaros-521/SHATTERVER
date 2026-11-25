@@ -14,7 +14,7 @@ import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
 import { CloudPanel } from './cloud';
-import { byId, el, hexCss, keep, setText } from './dom';
+import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
 import { sigil } from './sigil';
 
@@ -541,7 +541,7 @@ export class UI implements HudHost {
           el(
             'div',
             { class: 'rank-scoreline' },
-            el('span', { class: 'rank-score', text: formatScore(entry.score) }),
+            scoreEl(formatScore(entry.score)),
             entry.difficulty !== 'standard'
               ? el('span', {
                   class: 'rank-chip diff',

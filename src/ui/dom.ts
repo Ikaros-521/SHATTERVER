@@ -40,6 +40,22 @@ export function keep(...nodes: (Node | null | undefined | false)[]): Node[] {
   return nodes.filter((node): node is Node => node !== null && node !== undefined && node !== false);
 }
 
+/**
+ * A score (`formatScore` output) whose digits may fold after a thousands separator and nowhere
+ * else. A number carries no break opportunity of its own, so a score too long for its line would
+ * leave the line altogether — or, with the break-anywhere fallback `.rank-score` carries, split a
+ * digit group (`…283,3` / `17`). The `<wbr>`s offer the fold after each comma instead:
+ * `141,754,153,283,` / `317`.
+ */
+export function scoreEl(formatted: string): HTMLElement {
+  const span = el('span', { class: 'rank-score' });
+  formatted.split(',').forEach((group, index) => {
+    if (index > 0) span.append(',', el('wbr'));
+    span.append(group);
+  });
+  return span;
+}
+
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
   if (!node) throw new Error(`Element #${id} is missing`);

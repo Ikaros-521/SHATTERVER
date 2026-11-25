@@ -22,7 +22,7 @@ import { formatNumber, formatScore } from '../core/math';
 import type { BoardInfo } from '../net/cheddaboards';
 import type { Leaderboard } from '../net/leaderboard';
 import { NICKNAME_MAX, NICKNAME_MIN, checkNickname } from '../net/nickname';
-import { byId, el, setText } from './dom';
+import { byId, el, scoreEl, setText } from './dom';
 
 type Tone = 'ok' | 'warn' | 'info';
 
@@ -238,7 +238,7 @@ export class CloudPanel {
                 text: entry.streak > 0 ? `最高连击 ${formatNumber(entry.streak)}` : '',
               }),
             ),
-            el('span', { class: 'rank-score', text: formatScore(entry.score) }),
+            scoreEl(formatScore(entry.score)),
           );
           row.style.animationDelay = `${Math.min(index, 12) * 35}ms`;
           return row;

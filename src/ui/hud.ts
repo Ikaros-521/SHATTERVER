@@ -147,6 +147,7 @@ export class HUD {
     this.put(this.comboValue, String(world.combo));
     setWidth(this.comboFill, world.combo > 0 ? world.comboTimer / COMBO_TIME : 0);
     this.comboBlock.classList.toggle('hot', world.comboTier >= 3);
+    this.comboBlock.classList.toggle('idle', world.combo === 0);
     // Scale-punch on change, rate-limited: at hundreds of hits a second the number would only vibrate.
     if (world.combo > 0 && now - this.lastComboPop > 90) {
       this.lastComboPop = now;

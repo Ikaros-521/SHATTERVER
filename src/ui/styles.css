@@ -491,6 +491,12 @@ button.sigil-tile:hover {
   display: grid;
   grid-template-columns: 1fr;
   --tier: transparent;
+  transition: opacity 0.35s ease;
+}
+
+/* At zero the readout is dead weight over the corner; park it out of the way. */
+.combo.idle {
+  opacity: 0.3;
 }
 
 .combo-label {
@@ -2189,16 +2195,31 @@ button.sigil-tile:hover {
     display: none;
   }
 
+  /* The combo floats over the arena, so it must read as a ghost, not a card: strip the
+     panel chrome (on touch glass is 90% opaque) and let the bricks show through. */
   #panel-stats {
-    padding: 8px 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    backdrop-filter: none;
+    clip-path: none;
   }
 
   .combo-value {
-    font-size: 30px;
+    font-size: 26px;
+    text-shadow:
+      0 1px 3px rgb(5 6 15 / 0.95),
+      0 0 26px var(--tier);
+  }
+
+  .combo-label,
+  .combo-tier {
+    text-shadow: 0 1px 2px rgb(5 6 15 / 0.9);
   }
 
   .combo-bar {
-    width: 110px;
+    width: 92px;
+    height: 3px;
     margin-top: 4px;
   }
 

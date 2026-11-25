@@ -7,8 +7,82 @@
       content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#05060f" />
-    <meta name="description" content="碎界 SHATTERVERSE — 以离谱构筑与拉满爽感为核心的肉鸽打砖块。" />
+    <meta
+      name="description"
+      content="碎界 SHATTERVERSE — 球不会丢的肉鸽打砖块网页游戏。零运行时依赖，TypeScript + 自研 WebGL2 渲染 + Web Audio 合成音频，39 种强化、元素反应、黑洞时停与 15 关战役/无尽模式，打开即玩。"
+    />
+    <meta
+      name="keywords"
+      content="碎界,SHATTERVERSE,肉鸽打砖块,roguelite brick breaker,arkanoid roguelike,WebGL2 game,TypeScript game,Web Audio game,免费网页游戏,browser game"
+    />
+    <meta name="author" content="Ikaros-521" />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://ikaros-521.github.io/SHATTERVER/" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="alternate" type="text/plain" title="LLM Summary" href="./llms.txt" />
+
+    <!-- Open Graph / Social & AI Link Preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="碎界 SHATTERVERSE" />
+    <meta property="og:title" content="碎界 SHATTERVERSE — 越打越离谱的肉鸽打砖块" />
+    <meta
+      property="og:description"
+      content="球不会丢的 Roguelite 打砖块：39 种强化、元素反应、多部件弹幕 BOSS、WebGL2 60帧特效与纯合成音频，0MB 浏览器即开即玩。"
+    />
+    <meta property="og:url" content="https://ikaros-521.github.io/SHATTERVER/" />
+    <meta property="og:image" content="https://ikaros-521.github.io/SHATTERVER/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="碎界 SHATTERVERSE 实机战斗与 BOSS 画面" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="碎界 SHATTERVERSE — Roguelite Brick-Breaker" />
+    <meta
+      name="twitter:description"
+      content="Zero-dependency TypeScript + WebGL2 + Web Audio roguelite brick-breaker. Balls never drop, 39 upgrades, elemental reactions, instant browser play."
+    />
+    <meta name="twitter:image" content="https://ikaros-521.github.io/SHATTERVER/og-cover.png" />
+
     <title>碎界 SHATTERVERSE</title>
+
+    <!-- Structured Data (GEO / SEO) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": ["VideoGame", "WebApplication"],
+        "name": "碎界 SHATTERVERSE",
+        "alternateName": ["SHATTERVERSE", "碎界"],
+        "description": "Zero-runtime-dependency roguelite brick-breaker built with TypeScript, a custom WebGL2 instanced SDF rendering pipeline, and Web Audio synthesized sound. Features 39 upgrades, 4 elemental reactions, 4 starter protocols, 3 multi-part bosses, 15 campaign sectors, endless mode, and 5 difficulty tiers.",
+        "url": "https://ikaros-521.github.io/SHATTERVER/",
+        "image": "https://ikaros-521.github.io/SHATTERVER/og-cover.png",
+        "genre": ["Roguelite", "Brick Breaker", "Arcade", "Action"],
+        "playMode": "SinglePlayer",
+        "applicationCategory": "Game",
+        "gamePlatform": ["Web Browser", "Desktop", "Mobile Web"],
+        "operatingSystem": "Any (WebGL2 supported browser)",
+        "inLanguage": ["zh-CN", "en", "ja", "ko"],
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Ikaros-521",
+          "url": "https://github.com/Ikaros-521"
+        },
+        "codeRepository": "https://github.com/Ikaros-521/SHATTERVER",
+        "programmingLanguage": "TypeScript"
+      }
+    </script>
   </head>
   <body data-screen="none">
     <canvas id="gl" aria-label="游戏画面" data-i18n-aria="boot.canvasLabel"></canvas>

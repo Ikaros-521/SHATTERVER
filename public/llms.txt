@@ -1,0 +1,43 @@
+# 碎界 SHATTERVERSE
+
+> A zero-runtime-dependency roguelite brick-breaker web game built with TypeScript, a custom WebGL2 instanced SDF rendering pipeline, and Web Audio synthesized sound. Playable instantly in the browser at 60 fps.
+
+- **Play Online**: https://ikaros-521.github.io/SHATTERVER/
+- **Source Code**: https://github.com/Ikaros-521/SHATTERVER
+- **License**: Custom Non-Commercial License (free to play, share, and remix non-commercially with source disclosure; commercial use requires written permission)
+- **Languages**: 中文 (default), English, 日本語, 한국어
+
+## Core Concept & Differentiators
+
+1. **Balls Are Never Lost**: Dropped balls relaunch from the paddle instead of ending the run. Steering the paddle changes bounce angles; dead-center "perfect catches" rapidly charge Overdrive.
+2. **Sinking Wall & Shield Tension**: Bricks descend continuously toward the red warning line. Bricks crossing the line shatter a shield; boss and turret barrages can be intercepted by the paddle, balls, or lasers.
+3. **Absurd Yet Readable Roguelite Builds**: Draft 1 of 3 upgrades after every cleared sector. Stack up to 18 balls, black holes (Singularity), supernovas, time stops, and chain reactions with per-frame FX budgets, HDR tone mapping, and merged damage numbers.
+4. **Elemental Reactions**: Combining two elements automatically triggers reactions — Melt (Frost + Flame), Overload (Flame + Shock), Superconduct (Frost + Shock), and Venom Burst (Corrode + Flame).
+5. **Zero Audio Files, Pure Synthesis**: Every sound effect and a 16-step adaptive music sequencer are synthesized in real time via Web Audio API with procedural convolution reverb.
+6. **Zero Runtime Dependencies**: Only TypeScript, WebGL2, and Web Audio API in production (`dist/` is a self-contained static bundle).
+
+## Content Scale
+
+- **Upgrades**: 39 upgrades across 5 rarities (Common, Rare, Epic, Legendary, Mythic)
+- **Starter Protocols**: 4 (Blank, Barrage, Battery, Elemental)
+- **Levels**: 3 chapters × 5 sectors (15 Campaign sectors with 12 brick motifs and 3 multi-part bosses) + Endless mode
+- **Level Mutators**: 6 (Gravity Well, Overpressure, Regenerating, Cloaked, Flak Zone, Gold Rush)
+- **Difficulty Tiers**: 5 (Standard, Advanced, Hard, Nightmare, Abyss; score multiplier ×1 to ×4)
+- **Leaderboards**: Local top-50 history in `localStorage` + best-effort cloud boards (CheddaBoards & Bilibili Toy SDK) + shareable PNG score card export
+
+## Technical Architecture
+
+- `src/core/`: Seeded RNG, event bus, math, i18n (`zh`, `en`, `ja`, `ko`), `localStorage` persistence
+- `src/game/`: Pure headless simulation (swept-circle vs. AABB continuous collision, iterative death-effect queue, damage pipeline, upgrade drafting, level generation)
+- `src/render/`: Custom WebGL2 instanced SDF shader (~10 draw calls/frame), HDR float render target, two-pass bloom, shockwave refraction, gravitational lensing, adaptive QualityGovernor
+- `src/audio/`: Web Audio synthesizer, SFX recipes, 16-step look-ahead sequencer, audio director
+- `src/ui/`: Responsive desktop + 390px portrait mobile HUD, draft cards, codex, score card generator, performance diagnostics
+
+## Quick Commands
+
+```bash
+pnpm install
+pnpm dev      # Local dev server (http://127.0.0.1:5173)
+pnpm build    # Typecheck + production build to dist/
+pnpm test     # Unit tests + headless balance simulation (Vitest)
+```

@@ -2,11 +2,30 @@
 
 # 碎界 SHATTERVERSE
 
-The roguelite brick-breaker that gets more absurd the longer you play. A web game with zero runtime dependencies: TypeScript + a hand-rolled WebGL2 rendering pipeline + Web Audio synthesized sound. The interface language can be switched in Settings (中文 / English / 日本語 / 한국어); Chinese is the default.
+**SHATTERVERSE (碎界)** is a **zero-runtime-dependency roguelite brick-breaker web game** built with **TypeScript, a custom WebGL2 instanced SDF rendering pipeline, and Web Audio synthesized sound**. It supports **中文 / English / 日本語 / 한국어** in Settings (Chinese by default) and runs instantly in desktop and mobile browsers.
 
 **Play online: <https://ikaros-521.github.io/SHATTERVER/>** — pushing to `main` builds and deploys automatically via GitHub Actions.
 
-The core design goal is "game feel": every hit gets a response, builds grow endlessly toward the absurd, and the screen stays readable at 60 fps even when hundreds of balls and chain explosions fill it.
+The core design goal is "game feel": every hit gets a response, builds grow endlessly toward the absurd, and the screen stays readable at 60 fps even when hundreds of balls, black holes, and chain explosions fill it.
+
+## Screenshots
+
+|                                              Multiball Arcade Combat                                              |                                                  Roguelite 3-Choice Draft                                                  |
+| :---------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------: |
+| ![SHATTERVERSE multiball brick-breaker gameplay with damage numbers](docs/screenshots/01-gameplay-multiball.png)  |               ![SHATTERVERSE roguelite 3-card upgrade draft screen](docs/screenshots/02-roguelite-draft.png)               |
+|                                       **Multi-Part Boss Fight (Warden-0)**                                        |                                               **Late-Game Elemental Chaos**                                                |
+| ![SHATTERVERSE Warden-0 multi-part boss battle with barrages and shockwaves](docs/screenshots/03-boss-warden.png) | ![SHATTERVERSE late-game multiball, black hole, and elemental chain reaction chaos](docs/screenshots/04-endgame-chaos.png) |
+
+## Quick Specs
+
+| Aspect        | Details                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Genre         | Roguelite Brick-Breaker / Arkanoid Roguelike                                                                              |
+| Platform      | Any browser with WebGL2 hardware acceleration (desktop + portrait mobile touch, 0 MB instant play)                        |
+| Tech Stack    | TypeScript, custom WebGL2 pipeline (~10 draw calls/frame), procedural Web Audio SFX & music                               |
+| Runtime Deps  | **0** (zero production npm dependencies; builds to purely static `dist/`)                                                 |
+| Content Scale | 15 Campaign sectors (3 chapters × 5 + 3 bosses) + Endless, 39 upgrades, 4 starters, 4 elemental reactions, 5 difficulties |
+| Leaderboards  | Local top-50 history + optional cloud boards (CheddaBoards / Bilibili Toy) + shareable PNG score card                     |
 
 ## Getting started
 
@@ -147,6 +166,13 @@ Beyond the local board, scores sync to [CheddaBoards](https://docs.cheddaboards.
 - **Uniqueness**: the server guarantees nickname uniqueness; the client keeps no nickname registry.
 - **Credentials**: Game ID and API Key live in `src/net/config.ts`, overridable with `VITE_CB_GAME_ID` / `VITE_CB_API_KEY`; emptying the key disables the cloud board entirely (the menu entry disappears with it). The API Key is public by design: it ships with the build, cannot read private data and cannot alter the game.
 - **Privacy**: anonymous play uploads only a random device ID, nickname, score, best combo and session count; no email, location or advertising identifiers. See [CheddaBoards' privacy policy](https://cheddaboards.com/privacy).
+
+## FAQ
+
+- **Do I need to install anything or create an account?** No. Open <https://ikaros-521.github.io/SHATTERVER/> to play immediately in your browser with local Top-50 records and PNG score card exports.
+- **Do dropped balls cost a life?** No. Balls that reach the bottom relaunch from the paddle automatically. You only lose shields when descending bricks cross the red warning line or when enemy barrages slip past the bottom.
+- **What does "zero runtime dependencies" mean?** The production bundle has no third-party runtime npm packages — physics, WebGL2 SDF shaders, post-processing, and Web Audio synthesis are all written in-house in TypeScript, compiling into a self-contained static `dist/` folder.
+- **Does it support mobile browsers and self-hosting?** Yes. Portrait phones get a dedicated layout plus an adaptive `QualityGovernor`. Running `pnpm build` outputs static assets using relative paths (`base: './'`) that can be hosted from any root or sub-path.
 
 ## Known limitations
 

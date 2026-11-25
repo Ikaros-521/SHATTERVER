@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#05060f" />
+    <meta name="description" content="碎界 SHATTERVERSE — 以离谱构筑与极致爽感为核心的肉鸽打砖块。" />
+    <title>碎界 SHATTERVERSE</title>
+  </head>
+  <body data-screen="none">
+    <canvas id="gl" aria-label="游戏画面"></canvas>
+
+    <div id="ui">
+      <!-- ───────────── in-game HUD ───────────── -->
+      <div id="hud" hidden>
+        <header id="hud-top" class="hud-top">
+          <div id="hud-lives" class="hud-lives" title="护盾"></div>
+          <div class="hud-level">
+            <div class="hud-level-text">
+              <span id="hud-level-code" class="hud-code"></span>
+              <span id="hud-level-name" class="hud-name"></span>
+            </div>
+            <div id="hud-progress-track" class="bar">
+              <div id="hud-progress" class="bar-fill"></div>
+            </div>
+          </div>
+          <div class="hud-res">
+            <span id="hud-crystals" class="crystal"></span>
+            <span id="hud-score" class="score"></span>
+          </div>
+        </header>
+
+        <aside id="panel-build" class="panel">
+          <h3 class="panel-title">BUILD<span>构筑</span></h3>
+          <div id="build-icons" class="build-icons"></div>
+          <p id="build-empty" class="build-empty">每通过一关，三选一。</p>
+          <div id="build-reactions" class="chips" hidden></div>
+        </aside>
+
+        <div id="side-right" class="side-right">
+          <div id="toasts" class="toasts"></div>
+          <aside id="panel-stats" class="panel">
+            <div id="combo" class="combo">
+              <span class="combo-label">COMBO</span>
+              <span id="combo-value" class="combo-value">0</span>
+              <span id="combo-tier" class="combo-tier"></span>
+              <div class="bar combo-bar"><div id="combo-fill" class="bar-fill"></div></div>
+            </div>
+            <dl id="stats-list" class="stats"></dl>
+          </aside>
+        </div>
+
+        <button id="od-hint" class="od-hint" type="button" hidden>
+          <kbd>空格</kbd><span>超载就绪 · 点击</span>
+        </button>
+        <div id="banner" class="banner"></div>
+      </div>
+
+      <!-- ───────────── screens ───────────── -->
+      <section id="screen-menu" class="screen" hidden>
+        <div class="menu">
+          <div class="logo">
+            <!-- The glitch layers are CSS pseudo-elements reading data-text; label the heading so they are not read aloud. -->
+            <h1 class="logo-cn" data-text="碎界" aria-label="碎界 SHATTERVERSE">碎界</h1>
+            <div class="logo-en">SHATTERVERSE</div>
+            <p class="logo-tag">越打越离谱的肉鸽打砖块</p>
+          </div>
+          <nav class="menu-list">
+            <button class="menu-item" type="button" data-action="campaign">
+              <span class="menu-index">01</span>
+              <span class="menu-label">开始闯关<em>CAMPAIGN · 15 SECTORS</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="endless">
+              <span class="menu-index">02</span>
+              <span class="menu-label">无尽模式<em>ENDLESS</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="codex">
+              <span class="menu-index">03</span>
+              <span class="menu-label">强化图鉴<em>CODEX</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="history">
+              <span class="menu-index">04</span>
+              <span class="menu-label">战绩排行<em>RECORDS</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="settings">
+              <span class="menu-index">05</span>
+              <span class="menu-label">设置<em>SETTINGS</em></span>
+            </button>
+          </nav>
+          <footer class="menu-foot">
+            <span id="menu-records" class="menu-records"></span>
+            <span class="menu-help">移动鼠标 控制挡板 · <kbd>空格</kbd>/点击 超载 · <kbd>P</kbd> 暂停</span>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-starter" class="screen" hidden>
+        <div class="dialog dialog-wide">
+          <header class="dialog-head">
+            <div class="eyebrow" id="starter-eyebrow">CAMPAIGN</div>
+            <h2>选择初始协议</h2>
+            <p class="dialog-sub">协议决定这局构筑的起点。之后的每一次三选一，都由你决定。</p>
+          </header>
+          <div id="starter-grid" class="cards cards-starter"></div>
+          <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-draft" class="screen screen-draft" hidden>
+        <div class="draft">
+          <header class="draft-head">
+            <div>
+              <div class="eyebrow" id="draft-eyebrow">SECTOR CLEAR</div>
+              <h2>选择一项强化</h2>
+            </div>
+            <span id="draft-crystals" class="crystal crystal-big"></span>
+          </header>
+          <div id="draft-cards" class="cards"></div>
+          <footer class="draft-foot">
+            <button id="btn-reroll" class="btn" type="button" data-action="reroll">
+              刷新<span id="reroll-cost" class="cost"></span>
+            </button>
+            <button id="btn-skip" class="btn btn-ghost" type="button" data-action="skip">
+              跳过<span id="skip-reward" class="gain"></span>
+            </button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-pause" class="screen" hidden>
+        <div class="dialog dialog-narrow">
+          <header class="dialog-head">
+            <div class="eyebrow">PAUSED</div>
+            <h2>已暂停</h2>
+          </header>
+          <nav class="menu-list compact">
+            <button class="menu-item" type="button" data-action="resume">
+              <span class="menu-label">继续<em>RESUME</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="settings">
+              <span class="menu-label">设置<em>SETTINGS</em></span>
+            </button>
+            <button class="menu-item danger" type="button" data-action="quit">
+              <span class="menu-label">放弃本局<em>ABANDON RUN</em></span>
+            </button>
+          </nav>
+          <footer class="dialog-foot">
+            <span class="seed">SEED <code id="pause-seed"></code></span>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-over" class="screen" hidden>
+        <div class="dialog dialog-wide results">
+          <header class="results-head">
+            <div class="eyebrow" id="over-eyebrow"></div>
+            <h2 id="over-title"></h2>
+            <p id="over-sub" class="dialog-sub"></p>
+          </header>
+          <div id="over-stats" class="tiles"></div>
+          <div class="results-build">
+            <div class="eyebrow">FINAL BUILD</div>
+            <div id="over-build" class="build-icons"></div>
+          </div>
+          <div id="over-timeline" class="timeline"></div>
+          <footer class="dialog-foot">
+            <button class="btn" type="button" data-action="retry">再来一局<em>RETRY</em></button>
+            <button id="btn-shot" class="btn btn-ghost" type="button" data-action="shot">
+              <span class="shot-text">保存战绩截图</span>
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="history">查看战绩</button>
+            <button class="btn btn-ghost" type="button" data-action="quit">返回主菜单</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-history" class="screen" hidden>
+        <div class="dialog dialog-wide dialog-tall">
+          <header class="dialog-head">
+            <div class="eyebrow">RECORDS</div>
+            <h2>战绩排行</h2>
+            <p id="history-summary" class="dialog-sub"></p>
+          </header>
+          <div class="tabs" id="history-tabs">
+            <button class="tab" type="button" data-tab="campaign">闯关</button>
+            <button class="tab" type="button" data-tab="endless">无尽</button>
+          </div>
+          <div id="history-body" class="history-body"></div>
+          <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-codex" class="screen" hidden>
+        <div class="dialog dialog-wide dialog-tall">
+          <header class="dialog-head">
+            <div class="eyebrow">CODEX</div>
+            <h2>强化图鉴</h2>
+            <p id="codex-progress" class="dialog-sub"></p>
+          </header>
+          <div class="tabs" id="codex-tabs">
+            <button class="tab" type="button" data-tab="upgrades">强化</button>
+            <button class="tab" type="button" data-tab="reactions">元素反应</button>
+            <button class="tab" type="button" data-tab="rules">玩法</button>
+          </div>
+          <div id="codex-body" class="codex-body"></div>
+          <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-settings" class="screen" hidden>
+        <div class="dialog dialog-narrow">
+          <header class="dialog-head">
+            <div class="eyebrow">SETTINGS</div>
+            <h2>设置</h2>
+          </header>
+          <div class="settings">
+            <label class="setting"
+              ><span>音乐音量</span><input id="set-music" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="setting"
+              ><span>音效音量</span><input id="set-sfx" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="setting"><span>屏幕震动</span><input id="set-shake" type="checkbox" /></label>
+            <label class="setting"><span>闪烁效果</span><input id="set-flash" type="checkbox" /></label>
+            <label class="setting"
+              ><span>画质</span>
+              <select id="set-quality">
+                <option value="low">低 · 流畅优先</option>
+                <option value="medium">中</option>
+                <option value="high">高 · 全特效</option>
+              </select>
+            </label>
+            <label class="setting"
+              ><span>固定种子</span
+              ><input
+                id="set-seed"
+                type="text"
+                maxlength="24"
+                placeholder="留空则每局随机"
+                autocomplete="off"
+                spellcheck="false"
+            /></label>
+          </div>
+          <footer class="dialog-foot">
+            <button class="btn" type="button" data-action="back">完成</button>
+          </footer>
+        </div>
+      </section>
+
+      <div id="tooltip" class="tooltip" hidden></div>
+    </div>
+
+    <noscript><p class="noscript">需要启用 JavaScript 才能运行《碎界》。</p></noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

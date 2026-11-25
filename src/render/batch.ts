@@ -1,0 +1,308 @@
+import type { GlyphAtlas } from './textAtlas';
+import { SHAPE_BOX, SHAPE_GLOW, SHAPE_RING, SHAPE_STROKE } from './shaders/instances';
+
+/** 0xRRGGBB, or an [r, g, b] triple for HDR colours that may exceed 1. */
+export type Color = number | readonly [number, number, number];
+
+export const rgb = (hex: number): [number, number, number] => [
+  ((hex >> 16) & 255) / 255,
+  ((hex >> 8) & 255) / 255,
+  (hex & 255) / 255,
+];
+
+const INSTANCE_STRIDE = 20;
+const TEXT_STRIDE = 12;
+/** World units of padding around a box, for its outer halo. Keep in sync with the shader. */
+const BOX_PAD = 14;
+
+/** CPU staging buffer for one instanced draw call. Rewritten every frame. */
+export class InstanceBatch {
+  count = 0;
+  readonly data: Float32Array;
+  buffer: WebGLBuffer | null = null;
+
+  constructor(readonly capacity: number) {
+    this.data = new Float32Array(capacity * INSTANCE_STRIDE);
+  }
+
+  reset(): void {
+    this.count = 0;
+  }
+
+  /** Reserves one instance. Returns the float offset to write at, or -1 when the batch is full. */
+  reserve(): number {
+    return this.count < this.capacity ? this.count++ * INSTANCE_STRIDE : -1;
+  }
+}
+
+export class TextBatch {
+  count = 0;
+  readonly data: Float32Array;
+  buffer: WebGLBuffer | null = null;
+
+  constructor(readonly capacity: number) {
+    this.data = new Float32Array(capacity * TEXT_STRIDE);
+  }
+
+  reset(): void {
+    this.count = 0;
+  }
+
+  reserve(): number {
+    return this.count < this.capacity ? this.count++ * TEXT_STRIDE : -1;
+  }
+}
+
+export interface BoxOptions {
+  rot?: number;
+  alpha?: number;
+  /** Corner radius. Defaults to a third of the shorter half-extent. */
+  radius?: number;
+  /** Remaining HP fraction 0..1: drives fill light and cracks. */
+  hp?: number;
+  flags?: number;
+  /** 0..1, white hit flash. */
+  flash?: number;
+  /** Extra outer halo strength. */
+  halo?: number;
+}
+
+// Scratch for the current colour, so drawing helpers never allocate.
+let cr = 0;
+let cg = 0;
+let cb = 0;
+function split(color: Color): void {
+  if (typeof color === 'number') {
+    cr = ((color >> 16) & 255) / 255;
+    cg = ((color >> 8) & 255) / 255;
+    cb = (color & 255) / 255;
+  } else {
+    cr = color[0];
+    cg = color[1];
+    cb = color[2];
+  }
+}
+
+/**
+ * Drawing helpers over the batches. All positions and sizes are world units, y down.
+ * One `Pen` belongs to one frame.
+ */
+export class Pen {
+  constructor(
+    readonly box: InstanceBatch,
+    readonly glow: InstanceBatch,
+    readonly text: TextBatch,
+    readonly glyphs: GlyphAtlas,
+  ) {}
+
+  reset(): void {
+    this.box.reset();
+    this.glow.reset();
+    this.text.reset();
+  }
+
+  /** Hard surface: bricks, the paddle, shards. `hw`/`hh` are the shape's half extents. */
+  surface(x: number, y: number, hw: number, hh: number, color: Color, o: BoxOptions = {}): void {
+    const i = this.box.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = this.box.data;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = hw + BOX_PAD;
+    d[i + 3] = hh + BOX_PAD;
+    d[i + 4] = o.rot ?? 0;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = o.alpha ?? 1;
+    d[i + 9] = SHAPE_BOX;
+    d[i + 10] = hw;
+    d[i + 11] = hh;
+    d[i + 12] = o.radius ?? Math.min(hw, hh) * 0.35;
+    d[i + 13] = o.hp ?? 1;
+    d[i + 14] = o.flags ?? 0;
+    d[i + 15] = o.flash ?? 0;
+    d[i + 16] = o.halo ?? 0;
+    d[i + 17] = 0;
+    d[i + 18] = 0;
+    d[i + 19] = 0;
+  }
+
+  /** Soft radial light. `sharp` 0..1 goes from hazy to almost solid; `core` adds a hot line along local x. */
+  light(
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    color: Color,
+    alpha = 1,
+    sharp = 0.5,
+    rot = 0,
+    core = 0,
+  ): void {
+    const i = this.glow.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = this.glow.data;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = rx;
+    d[i + 3] = ry;
+    d[i + 4] = rot;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = alpha;
+    d[i + 9] = SHAPE_GLOW;
+    d[i + 10] = rx;
+    d[i + 11] = ry;
+    d[i + 12] = core;
+    d[i + 13] = sharp;
+    d[i + 14] = 0;
+    d[i + 15] = 0;
+    d[i + 16] = 0;
+    d[i + 17] = 0;
+    d[i + 18] = 0;
+    d[i + 19] = 0;
+  }
+
+  /** A solid disc of light with a soft edge. */
+  disc(x: number, y: number, radius: number, color: Color, alpha = 1, soft = 0.75): void {
+    this.light(x, y, radius, radius, color, alpha, soft);
+  }
+
+  /** Expanding circle, e.g. a shock ring. */
+  ring(x: number, y: number, radius: number, thickness: number, color: Color, alpha = 1): void {
+    const i = this.glow.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = this.glow.data;
+    const extent = radius + thickness * 3.5;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = extent;
+    d[i + 3] = extent;
+    d[i + 4] = 0;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = alpha;
+    d[i + 9] = SHAPE_RING;
+    d[i + 10] = radius;
+    d[i + 11] = radius;
+    d[i + 12] = thickness;
+    d[i + 13] = 0;
+    d[i + 14] = 0;
+    d[i + 15] = 0;
+    d[i + 16] = 0;
+    d[i + 17] = 0;
+    d[i + 18] = 0;
+    d[i + 19] = 0;
+  }
+
+  /** Outline of a rounded rectangle. */
+  stroke(x: number, y: number, hw: number, hh: number, color: Color, width = 2, alpha = 1, radius = 0): void {
+    const i = this.glow.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = this.glow.data;
+    const pad = width * 3.5 + 10;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = hw + pad;
+    d[i + 3] = hh + pad;
+    d[i + 4] = 0;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = alpha;
+    d[i + 9] = SHAPE_STROKE;
+    d[i + 10] = hw;
+    d[i + 11] = hh;
+    d[i + 12] = radius;
+    d[i + 13] = width;
+    d[i + 14] = 0;
+    d[i + 15] = 0;
+    d[i + 16] = 0;
+    d[i + 17] = 0;
+    d[i + 18] = 0;
+    d[i + 19] = 0;
+  }
+
+  /** A laser: hot core with a wide haze, tapered at both ends. */
+  beam(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    width: number,
+    color: Color,
+    alpha = 1,
+    core = 1,
+  ): void {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const rot = Math.atan2(dy, dx);
+    const mx = (x0 + x1) / 2;
+    const my = (y0 + y1) / 2;
+    this.light(mx, my, len / 2 + width * 2, width * 2.8, color, alpha * 0.3, 0.15, rot);
+    this.light(mx, my, len / 2 + width, width, color, alpha, 0.72, rot, core);
+  }
+
+  private glyph(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    u0: number,
+    u1: number,
+    color: Color,
+    alpha: number,
+    rot: number,
+  ): void {
+    const i = this.text.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = this.text.data;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = w;
+    d[i + 3] = h;
+    d[i + 4] = rot;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = u0;
+    d[i + 9] = u1;
+    d[i + 10] = alpha;
+    d[i + 11] = 0;
+  }
+
+  /** Width of `text` at `size` (the glyph height in world units). */
+  measure(text: string, size: number): number {
+    const g = this.glyphs;
+    let width = 0;
+    for (const ch of text)
+      width += (g.index[ch] !== undefined ? g.advance[g.index[ch] as number] : 0.5) * size;
+    return width;
+  }
+
+  /** Draws `text` centred on (x, y). Returns its width. */
+  label(text: string, x: number, y: number, size: number, color: Color, alpha = 1, rot = 0): number {
+    const g = this.glyphs;
+    const width = this.measure(text, size);
+    const h = size * g.heightRatio;
+    let cx = x - width / 2;
+    for (const ch of text) {
+      const idx = g.index[ch];
+      if (idx === undefined) continue;
+      const w = g.width[idx] * size;
+      this.glyph(cx + w / 2, y, w, h, g.u0[idx], g.u1[idx], color, alpha, rot);
+      cx += g.advance[idx] * size;
+    }
+    return width;
+  }
+}

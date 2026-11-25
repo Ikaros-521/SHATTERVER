@@ -124,6 +124,21 @@ describe('session: flow', () => {
     expect(session.run.totalDamage).toBe(damage);
     expect(session.run.damageTaken).toBe(session.run.maxHp);
   });
+
+  it('ends the run holding no buffs, so none can carry into what comes next', () => {
+    const session = new Session('endless', 7, { bot: true });
+    play(session, () => session.world.state === 'playing', 5);
+    session.world.activateBuff('giant');
+    session.world.activateBuff('rage');
+    expect(session.world.buffs.length).toBeGreaterThan(0);
+
+    killPlayer(session);
+    play(session, () => session.phase === 'over', 10);
+    expect(session.phase).toBe('over');
+    // The run is over: whatever it was still holding ended with it, not with the next one.
+    expect(session.world.buffs).toHaveLength(0);
+    expect(session.world.live).toBe(session.world.stats);
+  });
 });
 
 describe('session: a full campaign', () => {

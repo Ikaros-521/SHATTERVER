@@ -432,6 +432,21 @@ describe('capsules: collection', () => {
     expect(world.activateBuff('rage')).toBe(false); // still in its launch countdown
     expect(world.buffs).toHaveLength(0);
   });
+
+  it('clearBuffs takes everything back at once, as a finished run must', () => {
+    const world = makeWorld({}, { seed: 3 });
+    startPlaying(world);
+    world.activateBuff('giant');
+    world.activateBuff('rage');
+    expect(world.buffs).toHaveLength(2);
+    expect(world.live).not.toBe(world.stats);
+    world.clearBuffs();
+    expect(world.buffs).toHaveLength(0);
+    expect(world.live).toBe(world.stats);
+    // A second clear on an empty list is a no-op, not an error.
+    world.clearBuffs();
+    expect(world.buffs).toHaveLength(0);
+  });
 });
 
 describe('buffs: time', () => {

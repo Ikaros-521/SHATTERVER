@@ -211,6 +211,8 @@ export class Session {
       this.collect();
       this.run.hp = 0;
     }
+    // Whatever the run was still holding ends with it: a finished run has no buffs to carry over.
+    this.world.clearBuffs();
     this.setPhase(won ? 'won' : 'over');
   }
 

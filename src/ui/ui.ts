@@ -10,8 +10,10 @@ import { STARTERS, type Starter } from '../game/starters';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
 import { RARITY_INFO, RARITY_ORDER, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
+import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
+import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
 import { sigil } from './sigil';
@@ -34,6 +36,11 @@ export interface UiActions {
   perf(): PerfInfo;
   /** GPU time of each render pass in ms. Stalls rendering for a moment while it measures. */
   profileGpu(frames?: number): Record<string, number> | null;
+  /**
+   * The cloud leaderboard, or null when the feature is off. Either channel — CheddaBoards, or the
+   * B站 Toy boards when the page runs as a Bilibili Toy.
+   */
+  readonly cloud: Leaderboard | null;
 }
 
 /** Frame-rate figures behind the performance readout. */
@@ -53,9 +60,20 @@ export interface PerfInfo {
   gaveUp: boolean;
 }
 
-export type ScreenId = 'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history';
+export type ScreenId =
+  'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history' | 'cloud';
 
-const SCREENS: ScreenId[] = ['menu', 'starter', 'draft', 'pause', 'over', 'codex', 'settings', 'history'];
+const SCREENS: ScreenId[] = [
+  'menu',
+  'starter',
+  'draft',
+  'pause',
+  'over',
+  'codex',
+  'settings',
+  'history',
+  'cloud',
+];
 
 export interface BannerOptions {
   title: string;
@@ -98,6 +116,8 @@ export class UI implements HudHost {
   private readonly arenaVars: Record<string, string> = {};
   /** Refreshes the performance readout while the settings screen is up. */
   private perfTicker = 0;
+  /** The cloud leaderboard screen, built only when this build can reach the service. */
+  private readonly cloudPanel: CloudPanel | null;
 
   constructor(
     private readonly actions: UiActions,
@@ -106,6 +126,7 @@ export class UI implements HudHost {
   ) {
     this.difficulty = save.settings.difficulty;
     this.hud = new HUD(this);
+    this.cloudPanel = actions.cloud ? new CloudPanel(actions.cloud, audio) : null;
     // Phones and tablets do without the effects their compositor cannot afford (see the
     // `[data-pointer]` rules in the stylesheet). Re-marked if the primary input ever changes.
     const pointer = window.matchMedia('(pointer: coarse)');
@@ -133,6 +154,7 @@ export class UI implements HudHost {
     on('endless', () => this.showStarter('endless'));
     on('codex', () => this.showCodex());
     on('history', () => this.showHistory());
+    on('cloud', () => this.showCloud());
     on('settings', () => this.showSettings());
     on('back', () => this.back());
     on('resume', () => this.actions.resume());
@@ -217,7 +239,12 @@ export class UI implements HudHost {
 
   private back(): void {
     if (this.current === 'starter') this.showMenu();
-    else if (this.current === 'codex' || this.current === 'settings' || this.current === 'history') {
+    else if (
+      this.current === 'codex' ||
+      this.current === 'settings' ||
+      this.current === 'history' ||
+      this.current === 'cloud'
+    ) {
       if (this.returnTo === 'pause' || this.returnTo === 'over') this.show(this.returnTo);
       else this.showMenu();
     }
@@ -284,6 +311,8 @@ export class UI implements HudHost {
     if (records.runs > 0) parts.push(`已打 ${records.runs} 局`);
     byId('menu-records').textContent =
       parts.length > 0 ? parts.join(' · ') : '还没有记录。第一局，从这里开始。';
+    // A build without credentials simply has no cloud section: no dead menu entry.
+    byId('menu-cloud').hidden = this.cloudPanel === null;
     this.setAccent(DEFAULT_ACCENT);
     this.show('menu');
   }
@@ -372,6 +401,8 @@ export class UI implements HudHost {
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
     const tierLabel = tier.id !== 'standard' ? `${tier.name}难度 · ` : '';
+    // The upload line belongs to this run; the app fills it in when the submit settles.
+    byId('over-cloud').hidden = true;
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
     setText(byId('over-title'), won ? '深渊已被碾碎' : '护盾击穿');
     setText(
@@ -442,6 +473,26 @@ export class UI implements HudHost {
     this.returnTo = this.current === 'over' ? 'over' : 'menu';
     this.renderHistory();
     this.show('history');
+  }
+
+  /** The cloud leaderboard. Hidden entirely when this build has no credentials. */
+  showCloud(): void {
+    if (!this.cloudPanel) return;
+    this.returnTo = this.current === 'over' ? 'over' : 'menu';
+    this.cloudPanel.open();
+    this.show('cloud');
+  }
+
+  /**
+   * Writes the upload result onto the results screen. Called when the submit settles, which can be
+   * a second or two after the screen appears — hence a separate entry point rather than a field of
+   * `showResults`.
+   */
+  cloudStatus(text: string, tone: 'ok' | 'warn' = 'ok'): void {
+    const line = byId('over-cloud');
+    line.hidden = false;
+    line.dataset.tone = tone;
+    setText(line, text);
   }
 
   private renderHistory(): void {

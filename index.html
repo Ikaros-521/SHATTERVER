@@ -85,8 +85,12 @@
               <span class="menu-index">04</span>
               <span class="menu-label">战绩排行<em>RECORDS</em></span>
             </button>
-            <button class="menu-item" type="button" data-action="settings">
+            <button id="menu-cloud" class="menu-item" type="button" data-action="cloud">
               <span class="menu-index">05</span>
+              <span class="menu-label">云端排行榜<em>CLOUD BOARD</em></span>
+            </button>
+            <button class="menu-item" type="button" data-action="settings">
+              <span class="menu-index">06</span>
               <span class="menu-label">设置<em>SETTINGS</em></span>
             </button>
           </nav>
@@ -165,6 +169,7 @@
             <p id="over-sub" class="dialog-sub"></p>
           </header>
           <div id="over-stats" class="tiles"></div>
+          <p id="over-cloud" class="over-cloud" hidden></p>
           <div class="results-build">
             <div class="eyebrow">FINAL BUILD</div>
             <div id="over-build" class="build-icons"></div>
@@ -176,6 +181,7 @@
               <span class="shot-text">保存战绩截图</span>
             </button>
             <button class="btn btn-ghost" type="button" data-action="history">查看战绩</button>
+            <button class="btn btn-ghost" type="button" data-action="cloud">云端榜单</button>
             <button class="btn btn-ghost" type="button" data-action="quit">返回主菜单</button>
           </footer>
         </div>
@@ -194,6 +200,42 @@
           </div>
           <div id="history-body" class="history-body"></div>
           <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-cloud" class="screen" hidden>
+        <div class="dialog dialog-wide dialog-tall">
+          <header class="dialog-head">
+            <div class="eyebrow">CLOUD · CHEDDABOARDS</div>
+            <h2>云端排行榜</h2>
+            <p class="dialog-sub">
+              成绩自动上传。总榜混合所有难度，难度与模式各有独立榜单（需在服务后台创建后自动出现）。
+            </p>
+          </header>
+
+          <div class="cloud-name">
+            <label class="cloud-name-field">
+              <span>昵称</span>
+              <input
+                id="cloud-nickname"
+                type="text"
+                maxlength="16"
+                placeholder="3–16 位英文字母、数字或下划线"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <button id="cloud-save-name" class="btn btn-small" type="button">保存昵称</button>
+          </div>
+          <p id="cloud-name-note" class="setting-note" hidden></p>
+
+          <div class="tabs" id="cloud-tabs"></div>
+          <div id="cloud-body" class="history-body cloud-body"></div>
+
+          <footer class="dialog-foot">
+            <span id="cloud-foot" class="cloud-foot"></span>
             <button class="btn btn-ghost" type="button" data-action="back">返回</button>
           </footer>
         </div>

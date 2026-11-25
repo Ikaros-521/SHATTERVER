@@ -2319,3 +2319,120 @@ button.sigil-tile:hover {
 :root[data-pointer='coarse'] .screen {
   background: radial-gradient(120% 95% at 50% 42%, rgb(5 6 15 / 0.74) 0%, rgb(5 6 15 / 0.95) 100%);
 }
+
+/* ── cloud leaderboard ───────────────────────────────────────────────────────── */
+.cloud-name {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.cloud-name-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cloud-name-field span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+}
+
+.cloud-name-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--ink);
+  font: 600 13px var(--font);
+  letter-spacing: 0.06em;
+  outline: none;
+}
+
+.cloud-name-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.25);
+}
+
+#cloud-name-note[data-tone='ok'] {
+  border-left-color: var(--accent);
+}
+
+#cloud-name-note[data-tone='warn'] {
+  border-left-color: #ff5c8a;
+  color: #ffb0c4;
+}
+
+#cloud-name-note[data-tone='info'] {
+  border-left-color: rgb(255 255 255 / 0.25);
+}
+
+#cloud-tabs {
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.cloud-body {
+  margin-top: 10px;
+}
+
+/* The cloud row carries a third column for the score, which the local rows keep inside the label. */
+.cloud-row {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+}
+
+.cloud-row.mine {
+  border-color: rgb(var(--accent-rgb) / 0.5);
+  background: rgb(var(--accent-rgb) / 0.06);
+}
+
+.rank-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-empty {
+  padding: 44px 12px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.cloud-foot {
+  margin-right: auto;
+}
+
+.cloud-foot-text {
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+/* The upload result under the results tiles: one line, never a dialog. */
+.over-cloud {
+  margin: 10px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 12.5px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+.over-cloud[data-tone='warn'] {
+  border-left-color: var(--gold);
+  color: var(--gold);
+}

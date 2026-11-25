@@ -26,6 +26,13 @@ import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './rend
 import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette } from './render/renderer';
 import { drawScene, type SceneInfo } from './render/scene';
+import { CheddaBoards } from './net/cheddaboards';
+import { Cloud } from './net/cloud';
+import { CLOUD_CONFIG, cloudEnabled } from './net/config';
+import { loadIdentity, storeIdentity } from './net/identity';
+import type { Leaderboard } from './net/leaderboard';
+import { isToyEnvironment } from './net/toy';
+import { ToyChannel } from './net/toychannel';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
 import { UI, type PerfInfo, type UiActions } from './ui/ui';
 
@@ -57,6 +64,39 @@ const DEMO_POOL = [
 const DEMO_LEVELS = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 
 /**
+ * Builds the cloud service from the stored identity. The save callback is the only place the
+ * identity is written, so a rename and the persisted copy can never disagree.
+ */
+function createCloud(): Cloud {
+  const identity = loadIdentity();
+  return new Cloud({
+    client: new CheddaBoards({ gameId: CLOUD_CONFIG.gameId, apiKey: CLOUD_CONFIG.apiKey }),
+    playerId: identity.playerId,
+    nickname: identity.nickname,
+    pending: identity.pending,
+    scored: identity.scored,
+    save: (nickname, pending, scored) => {
+      identity.nickname = nickname;
+      identity.pending = pending;
+      identity.scored = scored;
+      storeIdentity(identity);
+    },
+  });
+}
+
+/**
+ * Builds the B站 Toy channel when the page is served from a Bilibili Toy path. The platform is
+ * the identity provider there (the player's B站 nickname, Chinese included), so the Chedda
+ * identity flow does not apply; the Chedda client is handed over read-only, feeding the
+ * 「全球榜」mirror tab on the leaderboard screen.
+ */
+function createToyChannel(): ToyChannel {
+  return new ToyChannel({
+    chedda: new CheddaBoards({ gameId: CLOUD_CONFIG.gameId, apiKey: CLOUD_CONFIG.apiKey }),
+  });
+}
+
+/**
  * The application: everything that connects the simulation to the real world.
  *
  * It owns one session at a time — the bot-driven attract mode behind the title screen, or the
@@ -68,6 +108,12 @@ export class App implements UiActions {
   readonly audio = new AudioDirector();
   readonly fx: Fx;
   readonly ui: UI;
+  /**
+   * The cloud leaderboard mirror, or null when the feature is off. The backing service is picked
+   * once, by environment: a Bilibili Toy page talks to the Toy boards, everything else talks to
+   * CheddaBoards — see `net/leaderboard.ts`.
+   */
+  readonly cloud: Leaderboard | null;
   private readonly renderer: Renderer;
 
   private session: Session;
@@ -172,10 +218,22 @@ export class App implements UiActions {
     profile: (frames = 12): Record<string, number> | null => this.profileGpu(frames),
     /** Frame-rate figures over the last few seconds, and the render step currently in effect. */
     perf: (): PerfInfo => this.perf(),
+    /** Cloud identity and nickname state, or null when this build has no cloud credentials. */
+    cloud: (): Record<string, unknown> | null =>
+      this.cloud
+        ? {
+            kind: this.cloud.kind,
+            playerId: this.cloud.playerId,
+            nickname: this.cloud.nickname,
+            pending: this.cloud.nicknamePending,
+          }
+        : null,
   };
 
   constructor(canvas: HTMLCanvasElement) {
     this.save = loadSave();
+    const toy = isToyEnvironment();
+    this.cloud = toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
     // Start where the player asked — unless this device has already proven that is too much.
     const wanted = tierOf(this.save.settings.quality);
     const learned = this.save.device;
@@ -399,6 +457,8 @@ export class App implements UiActions {
     if (this.scoring) {
       this.save.records.runs++;
       storeSave(this.save);
+      // Opens the server-side window for this run. Fire-and-forget: the first frame must not wait.
+      this.cloud?.beginRun();
     }
     session.start();
   }
@@ -427,6 +487,7 @@ export class App implements UiActions {
   }
 
   quitToMenu(): void {
+    this.cloud?.abandonRun();
     this.ui.clearCallouts();
     this.lastRun = null;
     this.adopt(this.createDemo(), true);
@@ -581,6 +642,20 @@ export class App implements UiActions {
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);
     this.ui.showResults(this.session, won, fresh, { rank: runRank(sameMode, score), total: sameMode.length });
+    void this.submitRun(record);
+  }
+
+  /**
+   * Mirrors a finished run onto the cloud board. Runs after the results screen is already up and
+   * only ever edits one line of it: a slow or failed upload must not delay the player's feedback,
+   * and a late answer must not land on a screen they have left.
+   */
+  private async submitRun(record: RunRecord): Promise<void> {
+    if (!this.cloud) return;
+    const outcome = await this.cloud.finishRun(record);
+    this.cloud.invalidate();
+    if (this.ui.screen !== 'over') return;
+    this.ui.cloudStatus(outcome.message, outcome.ok ? 'ok' : 'warn');
   }
 
   // ───────────────────────────── score card ─────────────────────────────

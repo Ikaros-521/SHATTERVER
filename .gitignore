@@ -3,3 +3,7 @@ dist/
 *.local
 .vite/
 coverage/
+promo/
+.hyperframes/
+covers/
+*.zip

@@ -1,0 +1,215 @@
+/**
+ * B站 Toy SDK client — the leaderboard channel used when the game runs as a Bilibili Toy.
+ *
+ * Mirrors `cheddaboards.ts` in shape: every call resolves to a result object and none of them
+ * throw, because a finished run must never be interrupted by a login prompt, a rate limit or a
+ * missing SDK. The differences that matter are structural, and each one changes the design:
+ *
+ * - **Identity is the platform's.** The player is whoever B站 says they are (`getUserProfile`),
+ *   nicknames are native B站 nicknames (Chinese included, content-safety handled by the platform),
+ *   so this channel has no rename flow and no local identity file.
+ * - **Boards are numbered slots, not named boards.** Five slots (1–5) per Toy is the whole budget,
+ *   so the mapping lives in {@link TOY_BOARDS} and the time dimension rides the free `period`
+ *   parameter instead of separate boards.
+ * - **The SDK arrives at runtime.** It is a script tag on the Toy host, absent everywhere else, so
+ *   it is loaded lazily through {@link loadToySdk} and never bundled — this project ships no
+ *   runtime npm dependencies, and a script injection is what the platform documents.
+ *
+ * Scores are clamped to the platform's ±16 777 215 integer range before leaving this file.
+ */
+
+/** Where the platform says the SDK lives. Loaded only inside the Toy environment. */
+export const TOY_SDK_SRC = 'https://s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js';
+
+/**
+ * True when the page is served from a Bilibili Toy path (`https://www.bilibili.com/toy/<slug>/`).
+ * The URL decides the channel — not `window.toy`, which only appears after the SDK script loads
+ * and would make the choice asynchronous and racy.
+ */
+export function isToyEnvironment(loc: { hostname: string; pathname: string } = location): boolean {
+  const host = loc.hostname.toLowerCase();
+  if (host !== 'www.bilibili.com' && !host.endsWith('.bilibili.com')) return false;
+  return loc.pathname.startsWith('/toy/');
+}
+
+/** The slice of `window.toy` this game uses. Nothing else is touched. */
+export interface ToyRankItem {
+  rank: number;
+  score: number;
+  nickname: string;
+  avatar?: string;
+}
+
+export interface ToyProfile {
+  nickname: string;
+  avatar?: string;
+  /** Stable per-Toy pseudonymous id; never written to logs or used as a key here. */
+  toyOpenId?: string;
+}
+
+export interface ToyLike {
+  isSupport(ability: string): Promise<boolean>;
+  submitScore(req: { board?: number; score: number }): Promise<{ score: number }>;
+  getRankList(req?: {
+    board?: number;
+    period?: 'all' | 'month' | 'week' | 'day';
+    limit?: number;
+  }): Promise<ToyRankItem[]>;
+  getMyRank(req?: {
+    board?: number;
+    period?: 'all' | 'month' | 'week' | 'day';
+  }): Promise<{ ranked: boolean; rank: number; score: number }>;
+  getUserProfile?(): Promise<ToyProfile>;
+}
+
+/**
+ * The five board slots and what this game puts in them. The fan-out trio (总榜/本周/今日) is one
+ * slot — board 1 — because `period` splits it for free; the remaining slots go to the modes and
+ * the flagship difficulty. Remapping here is all it takes to change the split.
+ */
+export const TOY_BOARDS = {
+  overall: 1,
+  endless: 2,
+  campaign: 3,
+  abyss: 4,
+  /** Slot 5 is deliberately unused: a future board should not move the others. */
+} as const;
+
+/** The platform's documented score ceiling; scores are integers and never exceed this. */
+const TOY_SCORE_LIMIT = 16_777_215;
+
+export function clampToyScore(score: number): number {
+  return Math.max(0, Math.min(TOY_SCORE_LIMIT, Math.round(score)));
+}
+
+export type ToyFailureKind = 'rate-limited' | 'not-logged-in' | 'unsupported' | 'invalid' | 'error';
+
+export interface ToyFailure {
+  ok: false;
+  kind: ToyFailureKind;
+  /** The SDK's own message when there was one, else a short description. */
+  error: string;
+}
+
+export type ToyResult<T> = { ok: true; data: T } | ToyFailure;
+
+/**
+ * Turns a rejected SDK promise into something the caller can branch on without matching prose.
+ * The SDK rejects with `{type, code, message}`-shaped errors; `code: 307044` is the platform's
+ * shared rate limit for storage and boards, and login problems are the only rejection a score
+ * submit needs to explain to the player.
+ */
+export function classifyToyError(error: unknown): ToyFailure {
+  const shaped = (error ?? null) as { type?: unknown; code?: unknown; message?: unknown } | null;
+  const type = typeof shaped?.type === 'string' ? shaped.type : '';
+  const message =
+    typeof shaped?.message === 'string' && shaped.message.length > 0
+      ? shaped.message
+      : error instanceof Error
+        ? error.message
+        : 'B站接口调用失败';
+  if (shaped?.code === 307044 || /307044|请求过于频繁|too frequent/i.test(message)) {
+    return { ok: false, kind: 'rate-limited', error: message };
+  }
+  if (/login|logged/i.test(type) || /登录/.test(message)) {
+    return { ok: false, kind: 'not-logged-in', error: message };
+  }
+  if (type === 'unsupported') return { ok: false, kind: 'unsupported', error: message };
+  if (type === 'invalid_param') return { ok: false, kind: 'invalid', error: message };
+  return { ok: false, kind: 'error', error: message };
+}
+
+type ToyWindow = { toy?: ToyLike };
+
+/**
+ * Loads the Toy SDK by script tag and resolves to `window.toy`. Idempotent: concurrent callers
+ * share one injection, and a load that fails resets itself so a later call (the next run, the
+ * next panel open) can retry — a transient network failure must not kill the channel forever.
+ * Resolves `null` outside the Toy host, where the script has no reason to load at all.
+ */
+export function loadToySdk(doc: Document = document): Promise<ToyLike | null> {
+  const win = doc.defaultView as (Window & ToyWindow) | null;
+  if (win?.toy) return Promise.resolve(win.toy);
+
+  let pending = loadToySdkState.pending;
+  if (!pending) {
+    pending = new Promise<ToyLike | null>((resolve) => {
+      const script = doc.createElement('script');
+      script.src = TOY_SDK_SRC;
+      script.async = true;
+      script.onload = () => {
+        loadToySdkState.pending = null;
+        resolve((doc.defaultView as (Window & ToyWindow) | null)?.toy ?? null);
+      };
+      script.onerror = () => {
+        loadToySdkState.pending = null;
+        resolve(null);
+      };
+      doc.head.appendChild(script);
+    });
+    loadToySdkState.pending = pending;
+  }
+  return pending;
+}
+/** Module-level loader promise, kept off the closure so retries can clear it. */
+const loadToySdkState: { pending: Promise<ToyLike | null> | null } = { pending: null };
+
+/**
+ * The typed, never-throwing view of the SDK. Everything the channel does goes through here, so
+ * the failure handling is written once instead of once per call site.
+ */
+export class ToyBoards {
+  constructor(private readonly sdk: ToyLike) {}
+
+  /**
+   * Reports one finished run to a board slot. The platform keeps the player's historical best per
+   * slot, so a lower later score is harmless; the caller still submits once per run event only,
+   * because every call spends the Toy's shared rate budget.
+   */
+  async submit(board: number, score: number): Promise<ToyResult<{ score: number }>> {
+    try {
+      return { ok: true, data: await this.sdk.submitScore({ board, score: clampToyScore(score) }) };
+    } catch (error) {
+      return classifyToyError(error);
+    }
+  }
+
+  async rankList(
+    board: number,
+    period: 'all' | 'month' | 'week' | 'day',
+    limit: number,
+  ): Promise<ToyResult<ToyRankItem[]>> {
+    try {
+      return { ok: true, data: await this.sdk.getRankList({ board, period, limit }) };
+    } catch (error) {
+      return classifyToyError(error);
+    }
+  }
+
+  async myRank(
+    board: number,
+    period: 'all' | 'month' | 'week' | 'day',
+  ): Promise<ToyResult<{ ranked: boolean; rank: number; score: number }>> {
+    try {
+      return { ok: true, data: await this.sdk.getMyRank({ board, period }) };
+    } catch (error) {
+      return classifyToyError(error);
+    }
+  }
+
+  /**
+   * The player's B站 identity. The platform shows its own confirmation dialog on first use, so
+   * this must be called from a user gesture (the leaderboard screen opening from a click is one);
+   * an unsupported environment or a refusal resolves to `data: null` — the board simply shows no
+   * "you" highlight rather than blocking the screen.
+   */
+  async profile(): Promise<ToyResult<ToyProfile | null>> {
+    try {
+      if (typeof this.sdk.getUserProfile !== 'function') return { ok: true, data: null };
+      if (!(await this.sdk.isSupport('getUserProfile'))) return { ok: true, data: null };
+      return { ok: true, data: await this.sdk.getUserProfile() };
+    } catch (error) {
+      return classifyToyError(error);
+    }
+  }
+}

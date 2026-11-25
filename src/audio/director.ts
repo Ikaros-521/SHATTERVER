@@ -59,7 +59,9 @@ export class AudioDirector {
 
   /** Feeds the director the current frame duration, so it can thin the mix on struggling devices. */
   hintLoad(frameMs: number): void {
-    this.hitch += (frameMs - this.hitch) * 0.06;
+    // Clamp background-resume gaps: returning to the tab must not spike the average and mute
+    // the mix for the seconds it takes the EMA to decay.
+    this.hitch += (Math.min(frameMs, 100) - this.hitch) * 0.06;
   }
 
   /** Must be called from a user gesture. Idempotent. */
@@ -99,9 +101,10 @@ export class AudioDirector {
   /** How crowded the mix is, 0..1. Mirrors the FX layer's adaptive quality, plus device strain. */
   private pressure(): number {
     const busy = clamp((this.engine.busy - 8) / 26, 0, 1);
-    // A device that is dropping frames cannot afford a dense mix either; trade sounds for smoothness.
-    const hitchy = clamp((this.hitch - 26) / 26, 0, 1);
-    return Math.max(busy, hitchy * 0.9);
+    // Device strain only trims the mix — it must never silence it. Threshold starts below 30fps
+    // (phones at 30fps keep their full mix) and its worst case still lets half the sounds through.
+    const hitchy = clamp((this.hitch - 34) / 30, 0, 1);
+    return Math.max(busy, hitchy * 0.45);
   }
 
   /** Plays a sound unless it is on cooldown or the mix is too busy for it. */

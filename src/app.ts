@@ -656,7 +656,7 @@ export class App implements UiActions {
 
     // Phones are the weakest hardware this runs on: hand the real frame duration to the audio
     // director (a struggling device gets a thinner mix) and step the quality down if it persists.
-    this.audio.hintLoad(rawMs);
+    this.audio.hintLoad(Math.min(rawMs, 100));
     this.tickQuality(rawMs);
 
     this.layout = computeLayout(

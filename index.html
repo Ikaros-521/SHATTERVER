@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#05060f" />
     <meta
       name="description"
-      content="碎界 SHATTERVERSE — 球不会丢的肉鸽打砖块网页游戏。零运行时依赖，TypeScript + 自研 WebGL2 渲染 + Web Audio 合成音频，39 种强化、元素反应、黑洞时停与 15 关战役/无尽模式，打开即玩。"
+      content="碎界 SHATTERVERSE — 球不会丢的肉鸽打砖块网页游戏。零运行时依赖，TypeScript + 自研 WebGL2 渲染 + Web Audio 合成音频，56 种强化、17 种临时增益、元素反应、黑洞时停与 15 关战役/无尽模式，打开即玩。"
     />
     <meta
       name="keywords"
@@ -29,7 +29,7 @@
     <meta property="og:title" content="碎界 SHATTERVERSE — 越打越离谱的肉鸽打砖块" />
     <meta
       property="og:description"
-      content="球不会丢的 Roguelite 打砖块：39 种强化、元素反应、多部件弹幕 BOSS、WebGL2 60帧特效与纯合成音频，0MB 浏览器即开即玩。"
+      content="球不会丢的 Roguelite 打砖块：56 种强化、17 种增益胶囊、元素反应、多部件弹幕 BOSS、WebGL2 60帧特效与纯合成音频，0MB 浏览器即开即玩。"
     />
     <meta property="og:url" content="https://ikaros-521.github.io/SHATTERVER/" />
     <meta property="og:image" content="https://ikaros-521.github.io/SHATTERVER/og-cover.png" />
@@ -46,7 +46,7 @@
     <meta name="twitter:title" content="碎界 SHATTERVERSE — Roguelite Brick-Breaker" />
     <meta
       name="twitter:description"
-      content="Zero-dependency TypeScript + WebGL2 + Web Audio roguelite brick-breaker. Balls never drop, 39 upgrades, elemental reactions, instant browser play."
+      content="Zero-dependency TypeScript + WebGL2 + Web Audio roguelite brick-breaker. Balls never drop, 56 upgrades, 17 power-up capsules, elemental reactions, instant browser play."
     />
     <meta name="twitter:image" content="https://ikaros-521.github.io/SHATTERVER/og-cover.png" />
 
@@ -59,7 +59,7 @@
         "@type": ["VideoGame", "WebApplication"],
         "name": "碎界 SHATTERVERSE",
         "alternateName": ["SHATTERVERSE", "碎界"],
-        "description": "Zero-runtime-dependency roguelite brick-breaker built with TypeScript, a custom WebGL2 instanced SDF rendering pipeline, and Web Audio synthesized sound. Features 39 upgrades, 4 elemental reactions, 4 starter protocols, 3 multi-part bosses, 15 campaign sectors, endless mode, and 5 difficulty tiers.",
+        "description": "Zero-runtime-dependency roguelite brick-breaker built with TypeScript, a custom WebGL2 instanced SDF rendering pipeline, and Web Audio synthesized sound. Features 56 upgrades, 17 power-up capsules, 4 elemental reactions, 4 starter protocols, 3 multi-part bosses, 15 campaign sectors, endless mode, and 5 difficulty tiers.",
         "url": "https://ikaros-521.github.io/SHATTERVER/",
         "image": "https://ikaros-521.github.io/SHATTERVER/og-cover.png",
         "genre": ["Roguelite", "Brick Breaker", "Arcade", "Action"],
@@ -125,6 +125,15 @@
             </div>
             <dl id="stats-list" class="stats"></dl>
           </aside>
+          <!-- Temporary buffs: full chips here while there is a margin, icon pills over the arena when there is not. -->
+          <div
+            id="buff-bar"
+            class="buff-bar"
+            role="list"
+            aria-label="增益"
+            data-i18n-aria="hud.buffs"
+            hidden
+          ></div>
         </div>
 
         <button id="od-hint" class="od-hint" type="button" hidden>
@@ -360,6 +369,7 @@
             <button class="tab" type="button" data-tab="reactions" data-i18n="codex.tabReactions">
               元素反应
             </button>
+            <button class="tab" type="button" data-tab="buffs" data-i18n="codex.tabBuffs">增益</button>
             <button class="tab" type="button" data-tab="rules" data-i18n="codex.tabRules">玩法</button>
           </div>
           <div id="codex-body" class="codex-body"></div>

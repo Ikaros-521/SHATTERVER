@@ -2,6 +2,7 @@ import type { AudioDirector } from '../audio/director';
 import { dict, t } from '../core/i18n';
 import { MAX_HP_BASE, OVERDRIVE_DURATION } from '../game/config';
 import { MODIFIERS } from '../game/levels/definitions';
+import { UPGRADES } from '../game/upgrades/defs';
 import { mutatorDesc, mutatorName } from '../i18n/content';
 import type { TutorialPage } from '../i18n/zh';
 import { byId, el, hexCss } from './dom';
@@ -17,16 +18,17 @@ import { TUTORIAL_ART } from './tutorialArt';
  * (「新手说明」) reopens it at any time without re-writing the flag.
  *
  * Page copy comes from the active locale's dictionary, with the few hard numbers interpolated
- * from the tuning constants so the copy cannot drift from the simulation.
+ * from the game's own tables and tuning constants so the copy cannot drift from them.
  */
 
-/** The deck of the active language. Facts ride the `{maxHp}`/`{overdrive}` placeholders. */
+/** The deck of the active language. Facts ride the `{maxHp}`/`{overdrive}`/`{upgrades}` placeholders. */
 function tutorialPages(): TutorialPage[] {
   return dict().tutorial.pages.map((page) => ({
     ...page,
     html: page.html
       .replace(/\{maxHp\}/g, String(MAX_HP_BASE))
-      .replace(/\{overdrive\}/g, String(OVERDRIVE_DURATION)),
+      .replace(/\{overdrive\}/g, String(OVERDRIVE_DURATION))
+      .replace(/\{upgrades\}/g, String(UPGRADES.length)),
   }));
 }
 

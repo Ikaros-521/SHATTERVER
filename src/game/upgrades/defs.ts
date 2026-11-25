@@ -4,11 +4,14 @@ import type { UpgradeDef } from './types';
 const def = (u: UpgradeDef): UpgradeDef => u;
 
 /**
- * The upgrade pool. 39 upgrades across five rarities.
+ * The upgrade pool. 56 upgrades across five rarities.
  *
  * Common upgrades are raw stats; rarer ones change how the ball behaves; legendaries and mythics
  * are the "离谱" payoffs that builds converge on. Mythics always require a commitment
  * (see `requires`) so they read as the culmination of an archetype rather than a lucky roll.
+ *
+ * The `resonance` school is about the temporary buffs capsules grant (`game/buffs`): it makes
+ * them last longer, come sooner and hit harder, rather than doing anything on its own.
  */
 export const UPGRADES: UpgradeDef[] = [
   // ───────────────────────────── COMMON ─────────────────────────────
@@ -118,6 +121,60 @@ export const UPGRADES: UpgradeDef[] = [
       s.maxHpBonus += lv;
     },
     describe: (lv) => `生命上限 ${b('+' + lv)}，并立即回复 ${b(lv)} 点。`,
+  }),
+  def({
+    id: 'resonator',
+    name: '共振线圈',
+    code: 'RESONANCE COIL',
+    flavor: '让每一份力量都多留一会儿。',
+    rarity: 'common',
+    maxLevel: 3,
+    tags: ['resonance'],
+    apply: (s, lv) => {
+      s.buffDurationMult += 0.35 * lv;
+    },
+    describe: (lv) => `临时增益持续时间 ${b('+' + pct(0.35 * lv))}。`,
+  }),
+  def({
+    id: 'capacitor',
+    name: '电容组',
+    code: 'CAPACITOR',
+    flavor: '再充一点，就一点。',
+    rarity: 'common',
+    maxLevel: 3,
+    tags: ['overdrive'],
+    apply: (s, lv) => {
+      s.odGain += 0.3 * lv;
+    },
+    describe: (lv) => `超载能量获取 ${b('+' + pct(0.3 * lv))}。`,
+  }),
+  def({
+    id: 'recycler',
+    name: '回收协议',
+    code: 'RECYCLER',
+    flavor: '没有真正的废料。',
+    rarity: 'common',
+    maxLevel: 3,
+    tags: ['greed'],
+    apply: (s, lv) => {
+      s.crystalMult += 0.4 * lv;
+    },
+    describe: (lv) => `碎晶获取 ${b('+' + pct(0.4 * lv))}。`,
+  }),
+  def({
+    id: 'calibration',
+    name: '精准校准',
+    code: 'CALIBRATION',
+    flavor: '分毫之间，天地之别。',
+    rarity: 'common',
+    maxLevel: 2,
+    tags: ['paddle'],
+    apply: (s, lv) => {
+      s.perfectWindow += 0.096 * lv;
+      s.perfectEnergy += 0.25 * lv;
+    },
+    describe: (lv) =>
+      `完美接球的判定区域 ${b('+' + pct(0.6 * lv))}，完美接球充能 ${b('+' + pct(0.25 * lv))}。`,
   }),
 
   // ───────────────────────────── RARE ─────────────────────────────
@@ -309,6 +366,73 @@ export const UPGRADES: UpgradeDef[] = [
     },
     describe: (lv) => `每 10 连击，伤害 ${b('+' + pct(0.05 * lv))}。${b('没有上限')}。`,
   }),
+  def({
+    id: 'antenna',
+    name: '增益天线',
+    code: 'SURGE ANTENNA',
+    flavor: '好东西总是先找到你。',
+    rarity: 'rare',
+    maxLevel: 2,
+    tags: ['resonance'],
+    apply: (s, lv) => {
+      s.buffRate += 0.5 * lv;
+    },
+    describe: (lv) => `增益胶囊出现得更勤：间隔缩短 ${b(pct(1 - 1 / (1 + 0.5 * lv)))}。`,
+  }),
+  def({
+    id: 'adrenaline',
+    name: '肾上腺素',
+    code: 'ADRENALINE',
+    flavor: '心跳到一百八。',
+    rarity: 'rare',
+    maxLevel: 2,
+    tags: ['resonance', 'damage'],
+    apply: (s, lv) => {
+      s.buffDamage += 0.4 * lv;
+      s.buffSpeed += 0.2 * lv;
+    },
+    describe: (lv) =>
+      `任意临时增益生效期间，伤害 ${b('+' + pct(0.4 * lv))}，球速 ${b('+' + pct(0.2 * lv))}。`,
+  }),
+  def({
+    id: 'trampoline',
+    name: '弹性地板',
+    code: 'TRAMPOLINE',
+    flavor: '地板表示：再来一次。',
+    rarity: 'rare',
+    maxLevel: 2,
+    tags: ['ball'],
+    apply: (s, lv) => {
+      s.floorBounces += lv;
+    },
+    describe: (lv) => `球落到底部时会从地板${b('反弹 ' + lv + ' 次')}，然后才重新发射。`,
+  }),
+  def({
+    id: 'evade',
+    name: '闪避协议',
+    code: 'EVADE',
+    flavor: '擦肩而过。',
+    rarity: 'rare',
+    maxLevel: 2,
+    tags: ['defense'],
+    apply: (s, lv) => {
+      s.evade += 0.2 * lv;
+    },
+    describe: (lv) => `受到伤害时有 ${b(pct(0.2 * lv))} 概率${b('闪避')}：不损失护盾，也不清空连击。`,
+  }),
+  def({
+    id: 'slowfield',
+    name: '缓速力场',
+    code: 'SLOW FIELD',
+    flavor: '让世界慢半拍。',
+    rarity: 'rare',
+    maxLevel: 2,
+    tags: ['time'],
+    apply: (s, lv) => {
+      s.slowField += 0.15 * lv;
+    },
+    describe: (lv) => `砖墙下沉速度与弹幕飞行速度 ${b('−' + pct(0.15 * lv))}。`,
+  }),
 
   // ───────────────────────────── EPIC ─────────────────────────────
   def({
@@ -436,6 +560,76 @@ export const UPGRADES: UpgradeDef[] = [
     },
     describe: (lv) => `每个球体附带一个${b('镜像幽灵球')}，造成 ${b(pct(0.4 * lv))} 伤害。`,
   }),
+  def({
+    id: 'afterglow',
+    name: '过载余波',
+    code: 'AFTERGLOW',
+    flavor: '余温也能烫伤人。',
+    rarity: 'epic',
+    maxLevel: 1,
+    tags: ['overdrive'],
+    apply: (s) => {
+      s.afterglow = true;
+    },
+    describe: () => `超载结束时释放${b('全屏冲击波')}，对所有砖块造成 ${b('200%')} 攻击力伤害。`,
+  }),
+  def({
+    id: 'thunderhead',
+    name: '雷云',
+    code: 'THUNDERHEAD',
+    flavor: '头顶总有朵乌云。',
+    rarity: 'epic',
+    maxLevel: 2,
+    tags: ['shock'],
+    apply: (s, lv) => {
+      s.thunder += lv;
+      s.shockChains += 2 * lv;
+    },
+    describe: (lv) =>
+      `每 2.5 秒，闪电击中最靠近警戒线的砖块：${b(pct(3 * lv))} 攻击力伤害，并引发${b('闪电链')}（跳跃 ${b(2 * lv)} 次）。`,
+  }),
+  def({
+    id: 'plague',
+    name: '瘟疫传播',
+    code: 'PLAGUE',
+    flavor: '一个倒下，一排传染。',
+    rarity: 'epic',
+    maxLevel: 1,
+    tags: ['poison'],
+    requires: { poison: 1 },
+    apply: (s) => {
+      s.plague = true;
+    },
+    describe: () => `被${b('腐蚀')}的砖块击碎时，把腐蚀扩散给半径 ${b(150)} 内的所有砖块。`,
+  }),
+  def({
+    id: 'wildfire',
+    name: '野火',
+    code: 'WILDFIRE',
+    flavor: '烧起来就停不下来。',
+    rarity: 'epic',
+    maxLevel: 1,
+    tags: ['fire'],
+    requires: { fire: 1 },
+    apply: (s) => {
+      s.wildfire = true;
+    },
+    describe: () => `${b('灼烧')}中的砖块被击碎时，点燃半径 ${b(140)} 内的所有砖块。`,
+  }),
+  def({
+    id: 'prism',
+    name: '棱镜',
+    code: 'PRISM',
+    flavor: '一束进去，三束出来。',
+    rarity: 'epic',
+    maxLevel: 1,
+    tags: ['laser'],
+    requires: { laser: 1 },
+    apply: (s) => {
+      s.prism = true;
+    },
+    describe: () => `激光命中时向左右${b('折射')}，各自再命中 1 块相邻砖块（${b('50%')} 攻击力伤害）。`,
+  }),
 
   // ───────────────────────────── LEGENDARY ─────────────────────────────
   def({
@@ -511,6 +705,34 @@ export const UPGRADES: UpgradeDef[] = [
     },
     describe: () => `球每次击中砖块，伤害 ${b('+12%')}（触碰挡板后重置，最高 ${b('+300%')}）。`,
   }),
+  def({
+    id: 'twinresonance',
+    name: '双共振',
+    code: 'TWIN RESONANCE',
+    flavor: '一颗胶囊，两份快乐。',
+    rarity: 'legendary',
+    maxLevel: 1,
+    tags: ['resonance'],
+    requires: { resonator: 2 },
+    apply: (s) => {
+      s.buffTwin = true;
+    },
+    describe: () => `拾取临时增益时，额外随机触发${b('另一个增益')}（持续时间为 50%）。`,
+  }),
+  def({
+    id: 'criticalmass',
+    name: '临界质量',
+    code: 'CRITICAL MASS',
+    flavor: '链式反应，停不下来。',
+    rarity: 'legendary',
+    maxLevel: 1,
+    tags: ['overdrive'],
+    requires: { capacitor: 2 },
+    apply: (s) => {
+      s.criticalMass = true;
+    },
+    describe: () => `超载期间每击碎 ${b(5)} 块砖，超载延长 ${b('0.5 秒')}（最多延长 ${b('6 秒')}）。`,
+  }),
 
   // ───────────────────────────── MYTHIC ─────────────────────────────
   def({
@@ -560,6 +782,20 @@ export const UPGRADES: UpgradeDef[] = [
       s.iceBurst = true;
     },
     describe: () => `冻结${b('必定触发')}；被冻结的砖块破碎时引发${b('冰爆')}（范围 130，120% 攻击力伤害）。`,
+  }),
+  def({
+    id: 'perpetuum',
+    name: '永动引擎',
+    code: 'PERPETUUM',
+    flavor: '能量守恒？没听说过。',
+    rarity: 'mythic',
+    maxLevel: 1,
+    tags: ['resonance', 'overdrive'],
+    requires: { overclock: 1, resonator: 2 },
+    apply: (s) => {
+      s.buffPerpetuum = true;
+    },
+    describe: () => `超载期间${b('增益倒计时暂停')}；增益生效期间，超载能量获取 ${b('×3')}。`,
   }),
 ];
 

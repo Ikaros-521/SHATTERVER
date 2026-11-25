@@ -14,12 +14,21 @@ import {
 import { AudioDirector } from './audio/director';
 import { ARENA_W } from './game/config';
 import { difficultyOf, type DifficultyId } from './game/difficulty';
+import { BUFF_MAP, isBuffId } from './game/buffs/defs';
+import { buffColor } from './game/buffs/present';
 import { UPGRADE_MAP } from './game/upgrades/defs';
 import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
 import type { RunMode } from './game/run';
 import { Session } from './game/session';
 import { STARTERS, type Starter } from './game/starters';
-import { comboTierLabel, reactionDesc, reactionName, reactionRecipe } from './i18n/content';
+import {
+  buffName,
+  buffShort,
+  comboTierLabel,
+  reactionDesc,
+  reactionName,
+  reactionRecipe,
+} from './i18n/content';
 import type { UpgradeDef } from './game/upgrades/types';
 import { RARITY_INFO, upgradeColor } from './game/upgrades/present';
 import type { World } from './game/world';
@@ -62,6 +71,15 @@ const DEMO_POOL = [
   'crit',
   'timestop',
   'recursion',
+  // The newer, louder cards, so capsules and their resonance are part of the show.
+  'thunderhead',
+  'prism',
+  'plague',
+  'wildfire',
+  'afterglow',
+  'twinresonance',
+  'resonator',
+  'adrenaline',
 ];
 const DEMO_LEVELS = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 
@@ -160,6 +178,8 @@ export class App implements UiActions {
     errors: [] as unknown[],
     advance: (seconds: number): void => this.advance(seconds),
     grant: (id: string, levels = 1): boolean => this.session.grant(id, levels),
+    /** Grants a temporary buff in the level being played, as if its capsule had been collected. */
+    buff: (id: string): boolean => isBuffId(id) && this.session.world.activateBuff(id),
     state: (): Record<string, unknown> => this.snapshot(),
     /** Starts a run, optionally at a deeper level so a build can be watched against a full wall. */
     start: (
@@ -438,6 +458,38 @@ export class App implements UiActions {
               key: 'ts',
             });
         }),
+      ),
+      // A capsule collected: the buff's codename over its localised name and how long it is for.
+      world.events.on('buff', ({ id, duration, twin }) =>
+        whenPlaying(() => {
+          // Time stop already calls itself out; a second banner would only shout over the first.
+          if (id === 'timestop') return;
+          const def = BUFF_MAP[id];
+          const name = buffName(def);
+          const sub =
+            duration > 0
+              ? t(twin ? 'callouts.buffTwinSub' : 'callouts.buffSub', { name, n: Math.round(duration) })
+              : `${name} · ${buffShort(def)}`;
+          this.ui.banner({
+            title: def.code,
+            sub,
+            color: buffColor(id),
+            small: true,
+            duration: 1.5,
+          });
+        }),
+      ),
+      world.events.on('dodge', () =>
+        whenPlaying(() =>
+          this.ui.banner({
+            title: 'DODGE',
+            sub: t('callouts.dodgeSub'),
+            color: 0xffffff,
+            small: true,
+            duration: 0.9,
+            key: 'dodge',
+          }),
+        ),
       ),
       world.events.on('clear', () =>
         whenPlaying(() =>
@@ -987,6 +1039,10 @@ export class App implements UiActions {
       energy: +world.energy.toFixed(1),
       overdrive: world.odActive,
       timeStop: +world.timeStop.toFixed(2),
+      /** Temporary buffs in force, as `[id, seconds left]`. */
+      buffs: world.buffs.map((buff) => [buff.id, +buff.t.toFixed(1)]),
+      /** Capsules on their way to the paddle. */
+      capsules: world.pickups.filter((pickup) => pickup.kind === 'buff').map((pickup) => pickup.buff),
       boss: world.boss
         ? {
             name: world.boss.def.name,

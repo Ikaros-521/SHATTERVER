@@ -32,7 +32,19 @@ describe('TUTORIAL_PAGES', () => {
     const all = pages()
       .map((page) => page.html)
       .join('\n');
-    for (const term of ['护盾', '警戒线', '弹幕', '超载', '三选一', '碎晶', '变异', '元素反应', '红心']) {
+    for (const term of [
+      '护盾',
+      '警戒线',
+      '弹幕',
+      '超载',
+      '三选一',
+      '碎晶',
+      '变异',
+      '元素反应',
+      '红心',
+      '增益胶囊',
+      '共振',
+    ]) {
       expect(all).toContain(term);
     }
   });
@@ -41,6 +53,9 @@ describe('TUTORIAL_PAGES', () => {
     // The placeholders are filled by the UI layer; the dictionary carries them verbatim.
     expect(pages()[1]?.html).toContain('{overdrive}');
     expect(pages()[2]?.html).toContain('{maxHp}');
+    // The upgrade count is read from the pool, never typed into the copy.
+    expect(pages()[3]?.html).toContain('{upgrades}');
+    expect(pages()[3]?.html).not.toMatch(/\d+ ?种强化/);
     expect(OVERDRIVE_DURATION).toBe(6);
     expect(MAX_HP_BASE).toBe(4);
   });

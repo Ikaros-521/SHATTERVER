@@ -57,6 +57,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     statBalls: '공',
     statComboBonus: '콤보 보너스',
     statCrit: '치명타율',
+    buffs: '파워업',
   },
   starter: {
     title: '초기 프로토콜 선택',
@@ -150,10 +151,15 @@ export const ko: UiDict & { content: ContentOverrides } = {
     title: '업그레이드 도감',
     tabUpgrades: '업그레이드',
     tabReactions: '원소 반응',
+    tabBuffs: '파워업',
     tabRules: '기본',
     progressUpgrades: '{total}종 중 {n}종을 만났습니다. 같은 계열의 업그레이드는 함께 나올 확률이 높습니다.',
     progressReactions:
       '두 원소를 동시에 가지면 자동 해금. 반응은 고정된 리듬으로 발동하며 매번 터지지는 않습니다.',
+    progressBuffs:
+      '블록을 깨면 가끔 캡슐이 떨어집니다. 받으면 몇 초간 효과가 있고, 해당 스테이지에서만 유효합니다.',
+    buffTimed: '{n}초',
+    buffInstant: '즉시',
     progressRules: '30초면 익히고, 평생을 강해집니다.',
     maxLevel: '최대 Lv{n}',
     unique: '유일',
@@ -176,7 +182,10 @@ export const ko: UiDict & { content: ContentOverrides } = {
       '명중과 받치기가 패들을 충전합니다. 가득 차면 <kbd>Space</kbd>나 클릭으로 수 초간 피해와 속도가 폭발합니다.',
     ruleBuild: '빌드',
     ruleBuildBody:
-      '스테이지를 클리어할 때마다 3택. 총 39종·등급 5단계. 같은 계열은 함께 나오기 쉽고, 전설과 신화는 해당 계열의 포석이 전제됩니다. 두 원소를 모으면 <b>원소 반응</b>이 자동 해금됩니다.',
+      '스테이지를 클리어할 때마다 3택. 총 {n}종·등급 5단계. 같은 계열은 함께 나오기 쉽고, 전설과 신화는 해당 계열의 포석이 전제됩니다. 두 원소를 모으면 <b>원소 반응</b>이 자동 해금됩니다.',
+    ruleBuffs: '파워업',
+    ruleBuffsBody:
+      '블록을 깨면 가끔 <b>캡슐</b>이 떨어집니다——공 분열, 공 거대화, 패들 연장, 시간 정지 등. 받으면 몇 초간 효과가 이어지며 남은 시간이 화면에 표시됩니다. 효과는 해당 스테이지에서만 유효하고, 「공명」 계열의 업그레이드는 캡슐이 더 자주 나오고 더 오래 지속되게 합니다.',
     ruleCrystals: '크리스털',
     ruleCrystalsBody:
       '블록을 깨면 크리스털 ◆가 떨어집니다. 3택을 <b>리롤</b>하거나 <b>건너뛰기</b>로 모아둘 수 있습니다.',
@@ -221,6 +230,9 @@ export const ko: UiDict & { content: ContentOverrides } = {
     overdriveSub: '오버드라이브',
     timeStopSub: '시간 정지',
     sectorClearSub: '섹터 클리어',
+    buffSub: '{name} · {n}초',
+    buffTwinSub: '{name} · 쌍공명 {n}초',
+    dodgeSub: '실드 무사',
     reactionToast: '원소 반응 · {name}',
     reactionDetail: '{recipe}: {desc}',
     difficultyToast: '{en} · {name}',
@@ -286,9 +298,10 @@ export const ko: UiDict & { content: ContentOverrides } = {
         eyebrow: 'TUTORIAL · 04',
         title: '3택 업그레이드',
         html: `
-      <p>스테이지를 클리어할 때마다 <b>3택</b>. 선택한 업그레이드는 이 판에서만 유효하며 쌓여서 빌드가 됩니다. 총 39종·등급 5단계: 커먼 → 레어 → 에픽 → 전설 → 신화.</p>
-      <p>업그레이드에는 계열이 있습니다—공 / 패들 / 피해 / 화염 / 빙결 / 뇌전 / 부식 / 공허 / 폭발 / 레이저 / 시공 / 탐욕 / 생존 / 오버드라이브. <b>같은 계열은 함께 나오기 쉽습니다</b>.</p>
+      <p>스테이지를 클리어할 때마다 <b>3택</b>. 선택한 업그레이드는 이 판에서만 유효하며 쌓여서 빌드가 됩니다. 총 {upgrades}종·등급 5단계: 커먼 → 레어 → 에픽 → 전설 → 신화.</p>
+      <p>업그레이드에는 계열이 있습니다—공 / 패들 / 피해 / 화염 / 빙결 / 뇌전 / 부식 / 공허 / 폭발 / 레이저 / 시공 / 탐욕 / 생존 / 오버드라이브 / 공명. <b>같은 계열은 함께 나오기 쉽습니다</b>.</p>
       <p><b>원소 반응</b>: 두 원소(빙결·화염·뇌전·부식)를 동시에 가지면 조합 효과가 자동 해금됩니다. 예컨대 「빙결 + 화염」의 융해.</p>
+      <p><b>파워업</b>: 스테이지 중 블록을 깨면 가끔 <b>캡슐</b>이 떨어집니다——공 분열, 공 거대화, 패들 연장, 시간 정지 등. 받으면 몇 초간 효과가 있으며 해당 스테이지에서만 유효합니다. 「공명」 계열의 업그레이드는 이들과 연동됩니다.</p>
       <p><b>크리스털</b>: 블록을 깨면 크리스털 ◆가 떨어집니다. 3택을 「리롤」하거나 「건너뛰기」해서 모아둘 수도 있습니다.</p>`,
       },
       {
@@ -582,6 +595,170 @@ export const ko: UiDict & { content: ContentOverrides } = {
         describe: () =>
           `빙결이 ${b('반드시 발동')}. 빙결된 블록이 깨질 때 ${b('빙폭')}을 일으킵니다(범위 130, 공격력의 120% 피해).`,
       },
+      resonator: {
+        name: '공명 코일',
+        flavor: '어떤 힘이든 조금 더 오래.',
+        describe: (lv) => `파워업 지속시간 ${b('+' + pct(0.35 * lv))}.`,
+      },
+      capacitor: {
+        name: '커패시터',
+        flavor: '조금만, 아주 조금만 더.',
+        describe: (lv) => `오버드라이브 게이지 획득량 ${b('+' + pct(0.3 * lv))}.`,
+      },
+      recycler: {
+        name: '재활용 프로토콜',
+        flavor: '버릴 것은 아무것도 없다.',
+        describe: (lv) => `크리스털 획득 ${b('+' + pct(0.4 * lv))}.`,
+      },
+      calibration: {
+        name: '교정',
+        flavor: '머리카락 만큼의 차이가 세상을 가른다.',
+        describe: (lv) =>
+          `퍼펙트 캐치 판정 범위 ${b('+' + pct(0.6 * lv))}, 퍼펙트 캐치 충전량 ${b('+' + pct(0.25 * lv))}.`,
+      },
+      antenna: {
+        name: '증폭 안테나',
+        flavor: '좋은 것은 먼저 당신을 찾아온다.',
+        describe: (lv) => `캡슐이 더 자주 나옵니다: 출현 간격 ${b(pct(1 - 1 / (1 + 0.5 * lv)))} 단축.`,
+      },
+      adrenaline: {
+        name: '아드레날린',
+        flavor: '심박수 180.',
+        describe: (lv) => `파워업 효과 중 피해 ${b('+' + pct(0.4 * lv))}, 공 속도 ${b('+' + pct(0.2 * lv))}.`,
+      },
+      trampoline: {
+        name: '트램펄린',
+        flavor: '바닥이 말합니다: 한 번 더.',
+        describe: (lv) => `바닥에 떨어진 공은 로스트되기 전에 ${b('바닥에서 ' + lv + '회')} 튕겨 올라옵니다.`,
+      },
+      evade: {
+        name: '회피 프로토콜',
+        flavor: '스치고 지나갑니다.',
+        describe: (lv) =>
+          `피격 시 ${b(pct(0.2 * lv))} 확률로 ${b('회피')}: 실드를 잃지 않고 콤보도 유지됩니다.`,
+      },
+      slowfield: {
+        name: '감속 장',
+        flavor: '세상을 반 박자 늦게.',
+        describe: (lv) => `벽의 침하 속도와 탄막 속도 ${b('−' + pct(0.15 * lv))}.`,
+      },
+      afterglow: {
+        name: '여광',
+        flavor: '잔불도 뜨겁습니다.',
+        describe: () =>
+          `오버드라이브가 끝날 때 ${b('화면 전체 충격파')}를 방출해 모든 블록에 ${b('200%')} 공격력 피해를 줍니다.`,
+      },
+      thunderhead: {
+        name: '뇌운',
+        flavor: '머리 위에는 언제나 먹구름.',
+        describe: (lv) =>
+          `2.5초마다 경고선에 가장 가까운 블록에 낙뢰: ${b(pct(3 * lv))} 공격력 피해와 ${b('뇌쇄')}(${b(2 * lv)}회 도약).`,
+      },
+      plague: {
+        name: '역병',
+        flavor: '하나가 쓰러지면 한 줄이 옮는다.',
+        describe: () => `${b('부식')} 중인 블록이 깨지면 반경 ${b(150)} 안의 모든 블록에 부식을 퍼뜨립니다.`,
+      },
+      wildfire: {
+        name: '들불',
+        flavor: '한번 붙으면 멈추지 않는다.',
+        describe: () => `${b('작열')} 중인 블록이 깨지면 반경 ${b(140)} 안의 모든 블록에 불을 붙입니다.`,
+      },
+      prism: {
+        name: '프리즘',
+        flavor: '한 줄기가 들어가 세 줄기가 나온다.',
+        describe: () =>
+          `레이저 명중 시 좌우로 ${b('굴절')}해 양옆의 다음 블록도 맞힙니다(${b('50%')} 공격력 피해).`,
+      },
+      twinresonance: {
+        name: '쌍공명',
+        flavor: '캡슐 하나에 즐거움 두 배.',
+        describe: () => `파워업을 얻으면 ${b('다른 무작위 파워업')}도 지속시간 50%로 함께 발동합니다.`,
+      },
+      criticalmass: {
+        name: '임계 질량',
+        flavor: '멈추지 않는 연쇄 반응.',
+        describe: () =>
+          `오버드라이브 중 블록 ${b(5)}개를 깨울 때마다 지속시간 ${b('0.5초')} 연장(최대 ${b('6초')}).`,
+      },
+      perpetuum: {
+        name: '영구 기관',
+        flavor: '에너지 보존 법칙? 들어본 적 없는데요.',
+        describe: () =>
+          `오버드라이브 중에는 ${b('파워업 남은 시간이 멈추고')}, 파워업 효과 중에는 오버드라이브 게이지 획득량이 ${b('×3')}.`,
+      },
+    },
+    buffs: {
+      split: {
+        name: '공 분열',
+        desc: '날아가는 본체 공마다 2개의 분신(피해 70%)으로 분열합니다. 효과가 끝나면 분신도 사라집니다.',
+      },
+      giant: {
+        name: '공 거대화',
+        desc: '공 반지름 ×2.2, 피해 +60%.',
+      },
+      wide: {
+        name: '패들 연장',
+        desc: '패들 폭 ×1.8.',
+      },
+      laser: {
+        name: '레이저 버스트',
+        desc: '패들이 레이저를 3발 추가로 발사합니다.',
+      },
+      magnet: {
+        name: '슈퍼 자석',
+        desc: '강력한 자기장이 떨어지는 공을 패들로 끌어당깁니다.',
+      },
+      ghost: {
+        name: '위상 통과',
+        desc: '공이 블록을 통과하고 튕기지 않습니다. 통과할 때마다 피해 +20%(패들 접촉 시 리셋).',
+      },
+      homing: {
+        name: '시커',
+        desc: '공이 가장 가까운 블록을 강력하게 추적합니다.',
+      },
+      rage: {
+        name: '레이지',
+        desc: '피해 ×2.',
+      },
+      aegis: {
+        name: '방어막',
+        desc: '패들 아래에 방어막이 펼쳐져 모든 탄막을 막습니다.',
+      },
+      gold: {
+        name: '크리스털 소나기',
+        desc: '모든 블록이 크리스털을 떨어뜨리며 양도 2배가 됩니다.',
+      },
+      deadeye: {
+        name: '약점 간파',
+        desc: '치명타율 100%.',
+      },
+      blast: {
+        name: '일제 폭파',
+        desc: '블록을 깰 때마다 폭발이 일어납니다.',
+      },
+      storm: {
+        name: '원소 폭풍',
+        desc: '명중 시 작열·빙결·부식·뇌전을 동시에 부여해 모든 원소 반응이 발동합니다.',
+      },
+      timestop: {
+        name: '시간 정지',
+        desc: '적은 모두 멈추고 공의 피해 ×2.',
+      },
+      turbo: {
+        name: '터보',
+        desc: '공 속도 +40%, 피해 +40%.',
+      },
+      overcharge: {
+        name: '오버차지',
+        desc: '오버드라이브 게이지를 즉시 가득 채웁니다.',
+        short: '게이지 가득',
+      },
+      repair: {
+        name: '긴급 수리',
+        desc: '실드를 1 즉시 회복합니다.',
+        short: '실드 +1',
+      },
     },
     difficulty: {
       standard: {
@@ -771,6 +948,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       greed: '탐욕',
       defense: '생존',
       overdrive: '오버드라이브',
+      resonance: '공명',
     },
   },
 };

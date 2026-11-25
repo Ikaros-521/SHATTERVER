@@ -1,6 +1,7 @@
 import { TAU, clamp, easeOutCubic } from '../core/math';
-import { ARENA_H, ARENA_W, DANGER_Y, OVERDRIVE_DURATION, PADDLE_H, WALL } from '../game/config';
+import { AEGIS_Y, ARENA_H, ARENA_W, DANGER_BAND, DANGER_Y, PADDLE_H, WALL } from '../game/config';
 import type { Brick } from '../game/entities';
+import { BUFF_MAP, type BuffId } from '../game/buffs/defs';
 import type { ChapterDef } from '../game/levels/definitions';
 import type { World } from '../game/world';
 import type { Pen } from './batch';
@@ -29,9 +30,37 @@ function hash(n: number): number {
   return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
 }
 
-/** Colour of a ball's glow: the flashiest element the build owns. */
-function ballTint(world: World, accent: number): number {
-  const s = world.stats;
+/** A slow sweep around the wheel. Every ball shares the colour of the frame, so the swarm reads as one thing. */
+function rainbow(time: number): number {
+  const h = (time * 0.22) % 1;
+  const x = 1 - Math.abs(((h * 6) % 2) - 1);
+  const [r, g, b] =
+    h < 1 / 6
+      ? [1, x, 0]
+      : h < 2 / 6
+        ? [x, 1, 0]
+        : h < 3 / 6
+          ? [0, 1, x]
+          : h < 4 / 6
+            ? [0, x, 1]
+            : h < 5 / 6
+              ? [x, 0, 1]
+              : [1, 0, x];
+  return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
+}
+
+/** Temporary buffs that move the ball, most telling first. */
+const BALL_TINTS: readonly BuffId[] = ['storm', 'ghost', 'giant', 'rage', 'homing', 'turbo', 'deadeye'];
+
+/**
+ * Colour of a ball's glow: whatever temporary buff is carrying it, otherwise the flashiest
+ * element the build owns.
+ */
+function ballTint(world: World, accent: number, time: number): number {
+  for (const id of BALL_TINTS) {
+    if (world.hasBuff(id)) return id === 'storm' ? rainbow(time) : BUFF_MAP[id].color;
+  }
+  const s = world.live;
   if (s.voidChance > 0 || s.singularity) return 0xb06bff;
   if (s.fire > 0 || s.solarDps > 0) return 0xff8a3d;
   if (s.frost > 0) return 0x9be8ff;
@@ -133,7 +162,8 @@ function drawBricks(pen: Pen, world: World, time: number): void {
 
 function drawPaddle(pen: Pen, world: World, accent: number, time: number): void {
   const p = world.paddle;
-  const s = world.stats;
+  // The live block, so the paddle draws its buffs too: the emitters of a laser capsule, its magnet.
+  const s = world.live;
   const squash = p.squash;
   const hw = p.halfW * (1 + 0.1 * squash);
   const hh = (PADDLE_H / 2) * (1 - 0.3 * squash);
@@ -147,11 +177,13 @@ function drawPaddle(pen: Pen, world: World, accent: number, time: number): void 
     flash: p.flash,
     halo: 0.4 + (ready ? 0.5 * flicker : 0),
   });
+  // A capsule that stretched the paddle leaves its colour running along the edges.
+  if (world.hasBuff('wide'))
+    pen.stroke(p.x, p.y, hw + 3, hh + 3, BUFF_MAP.wide.color, 2, 0.55 + 0.3 * flicker, hh + 3);
 
-  // The overdrive meter lives inside the paddle: it fills left to right with hot light.
-  const charge = world.odActive
-    ? 1 - world.odT / (OVERDRIVE_DURATION * s.odDurationMult)
-    : world.energy / 100;
+  // The overdrive meter lives inside the paddle: it fills left to right with hot light. It is read
+  // against the window's full length, so a Critical Mass extension moves the goalposts with it.
+  const charge = world.odActive ? clamp(1 - world.odT / world.odMax, 0, 1) : world.energy / 100;
   if (charge > 0.01) {
     const width = hw * charge;
     const color = world.odActive ? 0xffffff : ready ? 0x9ff3ff : accent;
@@ -171,14 +203,24 @@ function drawPaddle(pen: Pen, world: World, accent: number, time: number): void 
 }
 
 function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): void {
-  const s = world.stats;
+  const s = world.live;
   const intro = world.state === 'intro';
+  const phasing = world.hasBuff('ghost');
 
   for (const ball of world.balls) {
     if (!ball.alive) continue;
     const r = ball.radius;
     const alpha = (ball.ghost ? 0.42 : 1) * (ball.child ? clamp(ball.ttl / 0.6, 0, 1) : 1);
-    const color = ball.child ? 0x7dffe0 : ball.ghost ? 0xb06bff : ball.emp > 0 ? 0xffd24a : tint;
+    // Twins of a Split keep the buff's cyan; everything else is tinted by what is carrying it.
+    const color = ball.clone
+      ? 0x4dd8ff
+      : ball.child
+        ? 0x7dffe0
+        : ball.ghost
+          ? 0xb06bff
+          : ball.emp > 0
+            ? 0xffd24a
+            : tint;
     if (alpha <= 0.01) continue;
 
     if (ball.docked) {
@@ -224,6 +266,11 @@ function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): 
     const ry = (r * (1 + 0.5 * squash)) / (1 + 0.15 * motion);
     const banked = 1 + 0.6 * clamp(ball.momentum / 3, 0, 1);
 
+    // A ring marks what is temporary: a Split twin, or a real ball while it is phasing.
+    if (ball.clone)
+      pen.ring(ball.x, ball.y, r * 1.7 + 1.2 * Math.sin(time * 13 + ball.id), 1.6, color, 0.75 * alpha);
+    else if (phasing && !ball.child) pen.ring(ball.x, ball.y, r * 1.45, 1.8, 0xe6d0ff, 0.7 * alpha);
+
     // Balls are the protagonists: a wide halo, a saturated bloom and a hot white core.
     pen.light(ball.x, ball.y, rx * 5.4 * banked, ry * 5.4 * banked, color, 0.3 * alpha, 0.12, rot);
     pen.light(ball.x, ball.y, rx * 2.8 * banked, ry * 2.8 * banked, color, 0.95 * alpha, 0.45, rot);
@@ -265,10 +312,18 @@ function drawHazards(pen: Pen, world: World, time: number): void {
     if (pickup.kind === 'crystal') {
       pen.light(pickup.x, pickup.y, 18, 18, 0xffd23c, 0.45, 0.5);
       pen.surface(pickup.x, pickup.y, 6, 6, 0xffd23c, { rot: time * 4, radius: 1.5, halo: 0.5 });
-    } else {
+    } else if (pickup.kind === 'heart') {
       pen.light(pickup.x, pickup.y, 22, 22, 0xff5c8a, 0.5, 0.5);
       pen.surface(pickup.x, pickup.y, 7.5, 7.5, 0xff5c8a, { radius: 7.5, halo: 0.5 });
       pen.disc(pickup.x - 2.4, pickup.y - 2.6, 2.2, 0xffffff, 0.9, 0.9);
+    } else {
+      // A capsule: a bright pill in its buff's colour, turning over inside a ring that breathes.
+      const color = BUFF_MAP[pickup.buff ?? 'overcharge'].color;
+      const spin = time * 2.6 + pickup.id;
+      pen.light(pickup.x, pickup.y, 34, 34, color, 0.5, 0.5);
+      pen.surface(pickup.x, pickup.y, 10.5, 6.5, color, { rot: spin, radius: 6.5, halo: 0.7 });
+      pen.surface(pickup.x, pickup.y, 4.2, 4.2, 0xffffff, { rot: -spin * 0.7, radius: 1.5 });
+      pen.ring(pickup.x, pickup.y, 17 + 3 * Math.sin(time * 5 + pickup.id), 1.6, color, 0.8);
     }
   }
 
@@ -293,6 +348,17 @@ function drawHazards(pen: Pen, world: World, time: number): void {
     const angle = Math.atan2(bullet.vy, bullet.vx);
     pen.light(bullet.x - bullet.vx * 0.035, bullet.y - bullet.vy * 0.035, 18, 4, 0xff2fb0, 0.4, 0.3, angle);
   }
+}
+
+/** The Aegis: a live wire under the paddle that bullets die on, for as long as the buff stands. */
+function drawAegis(pen: Pen, time: number): void {
+  const color = BUFF_MAP.aegis.color;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+  const span = ARENA_W - WALL * 2;
+  pen.light(ARENA_W / 2, AEGIS_Y, span / 2, 18, color, 0.2 + 0.08 * pulse, 0.35);
+  pen.stroke(ARENA_W / 2, AEGIS_Y, span / 2, 1, color, 2.2, 0.7 + 0.25 * pulse, 0);
+  for (let i = 0; i <= 12; i++)
+    pen.light(WALL + (i * span) / 12, AEGIS_Y, 2.4, 7 + 3 * pulse, color, 0.8, 0.6);
 }
 
 function drawZones(pen: Pen, world: World, time: number): void {
@@ -527,11 +593,11 @@ export function drawScene(
   for (const brick of world.bricks) {
     if (!brick.dead && brick.y + brick.h / 2 > lowest) lowest = brick.y + brick.h / 2;
   }
-  out.danger = world.boss ? 0 : clamp(1 - (DANGER_Y - lowest) / 260, 0, 1);
+  out.danger = world.boss ? 0 : clamp(1 - (DANGER_Y - lowest) / DANGER_BAND, 0, 1);
   out.energy = clamp(world.combo / 400, 0, 1) * 0.7 + (world.odActive ? 0.6 : 0);
 
   const playing = world.state === 'playing' || world.state === 'intro' || world.state === 'clearing';
-  const tint = ballTint(world, accent);
+  const tint = ballTint(world, accent, time);
 
   drawArena(pen, accent, out, time, playing);
 
@@ -542,6 +608,7 @@ export function drawScene(
   // ── light (additive) ──
   drawZones(pen, world, time);
   drawTransients(pen, fx, time);
+  if (world.live.aegis && world.state !== 'dead') drawAegis(pen, time);
   drawBalls(pen, world, fx, tint, time);
   drawHazards(pen, world, time);
   drawParticles(pen, fx);

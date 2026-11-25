@@ -1,3 +1,4 @@
+import type { BuffId } from '../game/buffs/defs';
 import type { DifficultyId } from '../game/difficulty';
 import type { ModifierId, ReactionId } from '../game/levels/definitions';
 import type { Rarity, Tag } from '../game/upgrades/types';
@@ -13,6 +14,8 @@ import type { Rarity, Tag } from '../game/upgrades/types';
 export interface ContentOverrides {
   /** By upgrade id, e.g. `power`. `describe` mirrors the canonical template's numbers and `<b>` markup. */
   upgrades: Record<string, { name: string; flavor: string; describe: (lv: number) => string }>;
+  /** By buff id, e.g. `split`. `short` is the banner line of an instant buff. */
+  buffs: Record<BuffId, { name: string; desc: string; short?: string }>;
   /** By difficulty id. */
   difficulty: Record<DifficultyId, { name: string; desc: string; detail: string[] }>;
   /** By starter id. */

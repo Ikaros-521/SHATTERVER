@@ -1,4 +1,5 @@
 import { dict, getLang } from '../core/i18n';
+import type { BuffDef } from '../game/buffs/defs';
 import { difficultyOf, type Difficulty, type DifficultyId } from '../game/difficulty';
 import { CHAPTERS, COMBO_TIERS } from '../game/levels/definitions';
 import type { BossDef, ModifierDef, ReactionDef } from '../game/levels/definitions';
@@ -39,6 +40,21 @@ export function upgradeDescribe(def: UpgradeDef, level: number): string {
 /** Localized name of any upgrade by id (codex requirements, starter grant lists, run records). */
 export function upgradeNameById(id: string): string {
   return overrides()?.upgrades[id]?.name ?? UPGRADE_MAP[id]?.name ?? id;
+}
+
+// ── temporary buffs ──
+
+export function buffName(def: BuffDef): string {
+  return overrides()?.buffs[def.id]?.name ?? def.name;
+}
+
+export function buffDesc(def: BuffDef): string {
+  return overrides()?.buffs[def.id]?.desc ?? def.desc;
+}
+
+/** The banner line of an instant buff. A timed one shows its countdown instead. */
+export function buffShort(def: BuffDef): string {
+  return overrides()?.buffs[def.id]?.short ?? def.short ?? def.desc;
 }
 
 // ── difficulty ──

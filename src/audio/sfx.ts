@@ -39,6 +39,12 @@ export type Sfx =
   | 'shoot'
   | 'pop'
   | 'breach'
+  | 'capsule'
+  | 'buff'
+  | 'buffEnd'
+  | 'dodge'
+  | 'strike'
+  | 'floor'
   | 'uiHover'
   | 'uiClick'
   | 'draft'
@@ -284,6 +290,65 @@ export function playSfx(engine: AudioEngine, name: Sfx, params: SfxParams = {}):
     case 'breach':
       engine.tone({ type: 'square', freq: 112, dur: 0.2, gain: 0.17 });
       engine.noise({ filter: 'lowpass', freq: 520, dur: 0.2, gain: 0.24 });
+      break;
+    case 'capsule':
+      // Something good just fell out of a brick: a small glass chime.
+      engine.tone({
+        type: 'sine',
+        freq: jitter(midiHz(88), 0.01),
+        freqEnd: midiHz(93),
+        dur: 0.18,
+        gain: 0.06,
+        reverb: 0.55,
+      });
+      break;
+    case 'buff': {
+      // A capsule breaking open: a quick run up A-minor pentatonic, with a shimmer over a low thump.
+      [69, 72, 74, 76, 81].forEach((note, i) => {
+        engine.tone({
+          type: 'triangle',
+          freq: midiHz(note),
+          dur: 0.3,
+          gain: 0.085,
+          delay: i * 0.035,
+          reverb: 0.4,
+        });
+      });
+      engine.tone({ type: 'sine', freq: 130, freqEnd: 520, dur: 0.2, gain: 0.2 });
+      engine.noise({ filter: 'highpass', freq: 5200, dur: 0.4, gain: 0.05, attack: 0.12, reverb: 0.6 });
+      break;
+    }
+    case 'buffEnd':
+      // Quiet: the chip in the HUD has been blinking, the world just eases back.
+      engine.tone({
+        type: 'sine',
+        freq: midiHz(76),
+        freqEnd: midiHz(69),
+        dur: 0.26,
+        gain: 0.06,
+        reverb: 0.4,
+      });
+      break;
+    case 'dodge':
+      engine.noise({ filter: 'bandpass', freq: 3600, freqEnd: 700, q: 1.6, dur: 0.2, gain: 0.16 });
+      engine.tone({ type: 'sine', freq: 1760, freqEnd: 2637, dur: 0.12, gain: 0.06 });
+      break;
+    case 'strike':
+      engine.noise({ filter: 'highpass', freq: 2600, dur: 0.12, gain: 0.2 });
+      engine.tone({
+        type: 'sawtooth',
+        freq: 180,
+        freqEnd: 46,
+        dur: 0.5,
+        gain: 0.2,
+        delay: 0.03,
+        reverb: 0.35,
+      });
+      engine.tone({ type: 'sine', freq: 74, freqEnd: 34, dur: 0.5, gain: 0.4, delay: 0.04 });
+      break;
+    case 'floor':
+      engine.tone({ type: 'sine', freq: 520, freqEnd: 170, dur: 0.16, gain: 0.16 });
+      engine.noise({ filter: 'lowpass', freq: 2400, freqEnd: 500, dur: 0.12, gain: 0.08 });
       break;
     case 'uiHover':
       engine.tone({ type: 'sine', freq: jitter(2400, 0.02), dur: 0.025, gain: 0.035 });

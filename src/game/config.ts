@@ -36,6 +36,69 @@ export const BALL_ANTI_STALL = 4;
 /** How far (radians) a paddle-edge hit deflects the return angle from vertical. */
 export const PADDLE_BOUNCE_SPREAD = 1.05;
 
+/** Ceilings for how far buffs can stretch the paddle and swell the ball, on top of a maxed build. */
+export const MAX_PADDLE_HALF = 290;
+export const MAX_BALL_RADIUS = 34;
+
+/** Catch offset from the paddle's centre (fraction of its half-width) that still counts as perfect. */
+export const PERFECT_WINDOW = 0.16;
+export const PERFECT_ENERGY = 7;
+export const CATCH_ENERGY = 2.5;
+
+/**
+ * Temporary buffs (「增益胶囊」). A level's first capsule is due a few seconds in, so every level
+ * has one; after that they settle into a slower rhythm. "Due" means the next brick shattered
+ * drops it — a capsule has to come from somewhere.
+ */
+export const BUFF_FIRST_MIN = 3.5;
+export const BUFF_FIRST_MAX = 6;
+export const BUFF_INTERVAL_MIN = 13;
+export const BUFF_INTERVAL_MAX = 19;
+
+/** 「球体分裂」: each ball in flight forks into two twins, splayed by this angle either side. */
+export const SPLIT_ANGLE = 0.38;
+export const SPLIT_CLONE_MULT = 0.7;
+export const SPLIT_CLONE_RADIUS = 0.85;
+/** Twins on the field at once, whatever the ball list could still hold. */
+export const MAX_CLONES = 48;
+
+/** 「弹幕屏障」: the line under the paddle where bullets are swallowed. */
+export const AEGIS_Y = PADDLE_Y + PADDLE_H / 2 + 10;
+
+/** 永动引擎: overdrive energy gained while a buff is running. */
+export const PERPETUUM_GAIN = 3;
+
+/** 雷云: the automatic strike's rhythm, and its damage as a multiple of attack power. */
+export const THUNDER_INTERVAL = 2.5;
+export const THUNDER_DAMAGE = 3;
+
+/** 临界质量: bricks shattered per extension, and how much Overdrive can grow in total. */
+export const CRITICAL_MASS_KILLS = 5;
+export const CRITICAL_MASS_BONUS = 0.5;
+export const CRITICAL_MASS_CAP = 6;
+
+/** 过载余波: the shockwave reaches every brick, and what it deals as a multiple of attack power. */
+export const AFTERGLOW_RADIUS = 1500;
+export const AFTERGLOW_DAMAGE = 2;
+
+export const PLAGUE_RADIUS = 150;
+export const WILDFIRE_RADIUS = 140;
+/** 棱镜: how far a refracted beam looks for its brick, and its damage as a fraction of attack power. */
+export const PRISM_RANGE = 240;
+export const PRISM_DAMAGE = 0.5;
+
+/**
+ * Capsules read the field. The wall's pressure is 0 until its lowest brick enters this band above
+ * the danger line, and 1 at the line — the same reading the line's glow uses.
+ */
+export const DANGER_BAND = 260;
+/** A sinking field is offered more of what tears it down, and less of what only guards the paddle. */
+export const PRESSURE_OFFENCE = 1.5;
+export const PRESSURE_TIMESTOP = 2;
+export const PRESSURE_COVER = 0.4;
+/** A low shield sees repair capsules that much more often, at one shield left. */
+export const HURT_REPAIR = 1.5;
+
 /** Damage of a completely unupgraded ball, per hit. */
 export const BASE_DMG = 10;
 export const MAX_HP_BASE = 4;

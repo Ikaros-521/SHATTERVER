@@ -28,12 +28,12 @@ describe('upgrade definitions', () => {
   it('covers the intended spread of rarities', () => {
     const byRarity = new Map<string, number>();
     for (const def of UPGRADES) byRarity.set(def.rarity, (byRarity.get(def.rarity) ?? 0) + 1);
-    expect(byRarity.get('common')).toBe(8);
-    expect(byRarity.get('rare')).toBe(14);
-    expect(byRarity.get('epic')).toBe(9);
-    expect(byRarity.get('legendary')).toBe(5);
-    expect(byRarity.get('mythic')).toBe(3);
-    expect(UPGRADES).toHaveLength(39);
+    expect(byRarity.get('common')).toBe(12);
+    expect(byRarity.get('rare')).toBe(19);
+    expect(byRarity.get('epic')).toBe(14);
+    expect(byRarity.get('legendary')).toBe(7);
+    expect(byRarity.get('mythic')).toBe(4);
+    expect(UPGRADES).toHaveLength(56);
   });
 
   it('every upgrade is internally consistent at every level', () => {

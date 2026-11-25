@@ -67,6 +67,7 @@ export const zh = {
     statBalls: '球体',
     statComboBonus: '连击加成',
     statCrit: '暴击率',
+    buffs: '增益',
   },
   starter: {
     title: '选择初始协议',
@@ -159,9 +160,13 @@ export const zh = {
     title: '强化图鉴',
     tabUpgrades: '强化',
     tabReactions: '元素反应',
+    tabBuffs: '增益',
     tabRules: '玩法',
     progressUpgrades: '已遇到 {n} / {total} 种强化。同体系的强化更容易一起出现。',
     progressReactions: '同时拥有两种元素时自动解锁。反应按固定节奏触发，不会每一下都炸。',
+    progressBuffs: '关卡中砖块会不定期掉落增益胶囊，接住后生效数秒。增益只在当前关卡有效。',
+    buffTimed: '{n} 秒',
+    buffInstant: '即时',
     progressRules: '三十秒上手，一辈子变强。',
     maxLevel: '最高 Lv {n}',
     unique: '唯一',
@@ -183,7 +188,10 @@ export const zh = {
     ruleOverdriveBody: '击中与接球会为挡板充能。充满后按 <b>空格</b> 或点击，获得数秒的伤害与速度爆发。',
     ruleBuild: '构筑',
     ruleBuildBody:
-      '每通过一关三选一，共 39 种强化、5 个稀有度。同体系的强化更容易一起出现；传说与神话以对应体系的强化为前提。集齐两种元素会自动解锁<b>元素反应</b>。',
+      '每通过一关三选一，共 {n} 种强化、5 个稀有度。同体系的强化更容易一起出现；传说与神话以对应体系的强化为前提。集齐两种元素会自动解锁<b>元素反应</b>。',
+    ruleBuffs: '临时增益',
+    ruleBuffsBody:
+      '击碎砖块会不定期掉落<b>增益胶囊</b>——球体分裂、球体巨化、延展挡板、时停……接住后生效数秒，画面里会同步显示剩余时间。增益只在当前关卡有效；「共振」体系的强化能让它们出现得更勤、持续得更久。',
     ruleCrystals: '碎晶',
     ruleCrystalsBody: '击碎砖块掉落碎晶，可用于<b>刷新</b>三选一，或<b>跳过</b>换取更多碎晶。',
   },
@@ -226,6 +234,9 @@ export const zh = {
     overdriveSub: '超载',
     timeStopSub: '时停',
     sectorClearSub: '关卡清除',
+    buffSub: '{name} · 增益 {n} 秒',
+    buffTwinSub: '{name} · 双共振 {n} 秒',
+    dodgeSub: '护盾未受损',
     reactionToast: '元素反应 · {name}',
     reactionDetail: '{recipe}：{desc}',
     difficultyToast: '{name}难度 · {en}',
@@ -290,9 +301,10 @@ export const zh = {
           eyebrow: 'TUTORIAL · 04',
           title: '三选一强化',
           html: `
-      <p>每通过一关进行<b>三选一</b>，所选强化只在本局内生效，一层层叠成流派。目前共有 39 种强化、5 个稀有度：普通 → 稀有 → 史诗 → 传说 → 神话。</p>
-      <p>强化分体系——球体 / 挡板 / 伤害 / 烈焰 / 极寒 / 雷霆 / 腐蚀 / 虚空 / 爆炸 / 激光 / 时空 / 贪婪 / 生存 / 超载。<b>同体系的强化更容易一起出现</b>。</p>
+      <p>每通过一关进行<b>三选一</b>，所选强化只在本局内生效，一层层叠成流派。目前共有 {upgrades} 种强化、5 个稀有度：普通 → 稀有 → 史诗 → 传说 → 神话。</p>
+      <p>强化分体系——球体 / 挡板 / 伤害 / 烈焰 / 极寒 / 雷霆 / 腐蚀 / 虚空 / 爆炸 / 激光 / 时空 / 贪婪 / 生存 / 超载 / 共振。<b>同体系的强化更容易一起出现</b>。</p>
       <p><b>元素反应</b>：同时拥有两种元素强化（冰、火、雷、毒）会自动解锁组合效果，例如「冰 + 火」的融化。</p>
+      <p><b>临时增益</b>：关卡里击碎砖块会不定期掉落<b>增益胶囊</b>——球体分裂、球体巨化、延展挡板、时停……接住后生效数秒，只在当前关卡有效。「共振」体系的强化专门与它们联动。</p>
       <p><b>碎晶</b>：击碎砖块掉落碎晶 ◆，可以在三选一里「刷新」选项，也可以「跳过」换取碎晶攒着用。</p>`,
         },
         {

@@ -2,21 +2,49 @@ import { clamp, damp, lerp } from '../core/math';
 import { Emitter } from '../core/emitter';
 import type { RNG } from '../core/rng';
 import {
+  AEGIS_Y,
+  AFTERGLOW_DAMAGE,
+  AFTERGLOW_RADIUS,
   ARENA_H,
   ARENA_W,
   BALL_DRY_NUDGE,
   BALL_RADIUS,
   BALL_SPEED,
+  BUFF_FIRST_MAX,
+  BUFF_FIRST_MIN,
+  BUFF_INTERVAL_MAX,
+  BUFF_INTERVAL_MIN,
+  CATCH_ENERGY,
   COMBO_TIME,
+  CRITICAL_MASS_BONUS,
+  CRITICAL_MASS_CAP,
+  CRITICAL_MASS_KILLS,
+  DANGER_BAND,
   DANGER_Y,
+  HURT_REPAIR,
+  MAX_BALLS,
+  MAX_BALL_RADIUS,
   MAX_BULLETS,
+  MAX_CLONES,
   MAX_DEATHS_PER_FLUSH,
+  MAX_PADDLE_HALF,
   OVERDRIVE_DURATION,
   OVERDRIVE_FILL_SECONDS,
   PADDLE_BOUNCE_SPREAD,
   PADDLE_H,
   PADDLE_W,
   PADDLE_Y,
+  PERFECT_ENERGY,
+  PERFECT_WINDOW,
+  PERPETUUM_GAIN,
+  PRESSURE_COVER,
+  PRESSURE_OFFENCE,
+  PRESSURE_TIMESTOP,
+  SPLIT_ANGLE,
+  SPLIT_CLONE_MULT,
+  SPLIT_CLONE_RADIUS,
+  THUNDER_DAMAGE,
+  THUNDER_INTERVAL,
   WALL,
 } from './config';
 import { botTarget } from './bot';
@@ -36,11 +64,14 @@ import {
   POOL_TICK,
   processDeath,
   SOLAR_PERIOD,
+  strikeLightning,
   tickStatuses,
   type DamageCtx,
   type DamageSource,
   type ExplosionKind,
 } from './combat';
+import { BUFFS, BUFF_MAP, COVER, OFFENCE, type ActiveBuff, type BuffDef, type BuffId } from './buffs/defs';
+import { withBuffs } from './buffs/live';
 import {
   allocId,
   BOSS_HP,
@@ -148,6 +179,20 @@ export interface WorldEvents {
   launch: { count: number };
   clear: { time: number; killed: number };
   dead: Record<string, never>;
+  // --- temporary buffs ---
+  /** A capsule broke on the paddle and its buff is now in force. `duration` is 0 for an instant one. */
+  buff: { id: BuffId; x: number; y: number; duration: number; twin: boolean };
+  buffEnd: { id: BuffId };
+  /** A brick dropped a capsule; it is falling towards the paddle. */
+  capsule: { x: number; y: number; id: BuffId };
+  /** The Aegis line under the paddle swallowed a bullet. */
+  aegis: { x: number };
+  /** A hit that would have cost shield was dodged outright. */
+  dodge: { x: number };
+  /** The automatic thunder strike came down on a brick. */
+  strike: { x: number; y: number };
+  /** A ball bounced off the floor instead of being lost. */
+  floorBounce: { x: number };
 }
 
 export function comboTierOf(combo: number): number {
@@ -168,6 +213,8 @@ export function comboTierOf(combo: number): number {
 export class World {
   readonly events = new Emitter<WorldEvents>();
   readonly stats: BuildStats;
+  /** Temporary buffs in force, in the order their capsules were collected. Empty for most of a level. */
+  buffs: ActiveBuff[] = [];
   /** When true the paddle drives itself (attract-mode demo, headless tests, autopilot debugging). */
   bot: boolean;
 
@@ -222,6 +269,8 @@ export class World {
   killed = 0;
   /** Bricks this level started with, plus everything summoned since. Denominator of the level progress bar. */
   brickTotal = 0;
+  /** Whether this level has anything that fires at the paddle. A shield against nothing is not offered. */
+  readonly hasGunners: boolean;
 
   private introT = 1.0;
   private clearT = 0;
@@ -236,6 +285,20 @@ export class World {
   private flushing = false;
   private scheduler: { t: number; fn: () => void }[] = [];
 
+  /** `stats` with the active buffs folded in; what the simulation reads. Points at `stats` itself while none run. */
+  private liveStats: BuildStats;
+  /** Own stream, so capsules never disturb the rolls the brick field already makes. */
+  private readonly buffRng: RNG;
+  /** Level time at which the next capsule is due. */
+  private buffAt: number;
+  private lastBuff: BuffId | null = null;
+  /** A split capsule was collected while no real ball was in flight; fork the first one that launches. */
+  private pendingSplit = false;
+  private thunderCd = THUNDER_INTERVAL;
+  /** Bricks shattered when Overdrive began, and how far Critical Mass has stretched it. */
+  private odKills = 0;
+  private odBonus = 0;
+
   constructor(
     readonly run: Run,
     readonly level: LevelPlan,
@@ -243,6 +306,10 @@ export class World {
     opts: { bot?: boolean; difficulty?: Difficulty } = {},
   ) {
     this.stats = run.stats;
+    this.liveStats = run.stats;
+    this.buffRng = rng.fork();
+    this.buffAt = this.buffRng.range(BUFF_FIRST_MIN, BUFF_FIRST_MAX);
+    this.hasGunners = level.boss !== null || level.cells.some((cell) => cell.type === 'turret');
     this.diff = opts.difficulty ?? difficultyOf('standard');
     this.bot = opts.bot ?? false;
     this.maxHp = run.maxHp;
@@ -254,6 +321,11 @@ export class World {
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();
+  }
+
+  /** The build as it plays right now: `stats` plus whatever temporary buffs modify. Read this, never `stats`, for anything a capsule can change. */
+  get live(): BuildStats {
+    return this.liveStats;
   }
 
   get score(): number {
@@ -302,7 +374,7 @@ export class World {
   }
 
   private spawnBalls(): void {
-    const s = this.stats;
+    const s = this.live;
     const radius = BALL_RADIUS * s.ballRadius;
     const add = (ghost: boolean, dock: number): void => {
       const ball = makeBall({
@@ -338,11 +410,11 @@ export class World {
     }
   }
 
-  /** Current ball speed: base × upgrades × overdrive × level modifier. */
+  /** Current ball speed: base × upgrades × buffs × overdrive × level modifier. */
   ballSpeed(): number {
     return (
       BALL_SPEED *
-      this.stats.ballSpeed *
+      this.live.ballSpeed *
       (this.odActive ? 1.22 : 1) *
       this.level.speedMult *
       this.diff.ballSpeedMult
@@ -387,7 +459,9 @@ export class World {
     if (this.odActive) {
       this.odT -= dt;
       if (this.odT <= 0) this.endOverdrive();
+      else this.tickCriticalMass();
     }
+    this.tickBuffs(dt);
     this.updateHps(dt);
     this.updateTimeStop(dt);
     this.tickPurge(dt);
@@ -399,6 +473,7 @@ export class World {
       this.updateZones(dt);
       this.updateAbilities(dt);
       this.updateBalls(dt);
+      if (this.pendingSplit) this.splitBalls();
       this.updateShards(dt);
     }
     tickStatuses(this, dt);
@@ -425,15 +500,44 @@ export class World {
     if (this.odActive || this.energy < 100 || this.state !== 'playing') return false;
     this.odActive = true;
     this.odT = OVERDRIVE_DURATION * this.stats.odDurationMult;
+    this.odKills = this.killed;
+    this.odBonus = 0;
     this.energy = 0;
     this.events.emit('overdrive', 'start');
     return true;
+  }
+
+  /** How long the current Overdrive window was stretched to — Critical Mass extensions included. */
+  get odMax(): number {
+    return OVERDRIVE_DURATION * this.stats.odDurationMult + this.odBonus;
   }
 
   private endOverdrive(): void {
     this.odActive = false;
     this.odT = 0;
     this.events.emit('overdrive', 'end');
+    // Afterglow: the spent charge leaves as one shockwave through every brick on the field. Only
+    // when the window ran its course — a level ending or a run ending has nothing left to sweep.
+    if (this.live.afterglow && this.state === 'playing') {
+      explode(
+        this,
+        this.paddle.x,
+        this.paddle.y,
+        AFTERGLOW_RADIUS,
+        basePower(this) * AFTERGLOW_DAMAGE,
+        0x9ff3ff,
+        'nova',
+      );
+    }
+  }
+
+  /** Critical Mass: every few bricks shattered while Overdrive runs keep it running a little longer. */
+  private tickCriticalMass(): void {
+    if (!this.live.criticalMass || this.odBonus >= CRITICAL_MASS_CAP) return;
+    if (this.killed - this.odKills < CRITICAL_MASS_KILLS) return;
+    this.odKills += CRITICAL_MASS_KILLS;
+    this.odBonus = Math.min(CRITICAL_MASS_CAP, this.odBonus + CRITICAL_MASS_BONUS);
+    this.odT += CRITICAL_MASS_BONUS;
   }
 
   private decayVisuals(dt: number): void {
@@ -451,7 +555,9 @@ export class World {
 
   private updatePaddle(dt: number): void {
     const paddle = this.paddle;
-    paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
+    // Eased: a capsule stretching the paddle should read as the paddle growing, not being swapped.
+    const want = Math.min(MAX_PADDLE_HALF, (PADDLE_W / 2) * this.live.paddleWidth * this.diff.paddleMult);
+    paddle.halfW = Math.abs(paddle.halfW - want) < 0.01 ? want : damp(paddle.halfW, want, 18, dt);
     const min = WALL + paddle.halfW;
     const max = ARENA_W - WALL - paddle.halfW;
 
@@ -493,8 +599,14 @@ export class World {
     this.comboTimer = 0;
   }
 
+  /** Adds (or, with a negative amount, drains) overdrive energy. Gains scale with the build; drains never do. */
   private gainEnergy(amount: number): void {
     if (this.odActive) return;
+    if (amount > 0) {
+      const s = this.live;
+      amount *= 1 + s.odGain;
+      if (s.buffPerpetuum && this.buffs.length > 0) amount *= PERPETUUM_GAIN;
+    }
     const before = this.energy;
     this.energy = Math.min(100, this.energy + amount);
     if (before < 100 && this.energy >= 100) this.events.emit('overdrive', 'ready');
@@ -514,14 +626,16 @@ export class World {
     const modifier = this.level.modifier?.id;
     // The field accelerates once the level has outstayed its welcome — a soft enrage.
     const pressure = 1 + clamp((this.time - this.level.parTime) / 25, 0, 2.5);
-    if (!this.boss) this.fieldOffset += this.level.descent * pressure * dt;
+    // A Slow Field build takes the same fraction off everything that moves towards the paddle.
+    const descent = 1 - this.live.slowField;
+    if (!this.boss) this.fieldOffset += this.level.descent * pressure * descent * dt;
 
     this.updateBoss(dt);
 
     for (const brick of this.bricks) {
       if (brick.dead) continue;
       if (!brick.boss) {
-        brick.baseY += brick.vy * dt;
+        brick.baseY += brick.vy * descent * dt;
         brick.y = brick.baseY + this.fieldOffset;
         if (brick.y + brick.h / 2 >= DANGER_Y) {
           this.breach(brick);
@@ -559,6 +673,13 @@ export class World {
 
   damagePlayer(amount: number): void {
     if (this.invuln > 0 || this.state !== 'playing') return;
+    // A dodge costs nothing — not the shield, not the combo, not the meter — but does claim the
+    // grace window, so a row of bricks sinking together is one roll rather than one each.
+    if (this.live.evade > 0 && this.rng.chance(this.live.evade)) {
+      this.invuln = 0.9;
+      this.events.emit('dodge', { x: this.paddle.x });
+      return;
+    }
     this.hp -= amount;
     this.damageTaken += amount;
     this.invuln = 0.9;
@@ -576,7 +697,7 @@ export class World {
   private shoot(x: number, y: number): void {
     if (this.bullets.length >= MAX_BULLETS) return;
     const aim = Math.atan2(this.paddle.y - y, this.paddle.x - x) + this.rng.range(-0.22, 0.22);
-    const speed = Math.min(430, 230 + this.level.index * 6);
+    const speed = Math.min(430, 230 + this.level.index * 6) * (1 - this.live.slowField);
     this.bullets.push({
       id: allocId(),
       x,
@@ -614,6 +735,13 @@ export class World {
         paddle.flash = Math.max(paddle.flash, 0.6);
         this.events.emit('bulletPop', { x: bullet.x, y: bullet.y, blocked: true });
       }
+      // Aegis: while it stands, a line just under the paddle takes whatever slips past it.
+      if (!bullet.dead && this.live.aegis && bullet.vy > 0 && bullet.y + bullet.r >= AEGIS_Y) {
+        bullet.dead = true;
+        this.gainEnergy(1.5);
+        this.events.emit('bulletPop', { x: bullet.x, y: AEGIS_Y, blocked: true });
+        this.events.emit('aegis', { x: bullet.x });
+      }
     }
   }
 
@@ -626,7 +754,7 @@ export class World {
     boss.t += dt * boss.speed;
     boss.x = Math.sin(boss.t * def.sway) * def.ampX;
     boss.y = (1 - Math.cos(boss.t * def.bob)) * 0.5 * def.ampY;
-    if (boss.enraged) this.fieldOffset += 16 * dt;
+    if (boss.enraged) this.fieldOffset += 16 * (1 - this.live.slowField) * dt;
 
     let hp = 0;
     let parts = 0;
@@ -749,8 +877,14 @@ export class World {
   // ───────────────────────────── player-owned systems ─────────────────────────────
 
   private updateTimeStop(dt: number): void {
-    const s = this.stats;
-    if (s.timeStopInterval <= 0) return;
+    const s = this.live;
+    // The time-stop capsule holds the world still for exactly as long as the buff runs, on a clock
+    // of its own. The upgrade's cycle — countdown or cooldown — resumes once the buff is gone.
+    if (this.hasBuff('timestop')) {
+      if (this.timeStop <= 0) this.events.emit('timeStop', 'start');
+      this.timeStop = Math.max(this.timeStop, 0.06);
+      return;
+    }
     if (this.timeStop > 0) {
       this.timeStop -= dt;
       if (this.timeStop <= 0) {
@@ -758,7 +892,7 @@ export class World {
         this.timeStopCd = s.timeStopInterval;
         this.events.emit('timeStop', 'end');
       }
-    } else if (this.state === 'playing') {
+    } else if (s.timeStopInterval > 0 && this.state === 'playing') {
       this.timeStopCd -= dt;
       if (this.timeStopCd <= 0) {
         this.timeStop = s.timeStopDuration;
@@ -768,7 +902,7 @@ export class World {
   }
 
   private updateAbilities(dt: number): void {
-    const s = this.stats;
+    const s = this.live;
     if (s.laserLevel > 0) {
       this.laserCd -= dt;
       if (this.laserCd <= 0) {
@@ -783,6 +917,25 @@ export class World {
         fireOrbital(this);
       }
     }
+    if (s.thunder > 0) {
+      this.thunderCd -= dt;
+      if (this.thunderCd <= 0) {
+        this.thunderCd = THUNDER_INTERVAL;
+        this.callThunder(s.thunder);
+      }
+    }
+  }
+
+  /** Thunderhead: lightning finds the brick closest to the danger line, so it always earns its keep. */
+  private callThunder(ranks: number): void {
+    let target: Brick | null = null;
+    for (const brick of this.bricks) {
+      if (!brick.dead && (!target || brick.y > target.y)) target = brick;
+    }
+    if (!target) return;
+    const power = basePower(this);
+    this.events.emit('strike', { x: target.x, y: target.y });
+    strikeLightning(this, target, power * THUNDER_DAMAGE * ranks, power);
   }
 
   /** Damages every brick whose centre lies within `radius` of a point. */
@@ -819,7 +972,7 @@ export class World {
   }
 
   private updateZones(dt: number): void {
-    const s = this.stats;
+    const s = this.live;
 
     for (const hole of this.holes) {
       if (hole.dead) continue;
@@ -879,10 +1032,10 @@ export class World {
   // ───────────────────────────── balls ─────────────────────────────
 
   private updateBalls(dt: number): void {
-    const s = this.stats;
+    const s = this.live;
     const speed =
       BALL_SPEED * s.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult;
-    const radius = BALL_RADIUS * s.ballRadius;
+    const radius = Math.min(MAX_BALL_RADIUS, BALL_RADIUS * s.ballRadius);
     const solar = s.solarDps > 0;
 
     for (const ball of this.balls) {
@@ -903,7 +1056,8 @@ export class World {
       }
       if (ball.emp > 0) ball.emp -= dt;
       ball.speed = speed;
-      ball.radius = radius;
+      // Size eases towards its target, so a capsule swelling the ball never teleports it out of a brick.
+      ball.radius = Math.abs(ball.radius - radius) < 0.01 ? radius : damp(ball.radius, radius, 16, dt);
       // Speed is authoritative. Upgrades, overdrive and level modifiers all change it, so the
       // velocity vector is rescaled to match — a faster ball really is faster from that frame on.
       const len = Math.hypot(ball.vx, ball.vy);
@@ -954,9 +1108,10 @@ export class World {
 
   paddleBounce(ball: Ball): void {
     const paddle = this.paddle;
-    const s = this.stats;
+    const s = this.live;
     // The offset decides the return angle: edge hits fly wide, centre hits go straight up.
-    let off = clamp((ball.x - paddle.x) / paddle.halfW, -1, 1);
+    const landed = clamp((ball.x - paddle.x) / paddle.halfW, -1, 1);
+    let off = landed;
     // Anti-stall: a ball that has been flying dry goes back with a visible angle, towards the nearest brick.
     if (ball.dryT > BALL_DRY_NUDGE) off = Math.max(Math.abs(off), 0.24) * this.sideWithBricks(ball.x);
     const angle = -Math.PI / 2 + off * PADDLE_BOUNCE_SPREAD;
@@ -968,12 +1123,15 @@ export class World {
     ball.y = paddle.y - PADDLE_H / 2 - ball.radius - 0.5;
     ball.momentum = 0;
     ball.squash = 1;
+    // A fresh trip up: banked damage and floor bounces both start over.
+    ball.floor = 0;
     if (s.empowerBonus > 0) ball.emp = s.empowerDuration;
 
     paddle.flash = 1;
     paddle.squash = 1;
-    const perfect = Math.abs(off) < 0.16;
-    this.gainEnergy(perfect ? 7 : 2.5);
+    // Judged on where the ball landed, before the anti-stall nudge bent its return angle.
+    const perfect = Math.abs(landed) < PERFECT_WINDOW + s.perfectWindow;
+    this.gainEnergy(perfect ? PERFECT_ENERGY * (1 + s.perfectEnergy) : CATCH_ENERGY);
     this.events.emit('paddle', { x: ball.x, off, perfect });
   }
 
@@ -1045,6 +1203,7 @@ export class World {
     ball.momentum = 0;
     ball.emp = 0;
     ball.stallT = 0;
+    ball.floor = 0;
     ball.ignore.clear();
   }
 
@@ -1079,13 +1238,17 @@ export class World {
   // ───────────────────────────── loot ─────────────────────────────
 
   dropLoot(brick: Brick): void {
-    const mult = this.stats.crystalMult * (this.level.modifier?.id === 'gold' ? 2 : 1);
+    const s = this.live;
+    const mult = s.crystalMult * (this.level.modifier?.id === 'gold' ? 2 : 1);
+    // 「碎晶雨」: every brick pays, including the kinds that normally drop nothing.
+    const rain = s.crystalChance >= 1;
     const spawn = (kind: PickupKind, value: number): void => {
       if (this.pickups.length >= 240) return;
       this.pickups.push({
         id: allocId(),
         kind,
         value,
+        buff: null,
         x: brick.x,
         y: brick.y,
         vx: this.rng.range(-160, 160),
@@ -1102,23 +1265,53 @@ export class World {
     };
 
     if (brick.boss) {
-      if (this.rng.chance(0.7)) crystal(2, 4);
+      if (rain || this.rng.chance(0.7)) crystal(2, 4);
       if (brick.bossRole === 'core') heart();
-      return;
+    } else {
+      switch (brick.type) {
+        case 'gold':
+          crystal(3, 5);
+          break;
+        case 'elite':
+          crystal(8, 12);
+          if (this.rng.chance(0.35)) heart();
+          break;
+        case 'explosive':
+          if (rain) crystal(1, 2);
+          break;
+        default:
+          if (rain || this.rng.chance(Math.min(0.5, s.crystalChance + 0.08 * s.luck))) crystal(1, 2);
+      }
     }
-    switch (brick.type) {
-      case 'gold':
-        crystal(3, 5);
-        break;
-      case 'elite':
-        crystal(8, 12);
-        if (this.rng.chance(0.35)) heart();
-        break;
-      case 'explosive':
-        break;
-      default:
-        if (this.rng.chance(Math.min(0.5, 0.2 + 0.08 * this.stats.luck))) crystal(1, 2);
-    }
+    this.dropCapsule(brick);
+  }
+
+  /**
+   * Capsules run on a clock rather than a per-brick roll, so they arrive at a steady pace
+   * whatever the build does to the kill rate: when one is due, the next brick to shatter carries it.
+   */
+  private dropCapsule(brick: Brick): void {
+    if (this.state !== 'playing' || this.time < this.buffAt) return;
+    const def = this.rollBuff();
+    // Nothing worth giving, or nowhere to put it: the next brick tries again.
+    if (!def || this.pickups.length >= 240) return;
+    this.lastBuff = def.id;
+    this.pickups.push({
+      id: allocId(),
+      kind: 'buff',
+      value: 0,
+      buff: def.id,
+      x: brick.x,
+      y: brick.y,
+      vx: this.buffRng.range(-140, 140),
+      vy: this.buffRng.range(-460, -260),
+      spd: 170,
+      t: 0,
+      dead: false,
+    });
+    this.events.emit('capsule', { x: brick.x, y: brick.y, id: def.id });
+    this.buffAt =
+      this.time + this.buffRng.range(BUFF_INTERVAL_MIN, BUFF_INTERVAL_MAX) / (1 + this.stats.buffRate);
   }
 
   private updatePickups(dt: number): void {
@@ -1144,10 +1337,177 @@ export class World {
         pickup.dead = true;
         if (pickup.kind === 'crystal') {
           this.run.crystals += pickup.value;
+        } else if (pickup.kind === 'buff') {
+          if (pickup.buff) this.activateBuff(pickup.buff);
         } else if (this.hp < this.maxHp) {
           this.hp++;
         }
         this.events.emit('pickup', { x: pickup.x, y: pickup.y, kind: pickup.kind, value: pickup.value });
+      }
+    }
+  }
+
+  // ───────────────────────────── temporary buffs ─────────────────────────────
+
+  hasBuff(id: BuffId): boolean {
+    return this.buffs.some((buff) => buff.id === id);
+  }
+
+  /**
+   * Grants a buff now. `scale` shortens it — Twin Resonance echoes run at half length.
+   * Returns false when there is nothing to grant: an unknown id, or a level that is already over.
+   */
+  activateBuff(id: BuffId, scale = 1): boolean {
+    const def = BUFF_MAP[id];
+    if (!def || this.state !== 'playing') return false;
+    const s = this.stats;
+    let duration = 0;
+    if (def.duration > 0) {
+      duration = def.duration * s.buffDurationMult * scale;
+      const running = this.buffs.find((buff) => buff.id === id);
+      if (running) {
+        // A second capsule tops the clock up; it never shortens the time already bought.
+        running.t = Math.max(running.t, duration);
+        running.max = Math.max(running.max, running.t);
+      } else {
+        this.buffs.push({ id, t: duration, max: duration });
+      }
+      if (id === 'split') this.pendingSplit = true;
+      this.refreshLive();
+    } else if (id === 'overcharge') {
+      this.gainEnergy(100);
+    } else if (id === 'repair' && this.hp < this.maxHp) {
+      this.hp++;
+    }
+    this.events.emit('buff', { id, x: this.paddle.x, y: this.paddle.y, duration, twin: scale < 1 });
+    // Twin Resonance: every full-length buff comes back, a beat later, as a different shorter one.
+    if (s.buffTwin && scale === 1) {
+      const echo = this.rollBuff(id);
+      if (echo) this.after(0.18, () => this.activateBuff(echo.id, 0.5));
+    }
+    return true;
+  }
+
+  /** Which buff the next capsule carries: weighted by what the field needs, and never one that would be wasted right here. */
+  private rollBuff(exclude?: BuffId): BuffDef | null {
+    const pressure = this.pressure();
+    const weightOf = (def: BuffDef): number => (def.id === exclude ? 0 : this.buffWeight(def, pressure));
+    // Never the same capsule twice running — as long as anything else would do.
+    let others = 0;
+    for (const def of BUFFS) if (def.id !== this.lastBuff) others += weightOf(def);
+    return this.buffRng.weighted(BUFFS, (def) =>
+      others > 0 && def.id === this.lastBuff ? 0 : weightOf(def),
+    );
+  }
+
+  /** 0..1: how far the wall has sunk into the band above the danger line. An enraged boss counts as fully pressed. */
+  private pressure(): number {
+    if (this.boss) return this.boss.enraged ? 1 : 0.2;
+    let lowest = -Infinity;
+    for (const brick of this.bricks) {
+      if (!brick.dead && brick.y + brick.h / 2 > lowest) lowest = brick.y + brick.h / 2;
+    }
+    return clamp(1 - (DANGER_Y - lowest) / DANGER_BAND, 0, 1);
+  }
+
+  private buffWeight(def: BuffDef, pressure: number): number {
+    let weight = def.weight;
+    // A buff already running is mostly a top-up.
+    if (this.hasBuff(def.id)) weight *= 0.25;
+    switch (def.id) {
+      case 'overcharge':
+        if (this.odActive || this.energy >= 100) weight = 0;
+        break;
+      case 'repair':
+        if (this.hp >= this.maxHp) weight = 0;
+        break;
+      case 'timestop':
+        if (this.timeStop > 0) weight = 0;
+        break;
+      case 'aegis':
+        if (!this.hasGunners) weight = 0;
+        break;
+      case 'split': {
+        // Twins need somewhere to go: fade out as the ball list fills.
+        const room = Math.max(0, Math.min(MAX_CLONES, MAX_BALLS - this.balls.length));
+        weight *= room / MAX_CLONES;
+        break;
+      }
+      default:
+    }
+    // The field has its say. A wall closing on the line is offered the means to tear it down — and
+    // time itself — rather than a wider paddle; a low shield sees repair come round sooner.
+    if (OFFENCE.has(def.id)) weight *= 1 + PRESSURE_OFFENCE * pressure;
+    else if (def.id === 'timestop') weight *= 1 + PRESSURE_TIMESTOP * pressure;
+    else if (COVER.has(def.id)) weight *= 1 - PRESSURE_COVER * pressure;
+    else if (def.id === 'repair') weight *= 1 + (HURT_REPAIR * (this.maxHp - this.hp)) / this.maxHp;
+    return weight;
+  }
+
+  /** Counts every buff down. Under Perpetuum, Overdrive holds the clocks still. */
+  private tickBuffs(dt: number): void {
+    if (this.buffs.length === 0) return;
+    if (this.stats.buffPerpetuum && this.odActive) return;
+    let expired = false;
+    for (const buff of this.buffs) {
+      buff.t -= dt;
+      if (buff.t > 0) continue;
+      expired = true;
+      // Split twins do not pop out of existence: they get half a second to fade.
+      if (buff.id === 'split')
+        for (const ball of this.balls) if (ball.clone) ball.ttl = Math.min(ball.ttl, 0.5);
+      this.events.emit('buffEnd', { id: buff.id });
+    }
+    if (!expired) return;
+    this.buffs = this.buffs.filter((buff) => buff.t > 0);
+    this.refreshLive();
+  }
+
+  /** Re-derives `live` after the set of running buffs changed. */
+  private refreshLive(): void {
+    this.liveStats = this.buffs.length > 0 ? withBuffs(this.stats, this.buffs) : this.stats;
+  }
+
+  /**
+   * 「球体分裂」: every real ball in flight forks into two twins. A capsule collected while every
+   * ball is waiting to relaunch stays pending until the first one launches.
+   */
+  private splitBalls(): void {
+    const buff = this.buffs.find((entry) => entry.id === 'split');
+    if (!buff) {
+      this.pendingSplit = false;
+      return;
+    }
+    const parents = this.balls.filter((ball) => ball.alive && !ball.docked && !ball.child && !ball.ghost);
+    if (parents.length === 0) return;
+    this.pendingSplit = false;
+
+    // Twins from an earlier capsule ride along: they now leave with this one.
+    let twins = 0;
+    for (const ball of this.balls) {
+      if (!ball.clone) continue;
+      ball.ttl = buff.t;
+      twins++;
+    }
+    for (const parent of parents) {
+      for (const side of [-1, 1]) {
+        if (this.balls.length >= MAX_BALLS || twins >= MAX_CLONES) return;
+        const angle = Math.atan2(parent.vy, parent.vx) + side * SPLIT_ANGLE;
+        this.balls.push(
+          makeBall({
+            x: parent.x,
+            y: parent.y,
+            angle,
+            speed: parent.speed,
+            radius: parent.radius * SPLIT_CLONE_RADIUS,
+            mult: SPLIT_CLONE_MULT,
+            child: true,
+            clone: true,
+            ttl: buff.t,
+          }),
+        );
+        twins++;
+        this.events.emit('split', { x: parent.x, y: parent.y });
       }
     }
   }

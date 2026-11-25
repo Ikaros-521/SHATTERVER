@@ -40,6 +40,7 @@ export const TAG_INFO: Record<Tag, TagInfo> = {
   greed: { name: '贪婪', color: 0xffc93c },
   defense: { name: '生存', color: 0x6dffa8 },
   overdrive: { name: '超载', color: 0xffffff },
+  resonance: { name: '共振', color: 0x1fffc8 },
 };
 
 /** Tags that describe a build archetype rather than a generic stat, so they can colour its icon. */
@@ -53,6 +54,7 @@ const ARCHETYPE_TAGS: Tag[] = [
   'laser',
   'time',
   'overdrive',
+  'resonance',
 ];
 
 /** The colour an upgrade is drawn in: its archetype if it has one, otherwise its rarity. */

@@ -1,5 +1,16 @@
 import { clamp } from '../core/math';
-import { ARENA_H, ARENA_W, BASE_DMG, MAX_BALLS, MAX_HOLES, PADDLE_H } from './config';
+import {
+  ARENA_H,
+  ARENA_W,
+  BASE_DMG,
+  MAX_BALLS,
+  MAX_HOLES,
+  PADDLE_H,
+  PLAGUE_RADIUS,
+  PRISM_DAMAGE,
+  PRISM_RANGE,
+  WILDFIRE_RADIUS,
+} from './config';
 import { makeBall, MIN_FREE_BALLS, type Ball, type Brick, type Hole } from './entities';
 import { REACTIONS, type ReactionDef, type ReactionId } from './levels/definitions';
 import type { World } from './world';
@@ -66,7 +77,7 @@ const makeCtx = (
 
 /** Attack power shared by everything that is not a specific ball (lasers, procs after a DoT kill…). */
 export function basePower(world: World): number {
-  const s = world.stats;
+  const s = world.live;
   let power = BASE_DMG * s.damageMult * world.level.damageMult;
   if (s.comboDamagePer10 > 0) power *= 1 + Math.floor(world.combo / 10) * s.comboDamagePer10;
   if (world.odActive) power *= 2 * s.odDamageBonus;
@@ -76,7 +87,7 @@ export function basePower(world: World): number {
 
 export function ballPower(world: World, ball: Ball): number {
   let power = basePower(world) * ball.mult;
-  if (ball.emp > 0) power *= 1 + world.stats.empowerBonus;
+  if (ball.emp > 0) power *= 1 + world.live.empowerBonus;
   return power * (1 + ball.momentum);
 }
 
@@ -89,7 +100,7 @@ export function ballPower(world: World, ball: Ball): number {
  */
 export function applyDamage(world: World, brick: Brick, amount: number, ctx: DamageCtx): number {
   if (brick.dead || !(amount > 0) || !Number.isFinite(amount)) return 0;
-  const s = world.stats;
+  const s = world.live;
 
   let dmg = amount;
   let execute = false;
@@ -143,7 +154,7 @@ export function onBallHitBrick(
   cx: number,
   cy: number,
 ): boolean {
-  const s = world.stats;
+  const s = world.live;
   const power = ballPower(world, ball);
   const crit = world.rng.chance(s.critChance);
   const pierce = world.rng.chance(s.pierceChance);
@@ -180,7 +191,7 @@ export function onBallHitBrick(
 }
 
 function applyOnHit(world: World, brick: Brick, power: number): void {
-  const s = world.stats;
+  const s = world.live;
   if (s.poison > 0) applyStatus(world, brick, 'poison', power);
   if (brick.dead) return;
   if (s.fire > 0) applyStatus(world, brick, 'burn', power);
@@ -212,7 +223,7 @@ function react(world: World, brick: Brick, id: ReactionId): void {
 /** Applies one elemental status, resolving any reaction with statuses already on the brick. */
 function applyStatus(world: World, brick: Brick, kind: 'burn' | 'frost' | 'poison', power: number): void {
   if (brick.dead) return;
-  const s = world.stats;
+  const s = world.live;
   const melt = (): void => {
     react(world, brick, 'melt');
     brick.frostT = 0;
@@ -250,9 +261,15 @@ function applyStatus(world: World, brick: Brick, kind: 'burn' | 'frost' | 'poiso
   }
 }
 
+/** Lightning falls on `origin` for `amount`, then jumps on as the build's chain. */
+export function strikeLightning(world: World, origin: Brick, amount: number, power: number): void {
+  applyDamage(world, origin, amount, makeCtx(origin.x, origin.y, power, 'secondary'));
+  if (!origin.dead) chainLightning(world, origin, power);
+}
+
 /** Lightning jumps from the struck brick to its nearest neighbours. */
 function chainLightning(world: World, origin: Brick, power: number): void {
-  const s = world.stats;
+  const s = world.live;
   // Frost is applied before shock on the same hit, so owning both elements upgrades every chain.
   const superconduct = origin.frostT > 0;
   const jumps = s.shockChains + (superconduct ? 2 : 0);
@@ -324,7 +341,7 @@ export function tickStatuses(world: World, dt: number): void {
  * procs that kill more bricks (chain reactions) are iterative rather than recursive.
  */
 export function processDeath(world: World, brick: Brick, ctx: DamageCtx): void {
-  const s = world.stats;
+  const s = world.live;
   const power = ctx.power || basePower(world);
   world.killed++;
   world.dropLoot(brick);
@@ -339,6 +356,9 @@ export function processDeath(world: World, brick: Brick, ctx: DamageCtx): void {
     spawnChild(world, brick.x, brick.y, ctx.ball);
   }
   if (brick.type === 'explosive') explode(world, brick.x, brick.y, 120, power * 1.5, 0xffa63d, 'brick');
+  // Contagion: a brick that shatters while corroding or burning hands its ailment to its neighbours.
+  if (s.plague && brick.poisonT > 0) spreadStatus(world, brick.x, brick.y, PLAGUE_RADIUS, 'poison', power);
+  if (s.wildfire && brick.burnT > 0) spreadStatus(world, brick.x, brick.y, WILDFIRE_RADIUS, 'burn', power);
   if (s.explosionDamage > 0 && (!ctx.explosion || s.explosionChain)) {
     const dmg = power * (ctx.explosion ? Math.max(1, s.explosionDamage) : s.explosionDamage);
     explode(world, brick.x, brick.y, s.explosionRadius, dmg, 0xff5c2b, 'normal');
@@ -360,7 +380,7 @@ export function explode(
   color: number,
   kind: ExplosionKind,
 ): void {
-  const s = world.stats;
+  const s = world.live;
   let reach = radius * s.explosionRadiusMult;
   let amount = dmg;
   if (kind === 'normal' && s.supernova > 0 && world.rng.chance(s.supernova)) {
@@ -395,6 +415,24 @@ export function explode(
       tick: 0,
       dead: false,
     });
+  }
+}
+
+/** Hands an ailment from a shattered brick to every brick around it. */
+function spreadStatus(
+  world: World,
+  x: number,
+  y: number,
+  radius: number,
+  kind: 'burn' | 'frost' | 'poison',
+  power: number,
+): void {
+  const r2 = radius * radius;
+  for (const brick of world.bricks) {
+    if (brick.dead) continue;
+    const dx = brick.x - x;
+    const dy = brick.y - y;
+    if (dx * dx + dy * dy <= r2) applyStatus(world, brick, kind, power);
   }
 }
 
@@ -443,7 +481,7 @@ export function spawnShards(
 
 export function spawnHole(world: World, x: number, y: number, power: number): void {
   if (world.holes.length >= MAX_HOLES) return;
-  const s = world.stats;
+  const s = world.live;
   // Keep the lens fully on screen so its post-process distortion reads as a circle, not a clipped arc.
   x = clamp(x, 120, ARENA_W - 120);
   y = clamp(y, 120, ARENA_H - 120);
@@ -461,7 +499,7 @@ export function hitShard(world: World, brick: Brick, x: number, y: number, power
 
 /** Lasers rise from the paddle and hit the first brick in their lane. They also clear bullets. */
 export function fireLasers(world: World): void {
-  const s = world.stats;
+  const s = world.live;
   const paddle = world.paddle;
   const power = basePower(world);
   const n = s.laserLevel;
@@ -485,13 +523,35 @@ export function fireLasers(world: World): void {
       }
     }
     world.events.emit('laser', { x0: x, y0: paddle.y - PADDLE_H / 2, x1: x, y1: reach });
-    if (target) applyDamage(world, target, power * LASER_DAMAGE * n, makeCtx(x, reach, power, 'secondary'));
+    if (target) {
+      applyDamage(world, target, power * LASER_DAMAGE * n, makeCtx(x, reach, power, 'secondary'));
+      if (s.prism) refract(world, x, reach, power);
+    }
+  }
+}
+
+/** Prism: a laser that lands splits sideways, into the nearest brick on either side of the hit. */
+function refract(world: World, x: number, y: number, power: number): void {
+  for (const side of [-1, 1]) {
+    let target: Brick | null = null;
+    let best = PRISM_RANGE;
+    for (const brick of world.bricks) {
+      if (brick.dead) continue;
+      const gap = (brick.x - x) * side - brick.w / 2;
+      // Only bricks level with the hit: a beam bending up or down the wall would not read as a refraction.
+      if (gap <= 0 || gap >= best || Math.abs(brick.y - y) > brick.h) continue;
+      best = gap;
+      target = brick;
+    }
+    if (!target) continue;
+    world.events.emit('laser', { x0: x, y0: y, x1: target.x, y1: target.y });
+    applyDamage(world, target, power * PRISM_DAMAGE, makeCtx(target.x, target.y, power, 'secondary'));
   }
 }
 
 /** Orbital lances: vertical beams that pierce every brick in a column. */
 export function fireOrbital(world: World): void {
-  const s = world.stats;
+  const s = world.live;
   const alive = world.bricks.filter((b) => !b.dead);
   if (alive.length === 0) return;
   const power = basePower(world);

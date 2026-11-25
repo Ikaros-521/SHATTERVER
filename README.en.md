@@ -18,14 +18,14 @@ The core design goal is "game feel": every hit gets a response, builds grow endl
 
 ## Quick Specs
 
-| Aspect        | Details                                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Genre         | Roguelite Brick-Breaker / Arkanoid Roguelike                                                                              |
-| Platform      | Any browser with WebGL2 hardware acceleration (desktop + portrait mobile touch, 0 MB instant play)                        |
-| Tech Stack    | TypeScript, custom WebGL2 pipeline (~10 draw calls/frame), procedural Web Audio SFX & music                               |
-| Runtime Deps  | **0** (zero production npm dependencies; builds to purely static `dist/`)                                                 |
-| Content Scale | 15 Campaign sectors (3 chapters × 5 + 3 bosses) + Endless, 39 upgrades, 4 starters, 4 elemental reactions, 5 difficulties |
-| Leaderboards  | Local top-50 history + optional cloud boards (CheddaBoards / Bilibili Toy) + shareable PNG score card                     |
+| Aspect        | Details                                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Genre         | Roguelite Brick-Breaker / Arkanoid Roguelike                                                                                            |
+| Platform      | Any browser with WebGL2 hardware acceleration (desktop + portrait mobile touch, 0 MB instant play)                                      |
+| Tech Stack    | TypeScript, custom WebGL2 pipeline (~10 draw calls/frame), procedural Web Audio SFX & music                                             |
+| Runtime Deps  | **0** (zero production npm dependencies; builds to purely static `dist/`)                                                               |
+| Content Scale | 15 Campaign sectors (3 chapters × 5 + 3 bosses) + Endless, 56 upgrades, 17 power-ups, 4 starters, 4 elemental reactions, 5 difficulties |
+| Leaderboards  | Local top-50 history + optional cloud boards (CheddaBoards / Bilibili Toy) + shareable PNG score card                                   |
 
 ## Getting started
 
@@ -73,6 +73,7 @@ This project uses a custom non-commercial license (see [LICENSE](./LICENSE)). In
 - **The brick wall sinks.** Bricks past the red warning line shatter and cost one shield. At zero shields the run ends.
 - **Intercept barrages with the paddle.** Turret and boss barrages only cost shield when they slip past the bottom; balls and lasers can destroy them too.
 - **Every cleared level, a three-way draft.** Crystals reroll the options, or skipping banks more crystals.
+- **Power-up capsules.** Shattered bricks drop capsules now and then: ball splits, giant balls, a longer paddle, time stop, rage… Catch one and it lasts a few seconds, for the current level only. A wall closing on the warning line is offered more of what tears it down, and a low shield sees repair come round sooner. The **Resonance** school of upgrades is built around them.
 - **Pick your difficulty**: 5 tiers (Standard → Abyss) at the starter screen. Higher tiers sink the wall faster, thicken brick health and count, narrow the paddle, suppress ball speed, densify barrages; Hard and above field **ball-eating eraser bricks**, and Abyss erases one surplus ball every 16 seconds. Higher tiers multiply score ×1.5–×4 — leaderboard rank is bought with difficulty.
 - **Records stay local.** Every run lands on the local leaderboard (main menu → Records, ranked by score); the results screen can **save a score card** — a shareable PNG of the final frame with all the numbers and the final build.
 - Owning two elements unlocks **elemental reactions** automatically: Melt (frost+flame), Overload (flame+shock), Superconduct (frost+shock), Venom Burst (corrode+flame).
@@ -81,7 +82,8 @@ This project uses a custom non-commercial license (see [LICENSE](./LICENSE)). In
 
 | Content           | Count                    | Notes                                                                                                                                      |
 | ----------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Upgrades          | 39                       | 5 rarities (common / rare / epic / legendary / mythic); mythics presuppose their school's build                                            |
+| Upgrades          | 56                       | 5 rarities (common / rare / epic / legendary / mythic); mythics presuppose their school's build; 5 of them belong to the Resonance school  |
+| Power-ups         | 17                       | 15 timed (ball split, giant, wide, time stop…) + 2 instant; dropped as capsules by shattered bricks, they last for the current level only  |
 | Starter protocols | 4                        | Blank, Barrage, Battery, Elemental — each sets a run's starting point                                                                      |
 | Levels            | 3 chapters × 5 + Endless | 12 brick patterns and pixel motifs, a boss every 5 sectors; Endless loops and escalates forever                                            |
 | Level mutators    | 6                        | Gravity Well, Overpressure, Regenerating, Cloaked, Flak Zone, Gold Rush                                                                    |
@@ -103,7 +105,7 @@ Simulation and presentation are strictly separated. `src/game/` touches no DOM a
 ```
 src/
   core/        RNG (reproducible seeds), event bus, math, save data
-  game/        Pure logic: world simulation, physics, damage pipeline, upgrades, level generation, session
+  game/        Pure logic: world simulation, physics, damage pipeline, upgrades, power-ups, level generation, session
   render/      WebGL2 renderer, SDF instanced shaders, post chain, FX director, camera
   audio/       Web Audio synthesis engine, SFX recipes, procedural music, audio director
   ui/          DOM UI: HUD, draft, codex, results, settings, i18n
@@ -118,7 +120,7 @@ src/
 
 ### Balance method
 
-`tests/balance.test.ts` has the built-in bot (near-perfect catching and barrage interception) play 8 full campaigns per drafting persona across four personalities, reporting per-level time medians / P95 / max and damage taken, with regression assertions on pacing. The bot is the ceiling; the drafting personas represent player build skill. Current results: level 1 takes about 17 seconds, a full campaign about 5 minutes, and the four personas' clear rates are 75% / 63% / 75% / 75%.
+`tests/balance.test.ts` has the built-in bot (near-perfect catching and barrage interception) play 8 full campaigns per drafting persona across four personalities, reporting per-level time medians / P95 / max and damage taken, with regression assertions on pacing. The bot is the ceiling; the drafting personas represent player build skill. Current results: level 1 takes about 17 seconds, a full campaign about 5 minutes, and the four personas' clear rates are 88% / 75% / 88% / 88%.
 
 ### Debug interface
 
@@ -132,6 +134,7 @@ The page exposes `window.__shatterverse` for automated inspection and tuning:
 | `autopilot(on)`                        | Lets the built-in bot take over the paddle                                                                                                         |
 | `start(mode, starter, level?, build?)` | Starts a run, optionally at a deeper level with a set build (skipped runs don't touch records). Starter ids: `blank` `barrage` `battery` `element` |
 | `grant(id, levels)`                    | Grants an upgrade to the current run                                                                                                               |
+| `buff(id)`                             | Grants a temporary power-up to the current level, as if its capsule had been caught                                                                |
 | `lose()`                               | Drains the run's shield, entering the results flow                                                                                                 |
 | `scorecard()`                          | Composes the score card (no download); returns size, bytes and data URL for inspection                                                             |
 | `profile(frames?)`                     | GPU time per render pass (ms, median) and total. Forces a GPU wait after each pass — stalls the pipeline, diagnostics only                         |
@@ -176,6 +179,7 @@ Beyond the local board, scores sync to [CheddaBoards](https://docs.cheddaboards.
 
 ## Known limitations
 
+- **A larger pool dilutes the damage upgrades.** With the pool grown from 39 to 56 upgrades, the bot playing Endless with the same drafting persona reaches about 22 levels on average across 24 seeds, down from about 23. Isolated to the five Resonance cards being weak on their own (it was 20 before), and mostly won back through capsules that read the field and stronger individual cards; campaign clear rates are higher than before.
 - **Game feel is unverified by human play.** Numbers come from bot simulation; the bot's catching and interception are near-perfect, so real players will find it harder. The first human playtest is the most important step.
 - **Audio is only verified as "has output and does not clip"** (measured peak 0.72, mean RMS 0.08); timbre and mixing have not been tuned by ear.
 - Portrait mobile layout is done (verified across the UI at 390px width); touch styling and the governor's judgement logic have test coverage. But **real-device frame rates have never been measured**: the dev machine has a desktop GPU, and only proxy measurements against phone pixel budgets were possible (finding: GPU time tracks pixel count linearly with even pass shares, so resolution reduction is the main lever). Judge real devices by the settings page's "Diagnostics".

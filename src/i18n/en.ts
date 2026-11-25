@@ -57,6 +57,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     statBalls: 'Balls',
     statComboBonus: 'Combo bonus',
     statCrit: 'Crit chance',
+    buffs: 'Power-ups',
   },
   starter: {
     title: 'Pick a starting protocol',
@@ -150,11 +151,16 @@ export const en: UiDict & { content: ContentOverrides } = {
     title: 'Codex',
     tabUpgrades: 'Upgrades',
     tabReactions: 'Reactions',
+    tabBuffs: 'Power-ups',
     tabRules: 'Basics',
     progressUpgrades:
       'Encountered {n} of {total} upgrades. Upgrades from the same school show up together more often.',
     progressReactions:
       'Unlocks automatically once your build owns both elements. Reactions fire on a fixed rhythm — not every single hit.',
+    progressBuffs:
+      'Bricks drop capsules now and then. Catch one and its power-up lasts a few seconds — for the current level only.',
+    buffTimed: '{n}s',
+    buffInstant: 'Instant',
     progressRules: 'Thirty seconds to learn, a lifetime to escalate.',
     maxLevel: 'Max Lv {n}',
     unique: 'Unique',
@@ -177,7 +183,10 @@ export const en: UiDict & { content: ContentOverrides } = {
       'Hits and catches charge the paddle. When full, press <b>Space</b> or click for seconds of boosted damage and speed.',
     ruleBuild: 'Builds',
     ruleBuildBody:
-      'Each cleared level offers a three-way draft — 39 upgrades across 5 rarities. Upgrades from the same school appear together more often; legendaries and mythics presuppose their school. Owning two elements unlocks <b>elemental reactions</b>.',
+      'Each cleared level offers a three-way draft — {n} upgrades across 5 rarities. Upgrades from the same school appear together more often; legendaries and mythics presuppose their school. Owning two elements unlocks <b>elemental reactions</b>.',
+    ruleBuffs: 'Power-ups',
+    ruleBuffsBody:
+      'Shattering bricks drops <b>capsules</b> from time to time — ball splits, giant balls, a longer paddle, time stop… Catch one and its power-up lasts a few seconds, with the time left shown on screen. Power-ups last for the current level only; the <b>Resonance</b> school makes them come sooner and last longer.',
     ruleCrystals: 'Crystals',
     ruleCrystalsBody:
       'Shattered bricks drop crystals ◆ — spend them to <b>reroll</b> a draft, or <b>skip</b> the draft to bank more.',
@@ -222,6 +231,9 @@ export const en: UiDict & { content: ContentOverrides } = {
     overdriveSub: 'Overdrive',
     timeStopSub: 'Time stop',
     sectorClearSub: 'Sector clear',
+    buffSub: '{name} · {n}s',
+    buffTwinSub: '{name} · twin · {n}s',
+    dodgeSub: 'Shield intact',
     reactionToast: 'Elemental reaction · {name}',
     reactionDetail: '{recipe}: {desc}',
     difficultyToast: '{en} · {name}',
@@ -287,9 +299,10 @@ export const en: UiDict & { content: ContentOverrides } = {
         eyebrow: 'TUTORIAL · 04',
         title: 'Three-way drafts',
         html: `
-      <p>Every cleared level offers a <b>choice of one of three</b> upgrades; they last for the run and stack into your school of thought. There are 39 upgrades across 5 rarities: common → rare → epic → legendary → mythic.</p>
-      <p>Upgrades belong to schools — Ball / Paddle / Damage / Flame / Frost / Shock / Corrode / Void / Blast / Laser / Time / Greed / Survival / Overdrive. <b>Upgrades from the same school appear together more often</b>.</p>
+      <p>Every cleared level offers a <b>choice of one of three</b> upgrades; they last for the run and stack into your school of thought. There are {upgrades} upgrades across 5 rarities: common → rare → epic → legendary → mythic.</p>
+      <p>Upgrades belong to schools — Ball / Paddle / Damage / Flame / Frost / Shock / Corrode / Void / Blast / Laser / Time / Greed / Survival / Overdrive / Resonance. <b>Upgrades from the same school appear together more often</b>.</p>
       <p><b>Elemental reactions</b>: owning two of the elements (frost, flame, shock, corrode) unlocks combo effects automatically — like Melt from frost + flame.</p>
+      <p><b>Power-ups</b>: shattered bricks now and then drop <b>capsules</b> — ball splits, giant balls, a longer paddle, time stop… Catch one and it lasts a few seconds, for the current level only. The <b>Resonance</b> school is built around them.</p>
       <p><b>Crystals</b>: shattered bricks drop crystals ◆. Spend them to <b>reroll</b> a draft, or <b>skip</b> the draft to bank them for later.</p>`,
       },
       {
@@ -591,6 +604,175 @@ export const en: UiDict & { content: ContentOverrides } = {
         describe: () =>
           `Freeze ${b('always triggers')}; a frozen brick that shatters sets off an ${b('ice burst')} (radius 130, 120% attack damage).`,
       },
+      resonator: {
+        name: 'Resonance Coil',
+        flavor: 'Let every gift linger a little.',
+        describe: (lv) => `Power-up duration ${b('+' + pct(0.35 * lv))}.`,
+      },
+      capacitor: {
+        name: 'Capacitor',
+        flavor: 'One more charge. Just one more.',
+        describe: (lv) => `Overdrive energy gained ${b('+' + pct(0.3 * lv))}.`,
+      },
+      recycler: {
+        name: 'Recycler',
+        flavor: 'There is no such thing as scrap.',
+        describe: (lv) => `Crystal gain ${b('+' + pct(0.4 * lv))}.`,
+      },
+      calibration: {
+        name: 'Calibration',
+        flavor: "A hair's breadth, a world of difference.",
+        describe: (lv) =>
+          `The perfect-catch zone grows ${b('+' + pct(0.6 * lv))}, and a perfect catch charges ${b('+' + pct(0.25 * lv))} more.`,
+      },
+      antenna: {
+        name: 'Surge Antenna',
+        flavor: 'Good things find you first.',
+        describe: (lv) =>
+          `Power-up capsules come sooner: the gap between them shrinks by ${b(pct(1 - 1 / (1 + 0.5 * lv)))}.`,
+      },
+      adrenaline: {
+        name: 'Adrenaline',
+        flavor: 'Heart rate: one-eighty.',
+        describe: (lv) =>
+          `While any power-up is running, damage ${b('+' + pct(0.4 * lv))} and ball speed ${b('+' + pct(0.2 * lv))}.`,
+      },
+      trampoline: {
+        name: 'Trampoline',
+        flavor: 'The floor says: once more.',
+        describe: (lv) =>
+          `A ball that reaches the bottom ${b('bounces off the floor ' + lv + '×')} before it counts as lost.`,
+      },
+      evade: {
+        name: 'Evade',
+        flavor: 'A near miss.',
+        describe: (lv) =>
+          `A hit has a ${b(pct(0.2 * lv))} chance to be ${b('dodged')}: no shield lost, combo intact.`,
+      },
+      slowfield: {
+        name: 'Slow Field',
+        flavor: 'Let the world run half a beat late.',
+        describe: (lv) => `The wall's descent and the bullets' speed ${b('−' + pct(0.15 * lv))}.`,
+      },
+      afterglow: {
+        name: 'Afterglow',
+        flavor: 'The embers still burn.',
+        describe: () =>
+          `When Overdrive runs out it releases a ${b('screen-wide shockwave')}: ${b('200%')} attack damage to every brick.`,
+      },
+      thunderhead: {
+        name: 'Thunderhead',
+        flavor: 'There is always a cloud overhead.',
+        describe: (lv) =>
+          `Every 2.5s, lightning strikes the brick nearest the danger line for ${b(pct(3 * lv))} attack damage and sets off a ${b('lightning chain')} (${b(2 * lv)} jumps).`,
+      },
+      plague: {
+        name: 'Plague',
+        flavor: 'One falls, the row follows.',
+        describe: () =>
+          `A brick that shatters while ${b('corroded')} spreads its corrosion to every brick within ${b(150)}.`,
+      },
+      wildfire: {
+        name: 'Wildfire',
+        flavor: 'Once it catches, it does not stop.',
+        describe: () =>
+          `A brick that shatters while ${b('burning')} sets every brick within ${b(140)} alight.`,
+      },
+      prism: {
+        name: 'Prism',
+        flavor: 'One beam in, three out.',
+        describe: () =>
+          `A laser hit ${b('refracts')} sideways into the next brick on each side (${b('50%')} attack damage).`,
+      },
+      twinresonance: {
+        name: 'Twin Resonance',
+        flavor: 'One capsule, twice the fun.',
+        describe: () => `Every power-up also triggers ${b('a second, random power-up')} at 50% duration.`,
+      },
+      criticalmass: {
+        name: 'Critical Mass',
+        flavor: 'A chain that will not stop.',
+        describe: () =>
+          `Overdrive lasts ${b('0.5s')} longer for every ${b(5)} bricks shattered while it runs (at most ${b('6s')} longer).`,
+      },
+      perpetuum: {
+        name: 'Perpetuum',
+        flavor: 'Conservation of energy? Never heard of it.',
+        describe: () =>
+          `While Overdrive runs, ${b('power-up countdowns pause')}; while a power-up runs, Overdrive energy gained ${b('×3')}.`,
+      },
+    },
+    buffs: {
+      split: {
+        name: 'Ball Split',
+        desc: 'Every real ball in flight forks into two twins (70% damage). The twins leave when the power-up does.',
+      },
+      giant: {
+        name: 'Giant',
+        desc: 'Ball radius ×2.2, damage +60%.',
+      },
+      wide: {
+        name: 'Wide',
+        desc: 'Paddle width ×1.8.',
+      },
+      laser: {
+        name: 'Laser Burst',
+        desc: 'The paddle fires 3 extra lasers.',
+      },
+      magnet: {
+        name: 'Super Magnet',
+        desc: 'A strong field pulls falling balls onto the paddle.',
+      },
+      ghost: {
+        name: 'Phase',
+        desc: 'Balls pass through bricks without bouncing; each pass banks +20% damage (resets on paddle touch).',
+      },
+      homing: {
+        name: 'Seeker',
+        desc: 'Balls home hard on the nearest brick.',
+      },
+      rage: {
+        name: 'Rage',
+        desc: 'Damage ×2.',
+      },
+      aegis: {
+        name: 'Aegis',
+        desc: 'A barrier opens under the paddle and swallows every bullet.',
+      },
+      gold: {
+        name: 'Crystal Rain',
+        desc: 'Every brick drops crystals, at double value.',
+      },
+      deadeye: {
+        name: 'Weak Point',
+        desc: 'Crit chance 100%.',
+      },
+      blast: {
+        name: 'Demolition',
+        desc: 'Every brick shattered sets off an explosion.',
+      },
+      storm: {
+        name: 'Elemental Storm',
+        desc: 'Hits apply burn, frost, corrosion and lightning at once, setting off every elemental reaction.',
+      },
+      timestop: {
+        name: 'Time Stop',
+        desc: 'Everything hostile stands still; ball damage ×2.',
+      },
+      turbo: {
+        name: 'Turbo',
+        desc: 'Ball speed +40%, damage +40%.',
+      },
+      overcharge: {
+        name: 'Overcharge',
+        desc: 'Fills the Overdrive meter at once.',
+        short: 'Meter full',
+      },
+      repair: {
+        name: 'Repair',
+        desc: 'Restores 1 shield at once.',
+        short: 'Shield +1',
+      },
     },
     difficulty: {
       standard: {
@@ -795,6 +977,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       greed: 'Greed',
       defense: 'Survival',
       overdrive: 'Overdrive',
+      resonance: 'Resonance',
     },
   },
 };

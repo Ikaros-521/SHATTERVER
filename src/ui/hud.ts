@@ -8,6 +8,7 @@ import { UPGRADE_MAP } from '../game/upgrades/defs';
 import { RARITY_INFO, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
 import { byId, el, hexCss, keep, pop, setText, setWidth } from './dom';
+import { BuffBar } from './buffs';
 import { sigil } from './sigil';
 
 /** What the HUD needs from its host: showing and hiding the upgrade tooltip. */
@@ -23,13 +24,15 @@ interface Owned {
 
 /**
  * The in-game overlay: lives, level progress (or boss health), crystals, score, the build panel,
- * the combo readout and a stats column.
+ * the combo readout, a stats column and the strip of temporary buffs.
  *
  * It writes straight into fixed DOM nodes and only touches the ones whose values changed, so a
  * frame with three hundred hits costs no more DOM work than an empty one.
  */
 export class HUD {
   private readonly root = byId('hud');
+  /** Chips for the temporary buffs in force, last of the right-hand column. */
+  private readonly buffs = new BuffBar();
   private readonly lives = byId('hud-lives');
   private readonly levelCode = byId('hud-level-code');
   private readonly levelName = byId('hud-level-name');
@@ -65,9 +68,10 @@ export class HUD {
   }
 
   /** Relayout hook: panels collapse when there is no room beside the arena. */
-  setRoom(buildVisible: boolean, statsVisible: boolean): void {
+  setRoom(buildVisible: boolean, statsVisible: boolean, buffsInline: boolean): void {
     this.buildPanel.hidden = !buildVisible;
     this.statsPanel.hidden = !statsVisible;
+    this.buffs.setInline(buffsInline);
   }
 
   private put(node: HTMLElement, value: string): void {
@@ -177,6 +181,10 @@ export class HUD {
     // ── overdrive prompt ──
     const ready = world.energy >= 100 && !world.odActive && world.state === 'playing';
     if (this.odHint.hidden === ready) this.odHint.hidden = !ready;
+    this.buffs.setShared(ready);
+
+    // ── temporary buffs ──
+    this.buffs.update(world);
   }
 
   reset(): void {
@@ -187,6 +195,7 @@ export class HUD {
     this.owned = new Set();
     this.maxLivesDrawn = -1;
     this.odHint.hidden = true;
+    this.buffs.reset();
   }
 
   /** An icon tile for one owned upgrade. Shared by the HUD build panel and the results screen. */

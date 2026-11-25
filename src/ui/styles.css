@@ -586,6 +586,101 @@ button.sigil-tile:hover {
   border-color: #d4fbff;
   animation: none;
 }
+
+/* ─────────────────────────  temporary buffs  ─────────────────────────
+   One chip per buff in force, draining as it runs out. With a margin beside the arena the strip
+   is a column under the stats panel. `.overlay` — set by the layout when there is no margin —
+   folds it into a row of icon-only pills in the strip under the paddle, stopping short of the
+   centred overdrive pill. */
+.buff-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.buff-chip {
+  --c: var(--accent);
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 7px 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  border-radius: 8px;
+  background: var(--glass);
+  animation: buff-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.buff-chip img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--c) 75%, transparent));
+}
+
+.buff-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--c);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.buff-time {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.buff-left {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  transform-origin: left center;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+
+/* About to run out: the chip blinks, so the take-back is never a surprise. */
+.buff-chip.ending {
+  animation: buff-ending 0.36s ease-in-out infinite alternate;
+}
+
+.buff-bar.overlay {
+  position: fixed;
+  left: calc(var(--ax) + 10px);
+  top: calc(var(--ay) + var(--ah) - 42px);
+  flex-direction: row;
+  gap: 5px;
+  width: calc(var(--aw) * 0.7);
+  overflow: hidden;
+}
+
+/* The overdrive prompt is up: it sits centred in the same strip, so the row keeps clear of it. */
+.buff-bar.overlay.shared {
+  width: calc(var(--aw) / 2 - 118px);
+}
+
+.buff-bar.overlay .buff-chip {
+  flex: none;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.buff-bar.overlay .buff-name,
+.buff-bar.overlay .buff-time {
+  display: none;
+}
+
 /* ─────────────────────────  banner & toasts  ───────────────────────── */
 .banner {
   position: fixed;
@@ -1739,6 +1834,19 @@ button.sigil-tile:hover {
   }
 }
 
+@keyframes buff-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.8);
+  }
+}
+
+@keyframes buff-ending {
+  to {
+    opacity: 0.35;
+  }
+}
+
 @keyframes pip-alarm {
   50% {
     box-shadow:
@@ -1802,6 +1910,7 @@ button.sigil-tile:hover {
   .logo-cn::before,
   .logo-cn::after,
   .od-hint,
+  .buff-chip,
   .hud-lives.critical .pip.on {
     animation: none;
   }
@@ -2110,6 +2219,14 @@ button.sigil-tile:hover {
     transform: translateX(-50%);
     font-size: 12px;
     padding: 6px 14px;
+  }
+
+  /* The overdrive pill has left the arena, so the buff pills get the whole strip under the paddle. */
+  .buff-bar.overlay,
+  .buff-bar.overlay.shared {
+    left: calc(var(--ax) + 8px);
+    top: calc(var(--ay) + var(--ah) - 30px);
+    width: calc(var(--aw) - 16px);
   }
 
   .screen {

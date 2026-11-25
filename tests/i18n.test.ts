@@ -4,7 +4,9 @@ import { ko } from '../src/i18n/ko';
 import { en } from '../src/i18n/en';
 import { ja } from '../src/i18n/ja';
 import { zh } from '../src/i18n/zh';
+import { buffDesc, buffName, buffShort } from '../src/i18n/content';
 import { DEFAULT_SETTINGS } from '../src/core/storage';
+import { BUFFS, BUFF_MAP } from '../src/game/buffs/defs';
 import { DIFFICULTIES } from '../src/game/difficulty';
 import { BOSSES, CHAPTERS, COMBO_TIERS, MODIFIERS, REACTIONS } from '../src/game/levels/definitions';
 import { STARTERS } from '../src/game/starters';
@@ -55,6 +57,16 @@ describe('locale parity', () => {
           expect(text).not.toMatch(/\{/);
           expect(text).toContain('<b>');
         }
+      }
+      for (const buff of BUFFS) {
+        const override = content.buffs[buff.id];
+        expect(override, `${name}: buff ${buff.id} is untranslated`).toBeTruthy();
+        expect(override.name.trim()).not.toBe('');
+        expect(override.desc.trim()).not.toBe('');
+        expect(override.desc, `${name}: buff ${buff.id}`).not.toMatch(/\{/);
+        // An instant buff has no countdown to show, so its banner needs a line of its own.
+        if (buff.duration > 0) expect(override.short).toBeUndefined();
+        else expect(override.short?.trim(), `${name}: instant buff ${buff.id}`).not.toBe('');
       }
       for (const tier of DIFFICULTIES) {
         const override = content.difficulty[tier.id];
@@ -110,6 +122,13 @@ describe('t()', () => {
     const power = UPGRADES.find((def) => def.id === 'power');
     expect(power).toBeTruthy();
     expect(dict().content?.upgrades.power?.name).toBe('Power Core');
+    expect(buffName(BUFF_MAP.split)).toBe('Ball Split');
+    expect(buffDesc(BUFF_MAP.aegis)).toContain('barrier');
+    expect(buffShort(BUFF_MAP.overcharge)).toBe('Meter full');
+    // Chinese reads the canonical fields: there is no override table to consult.
+    setLang('zh');
+    expect(buffName(BUFF_MAP.split)).toBe('球体分裂');
+    expect(buffShort(BUFF_MAP.overcharge)).toBe(BUFF_MAP.overcharge.short);
   });
 
   it('isLang narrows only real languages and rejects lookalikes', () => {

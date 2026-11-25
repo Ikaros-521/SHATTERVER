@@ -201,7 +201,7 @@ function steer(ball: Ball, world: World, maxTurn: number): void {
  * and the earliest contact wins. A ball either bounces off that brick or (pierce) phases through it.
  */
 export function stepBall(world: World, ball: Ball, dt: number): void {
-  const stats = world.stats;
+  const stats = world.live;
   if (stats.homing > 0) steer(ball, world, stats.homing * dt);
   // A ball that has found nothing to hit for a while drifts towards the nearest brick on its own.
   if (ball.dryT > BALL_ANTI_STALL && stats.homing <= 0) steer(ball, world, 1.6 * dt);
@@ -277,8 +277,16 @@ export function stepBall(world: World, ball: Ball, dt: number): void {
     collideWalls(world, ball);
     collidePaddle(world, ball);
     if (ball.y - ball.radius > ARENA_H) {
-      world.loseBall(ball);
-      return;
+      // Trampoline: the floor hands the ball back a set number of times before it counts as lost.
+      if (ball.floor < stats.floorBounces) {
+        ball.floor++;
+        ball.y = ARENA_H - ball.radius;
+        ball.vy = -Math.abs(ball.vy);
+        world.events.emit('floorBounce', { x: ball.x });
+      } else {
+        world.loseBall(ball);
+        return;
+      }
     }
   }
 }

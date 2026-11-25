@@ -15,7 +15,9 @@ export type Tag =
   | 'time'
   | 'greed'
   | 'defense'
-  | 'overdrive';
+  | 'overdrive'
+  /** The temporary-buff school: upgrades that make capsules come sooner, last longer, hit harder. */
+  | 'resonance';
 
 /**
  * Data-driven upgrade definition.

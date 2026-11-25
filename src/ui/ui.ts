@@ -5,6 +5,8 @@ import type { SaveData, Settings } from '../core/storage';
 import {
   bossName,
   bossTitle,
+  buffDesc,
+  buffName,
   difficultyDetail,
   difficultyName,
   levelName,
@@ -21,6 +23,8 @@ import {
   upgradeName,
   upgradeNameById,
 } from '../i18n/content';
+import { BUFFS } from '../game/buffs/defs';
+import { buffColor } from '../game/buffs/present';
 import { difficultyOf, DIFFICULTIES, type DifficultyId } from '../game/difficulty';
 import { CAMPAIGN_LENGTH } from '../game/levels/generator';
 import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
@@ -28,7 +32,7 @@ import type { RunMode } from '../game/run';
 import type { Session, SessionEvents } from '../game/session';
 import { STARTERS, type Starter } from '../game/starters';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
-import { RARITY_INFO, RARITY_ORDER, upgradeColor } from '../game/upgrades/present';
+import { RARITY_INFO, RARITY_ORDER, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
@@ -307,7 +311,12 @@ export class UI implements HudHost {
     // Portrait HUD bands live in CSS via these vars; the panels stay mounted there instead of
     // being hidden, so their portrait styling must be ready whenever the bands exist.
     const portrait = layout.hudTop > 0;
-    this.hud.setRoom(portrait || layout.ax >= 300, portrait || layout.ax >= 220);
+    // The buff strip needs the stats column's margin to show its full chips; otherwise it folds.
+    this.hud.setRoom(
+      portrait || layout.ax >= 300,
+      portrait || layout.ax >= 220,
+      !portrait && layout.ax >= 220,
+    );
   }
 
   setAccent(color: number): void {
@@ -1016,6 +1025,44 @@ export class UI implements HudHost {
       return;
     }
 
+    if (this.codexTab === 'buffs') {
+      setText(byId('codex-progress'), t('codex.progressBuffs'));
+      // Buffs belong to the resonance school, so the group takes its colour.
+      const group = TAG_INFO.resonance.color;
+      body.append(
+        el(
+          'section',
+          { class: 'codex-group', style: `--rarity:${hexCss(group)}` },
+          el('h3', { text: `POWER-UPS · ${t('codex.tabBuffs')} × ${BUFFS.length}` }),
+          ...BUFFS.map((def) => {
+            const color = buffColor(def.id);
+            return el(
+              'article',
+              { class: 'codex-row', style: `--rarity:${hexCss(color)};--c:${hexCss(color)}` },
+              el('img', { src: sigil(`buff:${def.id}`, def.color), alt: '', draggable: 'false' }),
+              el(
+                'div',
+                {},
+                el(
+                  'header',
+                  {},
+                  el('h4', { text: buffName(def) }),
+                  el('span', { class: 'code', text: def.code }),
+                  el('span', {
+                    class: 'lv',
+                    text:
+                      def.duration > 0 ? t('codex.buffTimed', { n: def.duration }) : t('codex.buffInstant'),
+                  }),
+                ),
+                el('p', { class: 'desc', text: buffDesc(def) }),
+              ),
+            );
+          }),
+        ),
+      );
+      return;
+    }
+
     setText(byId('codex-progress'), t('codex.progressRules'));
     body.append(
       el(
@@ -1030,7 +1077,9 @@ export class UI implements HudHost {
         el('h3', { text: t('codex.ruleOverdrive') }),
         el('p', { html: t('codex.ruleOverdriveBody') }),
         el('h3', { text: t('codex.ruleBuild') }),
-        el('p', { html: t('codex.ruleBuildBody') }),
+        el('p', { html: t('codex.ruleBuildBody', { n: UPGRADES.length }) }),
+        el('h3', { text: t('codex.ruleBuffs') }),
+        el('p', { html: t('codex.ruleBuffsBody') }),
         el('h3', { text: t('codex.ruleCrystals') }),
         el('p', { html: t('codex.ruleCrystalsBody') }),
       ),

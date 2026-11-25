@@ -22,11 +22,25 @@ const COOLDOWN: Partial<Record<Sfx, number>> = {
   reaction: 0.2,
   shoot: 0.13,
   pop: 0.05,
+  capsule: 0.5,
+  floor: 0.09,
+  strike: 0.2,
+  buffEnd: 0.15,
   uiHover: 0.05,
 };
 
 /** Sounds that are dropped first when the mix gets crowded. */
-const LOW_PRIORITY = new Set<Sfx>(['bounce', 'hit', 'shoot', 'pop', 'pickup', 'laser', 'bolt']);
+const LOW_PRIORITY = new Set<Sfx>([
+  'bounce',
+  'hit',
+  'shoot',
+  'pop',
+  'pickup',
+  'laser',
+  'bolt',
+  'floor',
+  'capsule',
+]);
 
 /**
  * Turns world events into sound and keeps the score in step with the action.
@@ -175,6 +189,14 @@ export class AudioDirector {
       on('launch', () => this.play('launch', undefined, 0.8)),
       on('clear', () => this.play('clear', undefined, 1.3)),
       on('dead', () => this.play('dead', undefined, 1.3)),
+      // Temporary buffs. A capsule's arrival is a soft chime; its collection is an event.
+      on('capsule', () => this.play('capsule', undefined, 0.5)),
+      on('buff', (e) => this.play('buff', undefined, e.twin ? 1 : 1.3)),
+      on('buffEnd', () => this.play('buffEnd', undefined, 0.8)),
+      on('aegis', () => this.play('pop', 1900, 0.6)),
+      on('dodge', () => this.play('dodge', undefined, 1.2)),
+      on('strike', () => this.play('strike', undefined, 0.9)),
+      on('floorBounce', () => this.play('floor', undefined, 0.5)),
     ];
     this.pickupChain = 0;
     return () => {

@@ -1,4 +1,5 @@
 import { GRID } from './config';
+import type { BuffId } from './buffs/defs';
 
 let nextId = 1;
 export const allocId = (): number => nextId++;
@@ -163,6 +164,10 @@ export interface Ball {
   ttl: number;
   ghost: boolean;
   child: boolean;
+  /** A temporary twin born from the 「球体分裂」 buff: it goes when the buff does. */
+  clone: boolean;
+  /** Floor bounces used since the paddle last returned this ball (Trampoline). */
+  floor: number;
   /** brick id → world time until which the ball no longer collides with that brick. */
   ignore: Map<number, number>;
   // --- presentation state ---
@@ -184,6 +189,7 @@ export interface BallInit {
   mult: number;
   ghost?: boolean;
   child?: boolean;
+  clone?: boolean;
   ttl?: number;
   dock?: number;
 }
@@ -207,6 +213,8 @@ export function makeBall(init: BallInit): Ball {
     ttl: init.ttl ?? Infinity,
     ghost: init.ghost ?? false,
     child: init.child ?? false,
+    clone: init.clone ?? false,
+    floor: 0,
     ignore: new Map(),
     squash: 0,
     dock: init.dock ?? 0,
@@ -216,12 +224,14 @@ export function makeBall(init: BallInit): Ball {
   };
 }
 
-export type PickupKind = 'crystal' | 'heart';
+export type PickupKind = 'crystal' | 'heart' | 'buff';
 
 export interface Pickup {
   id: number;
   kind: PickupKind;
   value: number;
+  /** Which buff a `buff` capsule carries. */
+  buff: BuffId | null;
   x: number;
   y: number;
   vx: number;

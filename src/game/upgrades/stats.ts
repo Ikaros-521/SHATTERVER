@@ -80,10 +80,56 @@ export interface BuildStats {
   // --- meta ---
   luck: number;
   crystalMult: number;
+  /** Chance that a plain brick drops crystals at all. Luck adds to it; the Gold Rush buff makes it certain. */
+  crystalChance: number;
   growthPerLevel: number;
   maxHpBonus: number;
   odDurationMult: number;
   odDamageBonus: number;
+  /** Multiplier on overdrive energy gained from any source. */
+  odGain: number;
+  /** Releases a screen-wide shockwave when Overdrive ends. */
+  afterglow: boolean;
+  /** Bricks shattered during Overdrive extend it. */
+  criticalMass: boolean;
+  // --- paddle ---
+  /** How much further from the centre a catch may land and still count as perfect. */
+  perfectWindow: number;
+  /** Multiplier on the energy a perfect catch grants. */
+  perfectEnergy: number;
+  // --- ball ---
+  /** Times a lost ball bounces off the floor instead of waiting to relaunch. */
+  floorBounces: number;
+  // --- time ---
+  /** Fraction taken off the wall's descent and the bullets' speed. */
+  slowField: number;
+  // --- defense ---
+  /** Chance for a hit to be dodged outright, losing nothing. */
+  evade: number;
+  // --- elements ---
+  /** A corroded brick spreads its corrosion when it shatters. */
+  plague: boolean;
+  /** A burning brick sets its neighbours alight when it shatters. */
+  wildfire: boolean;
+  /** Levels of the automatic thunder strike. */
+  thunder: number;
+  // --- laser ---
+  /** Laser hits refract sideways into a neighbour on each side. */
+  prism: boolean;
+  // --- resonance (temporary buffs) ---
+  buffDurationMult: number;
+  /** How much sooner the next capsule is due. */
+  buffRate: number;
+  /** Extra damage and ball speed while any buff is active. */
+  buffDamage: number;
+  buffSpeed: number;
+  /** Every capsule also triggers a second, shorter buff. */
+  buffTwin: boolean;
+  /** Overdrive pauses the buff countdowns; buffs triple the overdrive energy gained. */
+  buffPerpetuum: boolean;
+  // --- set by buffs only ---
+  /** Bullets are stopped under the paddle instead of having to be blocked. */
+  aegis: boolean;
 }
 
 export function defaultStats(): BuildStats {
@@ -152,10 +198,38 @@ export function defaultStats(): BuildStats {
 
     luck: 0,
     crystalMult: 1,
+    crystalChance: 0.2,
     growthPerLevel: 0,
     maxHpBonus: 0,
     odDurationMult: 1,
     odDamageBonus: 1,
+    odGain: 0,
+    afterglow: false,
+    criticalMass: false,
+
+    perfectWindow: 0,
+    perfectEnergy: 0,
+
+    floorBounces: 0,
+
+    slowField: 0,
+
+    evade: 0,
+
+    plague: false,
+    wildfire: false,
+    thunder: 0,
+
+    prism: false,
+
+    buffDurationMult: 1,
+    buffRate: 0,
+    buffDamage: 0,
+    buffSpeed: 0,
+    buffTwin: false,
+    buffPerpetuum: false,
+
+    aegis: false,
   };
 }
 

@@ -1,6 +1,8 @@
 import { formatNumber, TAU, clamp, hexToRgb, lerp } from '../core/math';
-import { ARENA_H, ARENA_W, DANGER_Y, PADDLE_H, PADDLE_Y } from '../game/config';
-import type { Brick } from '../game/entities';
+import { AEGIS_Y, ARENA_H, ARENA_W, DANGER_Y, PADDLE_H, PADDLE_Y } from '../game/config';
+import type { Brick, PickupKind } from '../game/entities';
+import type { BuffId } from '../game/buffs/defs';
+import { buffColor } from '../game/buffs/present';
 import { REACTIONS, type ReactionId } from '../game/levels/definitions';
 import type { World, WorldEvents } from '../game/world';
 import { Camera, type View } from './camera';
@@ -213,6 +215,18 @@ export class Fx {
       on('dead', () => this.onDead()),
       on('split', (e) => this.ring(e.x, e.y, 8, 46, 0x4dd8ff, 0.8)),
       on('echo', (e) => this.sparks(e.x, e.y, 3, 0xb06bff, 200, 0.3)),
+      // Temporary buffs: a capsule's birth, its arrival, and the quiet moment it runs out.
+      on('capsule', (e) => this.onCapsule(e.x, e.y, e.id)),
+      on('buff', (e) => this.onBuff(e.x, e.id, e.twin)),
+      on('buffEnd', (e) => this.onBuffEnd(e.id)),
+      on('aegis', (e) => {
+        this.frameEvents++;
+        this.sparks(e.x, AEGIS_Y, 8, 0x6dffa8, 260, 0.3, 2.2);
+        this.ring(e.x, AEGIS_Y, 6, 46, 0x6dffa8, 0.8, 0.22);
+      }),
+      on('dodge', () => this.onDodge()),
+      on('strike', (e) => this.onStrike(e.x, e.y)),
+      on('floorBounce', (e) => this.onFloorBounce(e.x)),
     ];
     return () => {
       for (const fn of off) fn();
@@ -460,9 +474,10 @@ export class Fx {
     this.post.glitch = Math.max(this.post.glitch, 0.5);
   }
 
-  private onPickup(x: number, y: number, kind: 'crystal' | 'heart'): void {
+  private onPickup(x: number, y: number, kind: PickupKind): void {
     this.frameEvents++;
-    const color = kind === 'heart' ? 0xff5c8a : 0xffd23c;
+    // A capsule's own arrival gets its full welcome in `onBuff`; this is only the collecting tick.
+    const color = kind === 'heart' ? 0xff5c8a : kind === 'buff' ? 0xffffff : 0xffd23c;
     for (let i = 0; i < 5; i++) {
       this.spawn(
         PK_LIGHT,
@@ -480,6 +495,73 @@ export class Fx {
         },
       );
     }
+  }
+
+  private onCapsule(x: number, y: number, id: BuffId): void {
+    this.frameEvents++;
+    const color = buffColor(id);
+    this.ring(x, y, 6, 58, color, 0.9, 0.45);
+    this.flare(x, y, 12, 50, color, 0.22, 1.8);
+    this.sparks(x, y, 8, color, 240, 0.4, 2);
+  }
+
+  /** A capsule broke on the paddle. The screen-wide part is what makes it an event. */
+  private onBuff(x: number, id: BuffId, twin: boolean): void {
+    this.frameEvents += 3;
+    const color = buffColor(id);
+    this.shock(x, PADDLE_Y, twin ? 320 : 520, twin ? 0.6 : 1);
+    this.flashScreen(color, twin ? 0.14 : 0.26);
+    this.flashEdge(color, twin ? 0.3 : 0.5);
+    this.camera.punch(twin ? 0.03 : 0.06);
+    this.camera.shake(twin ? 0.2 : 0.4);
+    this.camera.stop(twin ? 0.03 : 0.05);
+    this.sparks(x, PADDLE_Y, twin ? 24 : 46, color, 760, 0.65, 3);
+    this.ring(x, PADDLE_Y, 20, twin ? 170 : 280, color, 1, 0.5);
+  }
+
+  /** Quiet on purpose: the chip in the HUD has been blinking, the world simply eases back. */
+  private onBuffEnd(id: BuffId): void {
+    this.frameEvents++;
+    this.ring(this.world?.paddle.x ?? ARENA_W / 2, PADDLE_Y, 120, 16, buffColor(id), 0.5, 0.35);
+  }
+
+  private onDodge(): void {
+    this.frameEvents += 2;
+    this.flashEdge(0xffffff, 0.55);
+    this.ring(this.world?.paddle.x ?? ARENA_W / 2, PADDLE_Y, 30, 190, 0xffffff, 0.9, 0.4);
+    this.camera.punch(0.03);
+  }
+
+  /** The thunder strike's own bolt, from the top of the arena down onto the brick. */
+  private onStrike(x: number, y: number): void {
+    this.frameEvents += 2;
+    if (this.bolts.length < MAX_BOLTS) {
+      this.bolts.push({
+        x0: x + rand(-34, 34),
+        y0: 0,
+        x1: x,
+        y1: y,
+        life: 0.22,
+        color: 0xffe14d,
+        seed: Math.random() * 1000,
+      });
+    }
+    this.sparks(x, y, 10, 0xffe14d, 340, 0.4, 2.4);
+    this.ring(x, y, 8, 70, 0xffe14d, 0.9, 0.28);
+    this.camera.shake(0.08);
+  }
+
+  /** A short, dashed run of light along the floor where the ball came back off it. */
+  private onFloorBounce(x: number): void {
+    this.frameEvents++;
+    for (let i = -5; i <= 5; i++) {
+      this.spawn(PK_LIGHT, x + i * 24, ARENA_H - 3, 0, -50, rand(0.22, 0.4), this.accent, {
+        size: rand(9, 13),
+        sizeEnd: 0.5,
+        intensity: 2.2,
+      });
+    }
+    this.sparks(x, ARENA_H - 6, 8, this.accent, 300, 0.35, 2);
   }
 
   private onBolt(x0: number, y0: number, x1: number, y1: number, color: number): void {

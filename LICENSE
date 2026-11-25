@@ -1,0 +1,96 @@
+碎界 SHATTERVERSE 自定义非商业许可证
+SHATTERVERSE Custom Non-Commercial License (SNCL 1.0)
+
+版权所有 (c) 2026 ikaros (GitHub: ikaros-521)
+Copyright (c) 2026 ikaros (GitHub: ikaros-521)
+
+================================================================
+中文版
+================================================================
+
+一、授权范围
+
+在遵守本许可证全部条款的前提下,任何人可以免费地:
+
+  1. 玩耍:游玩、复制、分发本游戏及其源代码,无需任何费用或授权;
+  2. 个人二开:出于个人学习、研究与爱好目的,查看、修改源代码并
+     制作衍生作品(模组、自改版本等)。
+
+二、开源义务(相同方式共享)
+
+任何基于本作品的衍生作品(包括但不限于修改后的版本、二次开发的
+模组或整合版),若向本作品作者以外的任何人分发或公开提供,必须:
+
+  1. 以本许可证全文公开其完整源代码;
+  2. 在显著位置标注原作者署名及原项目地址;
+  3. 采用与本许可证完全相同的条款,不得附加更严格的限制。
+
+三、禁止商业使用
+
+  1. 不得将本作品或其衍生作品用于任何商业目的,包括但不限于:
+     销售、收费下载、广告变现、内购、游戏内付费、赞助展示、
+     打包进付费平台,或作为任何付费产品或服务的一部分。
+  2. 本条款与第二、四条中「须开源」义务一并构成:即禁止将本作品
+     或其衍生作品以任何形式用于盈利。
+
+四、商业授权
+
+任何商业用途必须事先取得版权所有者的单独书面授权。
+联系方式:通过 GitHub 仓库 ikaros-521/SHATTERVER 的 issue 或私信联系。
+
+五、其他
+
+  1. 本作品按「现状」提供,不附带任何形式的担保;
+  2. 违反本许可证即自动终止授权;
+  3. 中文版与英文版如有歧义,以中文版为准。
+
+================================================================
+English Version
+================================================================
+
+1. SCOPE OF GRANT
+
+Subject to full compliance with this license, anyone may, free of
+charge:
+
+  1. Play: play, copy and distribute the game and its source code;
+  2. Personal derivative works: view, modify the source code and
+     create derivative works (mods, self-modified builds) for
+     personal learning, research and hobby purposes only.
+
+2. OPEN-SOURCE OBLIGATION (SHARE-ALIKE)
+
+Any derivative work of this work (including modified builds, mods
+or redistributions) that is distributed or made publicly available
+to anyone other than the author must:
+
+  1. Publish its complete source code under this license verbatim;
+  2. Credit the original author and link to the original project
+     in a prominent place;
+  3. Adopt this license in its entirety, with no additional
+     restrictions.
+
+3. NO COMMERCIAL USE
+
+  1. You may not use this work or any derivative work for any
+     commercial purpose, including but not limited to: selling,
+     paid downloads, advertising revenue, in-app purchases,
+     sponsored placement, bundling into paid platforms, or
+     shipping as part of any paid product or service.
+  2. Together with Sections 2 and 4, this constitutes a complete
+     prohibition on deriving profit from this work or its
+     derivatives in any form.
+
+4. COMMERCIAL LICENSING
+
+Any commercial use requires a separate prior written license from
+the copyright holder. Contact: via issues or direct message on the
+GitHub repository ikaros-521/SHATTERVER.
+
+5. MISCELLANEOUS
+
+  1. This work is provided "as is", without warranty of any kind;
+  2. Any violation of this license terminates the grant
+     automatically;
+  3. In case of ambiguity between the Chinese and English versions,
+     the Chinese version prevails.

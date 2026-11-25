@@ -97,7 +97,7 @@ src/
 | `advance(seconds)`                     | 不依赖实时帧推进模拟并绘制一帧                               |
 | `freeze(on)`                           | 冻结模拟，用于截取精确的某一帧                               |
 | `autopilot(on)`                        | 让内置机器人接管挡板                                         |
-| `start(mode, starter, level?, build?)` | 开启一局，可指定起始关卡与初始构筑（跳关的局不计入纪录）     |
+| `start(mode, starter, level?, build?)` | 开启一局，可指定起始关卡与初始构筑（跳关的局不计入纪录）。协议 id：`blank` `barrage` `battery` `element` |
 | `grant(id, levels)`                    | 给当前局发放强化                                             |
 | `lose()`                               | 耗尽当前局的护盾，直接进入结算流程                           |
 | `scorecard()`                          | 合成战绩截图（不下载），返回尺寸、字节量与 data URL，供检查   |

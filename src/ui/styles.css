@@ -1914,6 +1914,12 @@ button.sigil-tile:hover {
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   text-shadow: 0 0 16px rgb(var(--accent-rgb) / 0.4);
+  /* A number offers no break opportunity, so by itself it is one unbreakable line however long the
+     score is, and it walks out of whatever box it sits in. Bounded and breakable, a score too long
+     for its box wraps inside it instead. */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .rank-row.top1 .rank-score {
@@ -2382,9 +2388,54 @@ button.sigil-tile:hover {
   margin-top: 10px;
 }
 
-/* The cloud row carries a third column for the score, which the local rows keep inside the label. */
+/* The cloud row keeps its score outside the label, flush with the row's right edge, so the scores
+   line up down the board. It is a wrapping flex line, not a third grid column: a column sized to
+   the score gave it every pixel it asked for and took them from the name, which a 14-digit score
+   (the global board carries one) reduced to zero while still spilling past the row. The name now
+   keeps at least `flex-basis` of room, and a score that will not fit beside it drops to a line of
+   its own, still flush right. */
 .cloud-row {
-  grid-template-columns: 58px minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.cloud-row > .rank-badge {
+  flex: 0 0 58px;
+}
+
+.cloud-row > .rank-main {
+  flex: 1 1 6em;
+  min-width: 0;
+}
+
+/* The「你」chip shares the name's line and costs it about 3em, so the player's own row keeps that
+   much more before its score is allowed a line to itself. */
+.cloud-row.mine > .rank-main {
+  flex-basis: 9em;
+}
+
+.cloud-row > .rank-score {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+}
+
+/* Phones: 200–300px of row has to hold a rank, a name and a score, and the desktop sizes do not
+   fit all three. The badge gives back the width it does not need and the score steps down a size,
+   which keeps a six-digit score on the name's line down to 360px-wide phones. */
+@media (max-width: 560px) {
+  .cloud-row {
+    gap: 2px 10px;
+  }
+
+  .cloud-row > .rank-badge {
+    flex-basis: 48px;
+  }
+
+  .cloud-row > .rank-score {
+    font-size: 20px;
+  }
 }
 
 .cloud-row.mine {

@@ -32,7 +32,7 @@ export const STARTERS: Starter[] = [
     id: 'battery',
     name: '火力协议',
     en: 'BATTERY',
-    desc: '激光阵列 Lv1 + 高能弹芯 Lv1。挡板自己就会开火。',
+    desc: '激光阵列 Lv1 + 高能球芯 Lv1。挡板自己就会开火。',
     color: 0xffd166,
     grants: { laser: 1, power: 1 },
     crystals: 0,

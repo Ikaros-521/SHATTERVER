@@ -10,6 +10,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # 仓库从未开启过 Pages 时，需要它让工作流通过 API 自动创建 Pages 站点。
+  administration: write
 
 # 同一时间只保留一次部署，新推送取消仍在跑的旧部署。
 concurrency:

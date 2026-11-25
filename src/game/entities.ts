@@ -178,6 +178,13 @@ export interface Ball {
   stallT: number;
   /** Seconds since this ball last touched a brick. Drives the anti-stall nudges. */
   dryT: number;
+  /**
+   * Guidance is armed for this trip: with Guidance in the build the ball steers towards one brick.
+   * Armed by the paddle (and at birth), spent by the ball's first brick contact.
+   */
+  guided: boolean;
+  /** id of the brick the ball is steering towards, by guidance or anti-stall drift. 0 when it has none. */
+  lock: number;
 }
 
 export interface BallInit {
@@ -221,6 +228,8 @@ export function makeBall(init: BallInit): Ball {
     solarT: 0,
     stallT: 0,
     dryT: 0,
+    guided: true,
+    lock: 0,
   };
 }
 

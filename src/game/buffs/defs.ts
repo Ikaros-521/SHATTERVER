@@ -114,7 +114,7 @@ export const BUFFS: readonly BuffDef[] = [
     id: 'homing',
     name: '制导蜂群',
     code: 'SEEKER',
-    desc: '球体强力追踪最近的砖块。',
+    desc: '球体强力制导：每次触板后拐弯命中一块砖。',
     color: 0x7dffe0,
     duration: 8,
     weight: 8,

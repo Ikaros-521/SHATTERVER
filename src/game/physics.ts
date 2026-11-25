@@ -1,7 +1,7 @@
-import { angleDelta, clamp } from '../core/math';
-import { ARENA_H, ARENA_W, BALL_ANTI_STALL, PADDLE_H, WALL } from './config';
+import { ARENA_H, ARENA_W, PADDLE_H, WALL } from './config';
 import { onBallHitBrick } from './combat';
 import type { Ball, Brick } from './entities';
+import { guide, turnToward } from './guidance';
 import type { World } from './world';
 
 interface Sweep {
@@ -108,15 +108,6 @@ function sweepBrick(
   return true;
 }
 
-/** Rotates the velocity direction toward a point by at most `maxTurn` radians. Speed is preserved. */
-export function turnToward(ball: Ball, tx: number, ty: number, maxTurn: number): void {
-  const current = Math.atan2(ball.vy, ball.vx);
-  const wanted = Math.atan2(ty - ball.y, tx - ball.x);
-  const angle = current + clamp(angleDelta(current, wanted), -maxTurn, maxTurn);
-  ball.vx = Math.cos(angle) * ball.speed;
-  ball.vy = Math.sin(angle) * ball.speed;
-}
-
 function renormalize(ball: Ball): void {
   const len = Math.hypot(ball.vx, ball.vy) || 1;
   ball.vx *= ball.speed / len;
@@ -178,22 +169,6 @@ function collidePaddle(world: World, ball: Ball): void {
   }
 }
 
-function steer(ball: Ball, world: World, maxTurn: number): void {
-  let target: Brick | null = null;
-  let best = Infinity;
-  for (const brick of world.bricks) {
-    if (brick.dead || brick.cloaked) continue;
-    const dx = brick.x - ball.x;
-    const dy = brick.y - ball.y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < best) {
-      best = d2;
-      target = brick;
-    }
-  }
-  if (target) turnToward(ball, target.x, target.y, maxTurn);
-}
-
 /**
  * Advances one ball by `dt` with continuous collision detection.
  *
@@ -202,9 +177,9 @@ function steer(ball: Ball, world: World, maxTurn: number): void {
  */
 export function stepBall(world: World, ball: Ball, dt: number): void {
   const stats = world.live;
-  if (stats.homing > 0) steer(ball, world, stats.homing * dt);
-  // A ball that has found nothing to hit for a while drifts towards the nearest brick on its own.
-  if (ball.dryT > BALL_ANTI_STALL && stats.homing <= 0) steer(ball, world, 1.6 * dt);
+  // One aimed turn while guidance is armed; otherwise a ball that has found nothing to hit for a
+  // while drifts towards a brick on its own.
+  guide(ball, world.bricks, stats.homing, dt);
   if (world.level.modifier?.id === 'gravity') {
     ball.vy += 620 * dt;
     renormalize(ball);

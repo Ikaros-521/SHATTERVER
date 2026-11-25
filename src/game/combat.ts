@@ -159,6 +159,9 @@ export function onBallHitBrick(
   const crit = world.rng.chance(s.critChance);
   const pierce = world.rng.chance(s.pierceChance);
   ball.dryT = 0;
+  // This contact spends the ball's guidance; the paddle re-arms it.
+  ball.guided = false;
+  ball.lock = 0;
 
   // Eraser bricks trade a ball for the hit — but never the last few, so a playable core always
   // remains. The ball still deals its damage; the price is the ball itself, not the punch.

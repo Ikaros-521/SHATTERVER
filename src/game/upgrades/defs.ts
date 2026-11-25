@@ -216,7 +216,8 @@ export const UPGRADES: UpgradeDef[] = [
     apply: (s, lv) => {
       s.homing += 2.4 * lv;
     },
-    describe: (lv) => `球体自动追踪最近的砖块，转向力 ${b('+' + lv)} 级。`,
+    describe: (lv) =>
+      `触板后球体锁定一块砖，拐弯命中一次即止，再次触板后重新制导。转向力 ${b('+' + lv)} 级。`,
   }),
   def({
     id: 'split',

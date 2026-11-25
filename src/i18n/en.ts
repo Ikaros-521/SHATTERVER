@@ -439,7 +439,8 @@ export const en: UiDict & { content: ContentOverrides } = {
       homing: {
         name: 'Guidance',
         flavor: 'They know where they need to go.',
-        describe: (lv) => `Balls home in on the nearest brick; steering force ${b('+' + lv)} grade.`,
+        describe: (lv) =>
+          `After each paddle return a ball locks onto one brick and bends to hit it — once. Steering force ${b('+' + lv)} grade.`,
       },
       split: {
         name: 'Mitosis',
@@ -729,7 +730,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: 'Seeker',
-        desc: 'Balls home hard on the nearest brick.',
+        desc: 'Balls steer hard onto one brick after each paddle return.',
       },
       rage: {
         name: 'Rage',

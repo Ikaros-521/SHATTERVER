@@ -436,7 +436,8 @@ export const ja: UiDict & { content: ContentOverrides } = {
       homing: {
         name: 'ガイダンスコア',
         flavor: 'ボールは自分が行くべき場所を知っている。',
-        describe: (lv) => `ボールが最寄りのブロックを自動追尾。旋回力 ${b('+' + lv)} ランク。`,
+        describe: (lv) =>
+          `パドルに触れるたびに、ボールはブロックを1つロックして曲がり命中します（1回まで）。旋回力 ${b('+' + lv)} ランク。`,
       },
       split: {
         name: '分裂プロトコル',
@@ -723,7 +724,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: 'シーカー',
-        desc: 'ボールが最も近いブロックを強力に追尾する。',
+        desc: 'パドルに触れるたび、ボールが強力に曲がってブロック1つに命中。',
       },
       rage: {
         name: 'レイジ',

@@ -1126,8 +1126,10 @@ export class World {
     ball.y = paddle.y - PADDLE_H / 2 - ball.radius - 0.5;
     ball.momentum = 0;
     ball.squash = 1;
-    // A fresh trip up: banked damage and floor bounces both start over.
+    // A fresh trip up: banked damage, floor bounces and guidance all start over.
     ball.floor = 0;
+    ball.guided = true;
+    ball.lock = 0;
     if (s.empowerBonus > 0) ball.emp = s.empowerDuration;
 
     paddle.flash = 1;
@@ -1207,6 +1209,8 @@ export class World {
     ball.emp = 0;
     ball.stallT = 0;
     ball.floor = 0;
+    ball.guided = true;
+    ball.lock = 0;
     ball.ignore.clear();
   }
 

@@ -3,7 +3,7 @@ import { GRID } from './config';
 let nextId = 1;
 export const allocId = (): number => nextId++;
 
-export type BrickType = 'normal' | 'tough' | 'armored' | 'gold' | 'explosive' | 'elite' | 'turret';
+export type BrickType = 'normal' | 'tough' | 'armored' | 'gold' | 'explosive' | 'elite' | 'turret' | 'eraser';
 export type BossRole = 'armor' | 'core' | 'turret';
 
 /**
@@ -19,7 +19,15 @@ export const BRICK_HP: Record<BrickType, number> = {
   explosive: 1,
   elite: 14,
   turret: 3,
+  /** Chunky on purpose: while it lives it keeps eating balls. */
+  eraser: 2,
 };
+
+/** Colour of the ball-eating eraser brick (shared by the generator, renderer and effects). */
+export const ERASER_COLOR = 0xa64dff;
+
+/** Balls fewer than this are never eaten — there is always a playable core on screen. */
+export const MIN_FREE_BALLS = 4;
 
 /**
  * Boss part HP relative to a plain brick of the same level. Each armour piece should feel chunky
@@ -150,6 +158,8 @@ export interface Ball {
   docked: boolean;
   /** Seconds until a lost ball is re-launched from the paddle. */
   respawnT: number;
+  /** True once an eraser brick or a purge has eaten this ball: gone for the rest of the level. */
+  voided: boolean;
   ttl: number;
   ghost: boolean;
   child: boolean;
@@ -193,6 +203,7 @@ export function makeBall(init: BallInit): Ball {
     alive: true,
     docked: false,
     respawnT: 0,
+    voided: false,
     ttl: init.ttl ?? Infinity,
     ghost: init.ghost ?? false,
     child: init.child ?? false,

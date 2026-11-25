@@ -16,6 +16,7 @@ export type Sfx =
   | 'paddle'
   | 'perfect'
   | 'miss'
+  | 'void'
   | 'hurt'
   | 'pickup'
   | 'laser'
@@ -119,6 +120,11 @@ export function playSfx(engine: AudioEngine, name: Sfx, params: SfxParams = {}):
       break;
     case 'miss':
       engine.tone({ type: 'triangle', freq: 170, freqEnd: 72, dur: 0.24, gain: 0.11 });
+      break;
+    case 'void':
+      // A ball being unmade: a sharp inhale — pitch collapsing into a filtered hiss.
+      engine.tone({ type: 'sine', freq: 660, freqEnd: 72, dur: 0.34, gain: 0.24 });
+      engine.noise({ filter: 'lowpass', freq: 2200, freqEnd: 140, dur: 0.3, gain: 0.15 });
       break;
     case 'hurt':
       engine.tone({ type: 'sawtooth', freq: 140, freqEnd: 48, dur: 0.36, gain: 0.28 });

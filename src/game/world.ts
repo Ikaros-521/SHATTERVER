@@ -20,6 +20,7 @@ import {
   WALL,
 } from './config';
 import { botTarget } from './bot';
+import { difficultyOf, type Difficulty } from './difficulty';
 import { stepBall } from './physics';
 import {
   applyDamage,
@@ -46,6 +47,7 @@ import {
   BRICK_HP,
   makeBall,
   makeBrick,
+  MIN_FREE_BALLS,
   type Ball,
   type Brick,
   type BrickType,
@@ -120,6 +122,8 @@ export interface WorldEvents {
   pierce: { x: number; y: number; nx: number; ny: number; brick: Brick };
   paddle: { x: number; off: number; perfect: boolean };
   miss: { x: number; child: boolean };
+  /** An eraser brick or a difficulty purge consumed this ball for the rest of the level. */
+  ballVoided: { x: number; y: number };
   hurt: { amount: number };
   pickup: { x: number; y: number; kind: PickupKind; value: number };
   explode: { x: number; y: number; radius: number; color: number; kind: ExplosionKind };
@@ -183,6 +187,10 @@ export class World {
   shards: Shard[] = [];
   singularity: { t: number; tick: number } | null = null;
   boss: BossState | null = null;
+  /** The run's difficulty tier: paddle width, ball speed, fire rate, ball purges all scale from it. */
+  readonly diff: Difficulty;
+  /** Countdown to the next surplus-ball purge. Idle when the tier disables purges. */
+  private purgeT = 0;
 
   paddle: Paddle = {
     x: ARENA_W / 2,
@@ -232,15 +240,17 @@ export class World {
     readonly run: Run,
     readonly level: LevelPlan,
     readonly rng: RNG,
-    opts: { bot?: boolean } = {},
+    opts: { bot?: boolean; difficulty?: Difficulty } = {},
   ) {
     this.stats = run.stats;
+    this.diff = opts.difficulty ?? difficultyOf('standard');
     this.bot = opts.bot ?? false;
     this.maxHp = run.maxHp;
     this.hp = Math.min(run.hp, run.maxHp);
     if (this.stats.timeStopInterval > 0) this.timeStopCd = Math.max(5, this.stats.timeStopInterval - 8);
     if (this.stats.singularity) this.singularity = { t: 0, tick: 0 };
-    this.paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth;
+    this.paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
+    if (this.diff.purgePeriod > 0) this.purgeT = this.diff.purgePeriod * 0.6;
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();
@@ -330,7 +340,9 @@ export class World {
 
   /** Current ball speed: base × upgrades × overdrive × level modifier. */
   ballSpeed(): number {
-    return BALL_SPEED * this.stats.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult;
+    return (
+      BALL_SPEED * this.stats.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult
+    );
   }
 
   private launchAll(): void {
@@ -374,6 +386,7 @@ export class World {
     }
     this.updateHps(dt);
     this.updateTimeStop(dt);
+    this.tickPurge(dt);
 
     const dying = this.state === 'dying';
     if (!dying) {
@@ -434,7 +447,7 @@ export class World {
 
   private updatePaddle(dt: number): void {
     const paddle = this.paddle;
-    paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth;
+    paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
     const min = WALL + paddle.halfW;
     const max = ARENA_W - WALL - paddle.halfW;
 
@@ -526,7 +539,7 @@ export class World {
       if (brick.type === 'turret' && !brick.boss && this.state === 'playing') {
         brick.shootCd -= dt;
         if (brick.shootCd <= 0) {
-          brick.shootCd = 3.8;
+          brick.shootCd = 3.8 / this.diff.bulletMult;
           this.shoot(brick.x, brick.y + brick.h / 2);
         }
       }
@@ -645,7 +658,7 @@ export class World {
       // can block between catches. Independent turrets would make catching and blocking mutually exclusive.
       boss.shootCd -= dt * boss.speed;
       if (boss.shootCd <= 0) {
-        boss.shootCd = def.shootInterval;
+        boss.shootCd = def.shootInterval / this.diff.bulletMult;
         this.bossShoot();
       }
     }
@@ -863,13 +876,13 @@ export class World {
 
   private updateBalls(dt: number): void {
     const s = this.stats;
-    const speed = BALL_SPEED * s.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult;
+    const speed = BALL_SPEED * s.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult;
     const radius = BALL_RADIUS * s.ballRadius;
     const solar = s.solarDps > 0;
 
     for (const ball of this.balls) {
       if (!ball.alive) {
-        if (!ball.child) {
+        if (!ball.child && !ball.voided) {
           ball.respawnT -= dt;
           if (ball.respawnT <= 0) this.respawn(ball);
         }
@@ -987,6 +1000,32 @@ export class World {
     this.comboTimer = Math.min(this.comboTimer, 0.9);
     this.gainEnergy(-3);
     this.events.emit('miss', { x: ball.x, child: false });
+  }
+
+  /** How many real balls the player has on the field (children and mirror ghosts don't count). */
+  freeBallCount(): number {
+    return this.balls.filter((ball) => ball.alive && !ball.child && !ball.ghost).length;
+  }
+
+  /** Eaten by an eraser brick or a difficulty purge: gone for the rest of this level, no respawn. */
+  voidBall(ball: Ball): void {
+    if (!ball.alive || ball.voided || ball.child || ball.ghost) return;
+    ball.voided = true;
+    ball.alive = false;
+    ball.docked = false;
+    ball.ignore.clear();
+    this.events.emit('ballVoided', { x: ball.x, y: ball.y });
+  }
+
+  /** The abyss tier's slow drain on multiball stacks: one surplus ball per period. */
+  private tickPurge(dt: number): void {
+    if (this.diff.purgePeriod <= 0 || this.state !== 'playing') return;
+    this.purgeT -= dt;
+    if (this.purgeT > 0) return;
+    this.purgeT = this.diff.purgePeriod;
+    const flying = this.balls.filter((ball) => ball.alive && !ball.docked && !ball.child && !ball.ghost);
+    if (flying.length <= MIN_FREE_BALLS) return;
+    this.voidBall(this.rng.pick(flying));
   }
 
   private respawn(ball: Ball): void {

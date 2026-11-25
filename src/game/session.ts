@@ -1,6 +1,7 @@
 import { Emitter } from '../core/emitter';
 import { hashCombine, RNG } from '../core/rng';
 import { MAX_HP_BASE } from './config';
+import { difficultyOf, type Difficulty } from './difficulty';
 import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
 import type { Starter } from './starters';
@@ -26,6 +27,8 @@ export interface SessionOptions {
   starter?: Starter;
   /** First level to open. Defaults to 1; the attract-mode demo starts deeper in. */
   level?: number;
+  /** Difficulty tier for the whole run. Defaults to standard. */
+  difficulty?: Difficulty;
 }
 
 /**
@@ -38,6 +41,7 @@ export class Session {
   readonly events = new Emitter<SessionEvents>();
   readonly run: Run;
   readonly bot: boolean;
+  readonly difficulty: Difficulty;
   world: World;
   phase: SessionPhase = 'playing';
   draft: UpgradeDef[] = [];
@@ -46,8 +50,10 @@ export class Session {
 
   constructor(mode: RunMode, seed: number, options: SessionOptions = {}) {
     this.bot = options.bot ?? false;
+    this.difficulty = options.difficulty ?? difficultyOf('standard');
     this.rng = new RNG(hashCombine(seed, 0xd1a7));
     this.run = createRun(mode, seed);
+    this.run.difficulty = this.difficulty.id;
     if (options.level) this.run.level = Math.max(1, Math.floor(options.level));
     const starter = options.starter;
     if (starter) {
@@ -140,8 +146,8 @@ export class Session {
     const run = this.run;
     // Levels get their own stream so build choices never change the layout of a given seed.
     const rng = new RNG(hashCombine(run.seed, run.level, 0x1e5e1));
-    const plan = buildLevel(run.level, rng);
-    return new World(run, plan, rng.fork(), { bot: this.bot });
+    const plan = buildLevel(run.level, rng, this.difficulty);
+    return new World(run, plan, rng.fork(), { bot: this.bot, difficulty: this.difficulty });
   }
 
   /** Folds the level in progress into the run totals. Called exactly once per level, when it ends. */

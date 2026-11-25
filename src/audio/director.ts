@@ -127,6 +127,7 @@ export class AudioDirector {
       on('miss', (e) => {
         if (!e.child) this.play('miss');
       }),
+      on('ballVoided', () => this.play('void')),
       on('hurt', () => this.play('hurt', undefined, 1.2)),
       on('pickup', (e) => {
         if (e.kind !== 'crystal') return;

@@ -1,6 +1,6 @@
 import { clamp } from '../core/math';
 import { ARENA_H, ARENA_W, BASE_DMG, MAX_BALLS, MAX_HOLES, PADDLE_H } from './config';
-import { makeBall, type Ball, type Brick, type Hole } from './entities';
+import { makeBall, MIN_FREE_BALLS, type Ball, type Brick, type Hole } from './entities';
 import { REACTIONS, type ReactionDef, type ReactionId } from './levels/definitions';
 import type { World } from './world';
 
@@ -111,7 +111,7 @@ export function applyDamage(world: World, brick: Brick, amount: number, ctx: Dam
   brick.scale = Math.min(1.35, brick.scale + 0.16);
 
   world.totalDamage += dealt;
-  world.run.score += dealt * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25);
+  world.run.score += dealt * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25) * world.diff.scoreMult;
   if (ctx.source === 'ball' || ctx.source === 'secondary') world.addCombo();
 
   world.events.emit('hit', {
@@ -148,6 +148,14 @@ export function onBallHitBrick(
   const crit = world.rng.chance(s.critChance);
   const pierce = world.rng.chance(s.pierceChance);
   ball.dryT = 0;
+
+  // Eraser bricks trade a ball for the hit — but never the last few, so a playable core always
+  // remains. The ball still deals its damage; the price is the ball itself, not the punch.
+  if (brick.type === 'eraser' && world.freeBallCount() > MIN_FREE_BALLS) {
+    applyDamage(world, brick, power * (crit ? s.critMult : 1), makeCtx(cx, cy, power, 'ball', { ball, crit }));
+    world.voidBall(ball);
+    return false;
+  }
 
   applyDamage(world, brick, power * (crit ? s.critMult : 1), makeCtx(cx, cy, power, 'ball', { ball, crit }));
   if (!brick.dead) applyOnHit(world, brick, power);

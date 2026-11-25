@@ -92,8 +92,17 @@ function drawBricks(pen: Pen, world: World, time: number): void {
     if (brick.dead) continue;
     const scale = brick.scale;
     const turret = brick.type === 'turret' || brick.bossRole === 'turret';
+    const eraser = brick.type === 'eraser';
     const halo =
-      brick.type === 'explosive' ? 0.4 + 0.35 * pulse : turret ? 0.3 : brick.type === 'elite' ? 0.4 : 0;
+      brick.type === 'explosive'
+        ? 0.4 + 0.35 * pulse
+        : eraser
+          ? 0.45 + 0.3 * pulse
+          : turret
+            ? 0.3
+            : brick.type === 'elite'
+              ? 0.4
+              : 0;
     pen.surface(
       brick.x + brick.kx,
       brick.y + brick.ky,
@@ -113,6 +122,11 @@ function drawBricks(pen: Pen, world: World, time: number): void {
       const charge = clamp(1 - brick.shootCd / 0.5, 0, 1);
       pen.surface(brick.x, brick.y + 3, 9, 3.2, 0x05060f, { radius: 1.6, halo: 0 });
       pen.disc(brick.x, brick.y + 3, 5, 0xff4df0, 0.35 + 0.65 * charge, 0.6);
+    }
+    // An eraser's maw: a dark void eye that warns the player what this brick does.
+    if (eraser) {
+      pen.surface(brick.x, brick.y, 11, 5, 0x05060f, { radius: 2.4, halo: 0 });
+      pen.disc(brick.x, brick.y, 3.4 + 0.9 * pulse, 0xd9b0ff, 0.5 + 0.4 * pulse, 0.7);
     }
   }
 }

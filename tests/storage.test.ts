@@ -12,6 +12,7 @@ vi.stubGlobal('localStorage', {
 function record(overrides: Partial<RunRecord> = {}): RunRecord {
   return {
     mode: 'campaign',
+    difficulty: 'standard',
     score: 1000,
     level: 3,
     code: '1-3',

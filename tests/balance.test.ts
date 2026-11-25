@@ -106,6 +106,30 @@ describe('campaign balance (bot players)', () => {
     }
   }, 120_000);
 
+  // Higher tiers must stay beatable by excellent (bot) play — brutal is fine, unwinnable is not.
+  // The bar sits below standard play because erasers trim the bot's ball snowball blindly: it
+  // cannot aim at them like a human can, so these floors understate a competent player's odds.
+  it('hard tier: the baseline drafter still clears a good share of seeds', () => {
+    let wins = 0;
+    for (const seed of SEEDS) {
+      const result = simulate({ seed, policy: sensible, difficulty: 'hard', maxSeconds: 3000 });
+      if (result.won) wins++;
+      console.log(`[hard seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s · score ${Math.round(result.session.run.score)}`);
+      expect(worldIsFinite(result.session.world)).toBe(true);
+    }
+    expect(wins / SEEDS.length, 'hard tier sensible win rate').toBeGreaterThanOrEqual(0.375);
+  }, 240_000);
+
+  it('nightmare tier: perfect play still clears a quarter of seeds', () => {
+    let wins = 0;
+    for (const seed of SEEDS) {
+      const result = simulate({ seed, policy: sensible, difficulty: 'nightmare', maxSeconds: 3000 });
+      if (result.won) wins++;
+      console.log(`[nightmare seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s`);
+    }
+    expect(wins / SEEDS.length, 'nightmare tier sensible wins').toBeGreaterThanOrEqual(0.25);
+  }, 240_000);
+
   it('a fresh run starts with the intended resources', () => {
     const result = simulate({ seed: 1, policy: sensible, maxSeconds: 0.5 });
     expect(result.session.run.hp).toBe(MAX_HP_BASE);

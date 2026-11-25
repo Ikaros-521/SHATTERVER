@@ -1,7 +1,8 @@
-import { bossScale, hpUnit } from '../config';
+import { bossScale, DANGER_Y, GRID, hpUnit } from '../config';
 import { mixHex } from '../../core/math';
 import type { RNG } from '../../core/rng';
-import type { BossRole, BrickType } from '../entities';
+import { ERASER_COLOR, type BossRole, type BrickType } from '../entities';
+import { difficultyOf, type Difficulty } from '../difficulty';
 import { BOSSES, CHAPTERS, MODIFIERS, type BossDef, type ModifierDef } from './definitions';
 import * as P from './patterns';
 import type { Cell } from './patterns';
@@ -82,6 +83,7 @@ const SPECIAL_COLORS: Record<string, number> = {
   explosive: 0xff6b1a,
   elite: 0xff2d6f,
   turret: 0xc8ff3d,
+  eraser: ERASER_COLOR,
 };
 
 const at = <T>(items: readonly T[], index: number): T =>
@@ -99,6 +101,17 @@ export function cycleOf(level: number): number {
 export function isBossLevel(level: number): boolean {
   return level % BOSS_EVERY === 0;
 }
+
+/**
+ * How much of a tier's pressure applies at a given level: a fresh build with a handful of picks
+ * should breathe, while a maxed one meets the tier at full strength from sector 9 on.
+ */
+export function difficultyRamp(level: number): number {
+  return Math.min(1, 0.3 + (level - 1) / 16);
+}
+
+/** Deepest lattice row that still leaves breathing room above the danger line. */
+export const SAFE_MAX_ROW = Math.floor((DANGER_Y - 200 - GRID.y0 - GRID.brickH / 2) / GRID.pitchY);
 
 function compose(level: number, rng: RNG): Cell[] {
   const recipe = CAMPAIGN[level];
@@ -119,6 +132,7 @@ function decorate(
   chapter: number,
   rng: RNG,
   modifier: ModifierDef | null,
+  eraserChance = 0,
 ): LevelCell[] {
   const palette = CHAPTERS[chapter]?.bricks ?? CHAPTERS[0].bricks;
   const out: LevelCell[] = rng.shuffle([...cells]).map((c) => ({
@@ -147,6 +161,10 @@ function decorate(
     'turret',
     modifier?.id === 'flak' ? 5 : chapter >= 1 ? Math.min(3, 1 + Math.floor((level - 6) / 5)) : 0,
   );
+  // Erasers feed on plain bricks before gold gets its share, so economy bricks stay economy.
+  if (eraserChance > 0) {
+    place('eraser', Math.max(1, Math.round(out.length * eraserChance)));
+  }
   place('gold', modifier?.id === 'gold' ? Math.round(out.length * 0.18) : 2 + Math.floor(level / 3));
 
   const armoredChance = Math.min(0.2, 0.03 + 0.012 * level);
@@ -191,8 +209,11 @@ function bossCells(boss: BossDef): LevelCell[] {
   return cells;
 }
 
-/** Builds the plan for a 1-based level index. Same (level, rng state) → same level. */
-export function buildLevel(index: number, rng: RNG): LevelPlan {
+/**
+ * Builds the plan for a 1-based level index. Same (level, rng state) → same level; the chosen
+ * difficulty only ever scales what comes out, so a seed's geography stays reproducible.
+ */
+export function buildLevel(index: number, rng: RNG, difficulty: Difficulty = difficultyOf('standard')): LevelPlan {
   const level = Math.max(1, Math.floor(index));
   const chapter = chapterOf(level);
   const cycle = cycleOf(level);
@@ -201,19 +222,44 @@ export function buildLevel(index: number, rng: RNG): LevelPlan {
   const rush = modifier?.id === 'rush';
   const info = CHAPTERS[chapter] ?? CHAPTERS[0];
 
+  // Difficulty pressure ramps in over the first third of the campaign; see `difficultyRamp`.
+  const ramp = difficultyRamp(level);
+  const eraserChance = boss ? 0 : difficulty.eraserChance * Math.min(1, level / 6);
+  // The name draw comes before compose on purpose: it keeps this file's rng consumption in the
+  // original order, so standard-tier plans stay byte-identical to the pre-difficulty ones.
+  const name = boss ? boss.name : (rng.pick(info.places) ?? info.name);
+  const cells = compose(level, rng);
+  // Extra rows sit above the pattern, pushing it down — but never past the danger line's
+  // breathing room, which deep endless stacks can already approach on their own.
+  const extraRows = boss
+    ? 0
+    : Math.max(0, Math.min(Math.round(difficulty.extraRows * ramp), SAFE_MAX_ROW - P.maxRow(cells)));
+  const stacked = extraRows > 0 ? [...topRows(extraRows, rng), ...P.offsetCells(cells, 0, extraRows)] : cells;
+
   return {
     index: level,
     chapter,
     code: `${chapter + 1 + cycle * CHAPTERS.length}-${((level - 1) % BOSS_EVERY) + 1}`,
-    name: boss ? boss.name : (rng.pick(info.places) ?? info.name),
+    name,
     modifier,
     boss,
-    hpUnit: Math.round(hpUnit(level) * (1 + cycle * 1.8)),
-    cells: boss ? bossCells(boss) : decorate(compose(level, rng), level, chapter, rng, modifier),
-    descent: boss ? 0 : (5 + level * 1.1) * (rush ? 1.5 : 1),
+    hpUnit: Math.round(hpUnit(level) * (1 + cycle * 1.8) * (1 + (difficulty.hpMult - 1) * ramp)),
+    cells: boss ? bossCells(boss) : decorate(stacked, level, chapter, rng, modifier, eraserChance),
+    descent: boss ? 0 : (5 + level * 1.1) * (rush ? 1.5 : 1) * (1 + (difficulty.descentMult - 1) * ramp),
     parTime: Math.min(50, 26 + level),
     speedMult: rush ? 1.25 : 1,
     damageMult: rush ? 1.25 : 1,
-    bossScale: bossScale(level),
+    bossScale: bossScale(level) * (1 + (difficulty.hpMult - 1) * ramp),
   };
+}
+
+/** Sparse filler rows above the pattern: dense enough to matter, loose enough to stay readable. */
+function topRows(count: number, rng: RNG): Cell[] {
+  const cells: Cell[] = [];
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < 12; col++) {
+      if (rng.chance(0.62)) cells.push({ col, row });
+    }
+  }
+  return cells;
 }

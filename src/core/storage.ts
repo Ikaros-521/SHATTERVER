@@ -1,3 +1,4 @@
+import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import type { QualityLevel } from '../render/layout';
 
 export interface Settings {
@@ -9,6 +10,8 @@ export interface Settings {
   quality: QualityLevel;
   /** Optional fixed run seed. Empty string means "random every run". */
   seed: string;
+  /** The difficulty tier preselected on the starter screen. */
+  difficulty: DifficultyId;
 }
 
 export interface Records {
@@ -28,6 +31,8 @@ export interface Records {
 /** One finished run, as shown on the leaderboard and the share card. */
 export interface RunRecord {
   mode: 'campaign' | 'endless';
+  /** Difficulty tier the run was played on. Older saves read as standard. */
+  difficulty: DifficultyId;
   score: number;
   /** Sector reached: `levelsCleared + 1` on a loss, the last sector on a win. */
   level: number;
@@ -64,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashes: true,
   quality: 'high',
   seed: '',
+  difficulty: DEFAULT_DIFFICULTY,
 };
 
 export const DEFAULT_RECORDS: Records = {
@@ -114,6 +120,7 @@ export function loadSave(): SaveData {
         ? settings.quality
         : 'high',
     seed: typeof settings.seed === 'string' ? settings.seed.slice(0, 24) : '',
+    difficulty: isDifficultyId(settings.difficulty) ? settings.difficulty : DEFAULT_DIFFICULTY,
   };
   save.records = {
     bestCampaign: Math.floor(num(records.bestCampaign, 0)),
@@ -151,6 +158,7 @@ function parseRunRecord(raw: unknown): RunRecord | null {
   }
   return {
     mode: r.mode,
+    difficulty: isDifficultyId(r.difficulty) ? r.difficulty : 'standard',
     score: Math.max(0, Math.floor(num(r.score))),
     level: Math.max(1, Math.floor(num(r.level, 1))),
     code: typeof r.code === 'string' ? r.code.slice(0, 12) : '',

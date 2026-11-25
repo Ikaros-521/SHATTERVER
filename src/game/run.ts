@@ -1,4 +1,5 @@
 import { MAX_HP_BASE } from './config';
+import type { DifficultyId } from './difficulty';
 import type { ReactionId } from './levels/definitions';
 import { defaultStats, type BuildStats } from './upgrades/stats';
 
@@ -17,6 +18,8 @@ export interface LevelRecord {
 export interface Run {
   mode: RunMode;
   seed: number;
+  /** Difficulty tier the run was started on. */
+  difficulty: DifficultyId;
   /** 1-based index of the level currently being played. */
   level: number;
   levelsCleared: number;
@@ -41,6 +44,7 @@ export function createRun(mode: RunMode, seed: number): Run {
   return {
     mode,
     seed,
+    difficulty: 'standard',
     level: 1,
     levelsCleared: 0,
     upgrades: {},

@@ -1,6 +1,7 @@
 import type { AudioDirector } from '../audio/director';
 import { formatNumber, formatScore, formatTime, mixHex } from '../core/math';
 import type { SaveData, Settings } from '../core/storage';
+import { difficultyOf, DIFFICULTIES, type DifficultyId } from '../game/difficulty';
 import { CAMPAIGN_LENGTH } from '../game/levels/generator';
 import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
 import type { RunMode } from '../game/run';
@@ -16,7 +17,7 @@ import { sigil } from './sigil';
 
 /** Everything the UI can ask the app to do. The UI never touches a session or the renderer directly. */
 export interface UiActions {
-  startRun(mode: RunMode, starter: Starter): void;
+  startRun(mode: RunMode, starter: Starter, difficulty: DifficultyId): void;
   resume(): void;
   quitToMenu(): void;
   retry(): void;
@@ -60,6 +61,8 @@ export class UI implements HudHost {
   private current: ScreenId | null = null;
   private returnTo: ScreenId = 'menu';
   private starterMode: RunMode = 'campaign';
+  /** Difficulty preselected on the starter screen; remembered across sessions via settings. */
+  private difficulty: DifficultyId;
   private codexTab = 'upgrades';
   private historyTab: 'campaign' | 'endless' = 'campaign';
   private accent = DEFAULT_ACCENT;
@@ -75,6 +78,7 @@ export class UI implements HudHost {
     private readonly audio: AudioDirector,
     private readonly save: SaveData,
   ) {
+    this.difficulty = save.settings.difficulty;
     this.hud = new HUD(this);
     this.bind();
   }
@@ -240,6 +244,7 @@ export class UI implements HudHost {
     this.starterMode = mode;
     byId('starter-eyebrow').textContent =
       mode === 'campaign' ? 'CAMPAIGN · 15 SECTORS · 3 BOSSES' : 'ENDLESS · 没有终点';
+    this.renderDifficulty();
     const grid = byId('starter-grid');
     grid.replaceChildren(
       ...STARTERS.map((starter, i) => {
@@ -249,6 +254,36 @@ export class UI implements HudHost {
       }),
     );
     this.show('starter');
+  }
+
+  /** The tier selector row plus the chosen tier's modifier list underneath it. */
+  private renderDifficulty(): void {
+    const row = byId('diff-row');
+    row.replaceChildren(
+      ...DIFFICULTIES.map((tier) => {
+        const selected = tier.id === this.difficulty;
+        const button = el(
+          'button',
+          {
+            class: `diff-btn${selected ? ' on' : ''}`,
+            type: 'button',
+            style: `--c:#${tier.color.toString(16).padStart(6, '0')}`,
+            'aria-pressed': String(selected),
+          },
+          el('b', { text: tier.name }),
+          el('span', { text: `${tier.en} · ×${tier.scoreMult}` }),
+        );
+        button.addEventListener('click', () => {
+          if (this.difficulty === tier.id) return;
+          this.difficulty = tier.id;
+          this.actions.updateSettings({ difficulty: tier.id });
+          this.audio.ui('uiClick');
+          this.renderDifficulty();
+        });
+        return button;
+      }),
+    );
+    setText(byId('diff-detail'), difficultyOf(this.difficulty).detail.join(' · '));
   }
 
   showDraft(info: SessionEvents['draft'], session: Session): void {
@@ -283,13 +318,15 @@ export class UI implements HudHost {
   ): void {
     const run = session.run;
     const level = session.world.level;
+    const tier = difficultyOf(run.difficulty);
+    const tierLabel = tier.id !== 'standard' ? `${tier.name}难度 · ` : '';
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
     setText(byId('over-title'), won ? '深渊已被碾碎' : '护盾击穿');
     setText(
       byId('over-sub'),
       won
-        ? '三个 BOSS，十五个扇区，一套离谱到没边的构筑。'
-        : `${run.mode === 'campaign' ? '闯关模式' : '无尽模式'} · 止步 ${run.mode === 'campaign' ? `${level.code} ` : ''}${level.name}`,
+        ? `三个 BOSS，十五个扇区，一套离谱到没边的构筑。${tierLabel ? `（${tier.name}）` : ''}`
+        : `${tierLabel}${run.mode === 'campaign' ? '闯关模式' : '无尽模式'} · 止步 ${run.mode === 'campaign' ? `${level.code} ` : ''}${level.name}`,
     );
 
     const scoreNote = newRecords.includes('score')
@@ -399,6 +436,13 @@ export class UI implements HudHost {
             'div',
             { class: 'rank-scoreline' },
             el('span', { class: 'rank-score', text: formatScore(entry.score) }),
+            entry.difficulty !== 'standard'
+              ? el('span', {
+                  class: 'rank-chip diff',
+                  style: `--c:#${difficultyOf(entry.difficulty).color.toString(16).padStart(6, '0')}`,
+                  text: difficultyOf(entry.difficulty).name,
+                })
+              : null,
             entry.won ? el('span', { class: 'rank-chip win', text: 'WIN' }) : null,
             entry.date === newest ? el('span', { class: 'rank-chip new', text: '最新' }) : null,
             icons.length > 0 ? el('span', { class: 'rank-build' }, ...icons) : null,
@@ -619,7 +663,7 @@ export class UI implements HudHost {
         type: 'button',
         style: `--rarity:${hexCss(starter.color)};--c:${hexCss(starter.color)}`,
         'aria-label': starter.name,
-        onClick: () => this.actions.startRun(this.starterMode, starter),
+        onClick: () => this.actions.startRun(this.starterMode, starter, this.difficulty),
       },
       el('span', { class: 'card-rarity' }, el('span', { text: `PROTOCOL 0${index + 1}` })),
       el(
@@ -771,6 +815,10 @@ export class UI implements HudHost {
     const plan = session.world.level;
     this.setAccent((CHAPTERS[plan.chapter] ?? CHAPTERS[0]).accent);
     if (session.run.level === 1 && session.run.levelsCleared === 0) {
+      const tier = difficultyOf(session.run.difficulty);
+      if (tier.id !== 'standard') {
+        this.toast(`${tier.name}难度 · ${tier.en}`, tier.detail.join(' · '), tier.color);
+      }
       this.toast(
         '移动鼠标控制挡板',
         '球落到底部不会丢失。用挡板边缘接球可以打出大角度，正中接球大量充能。',

@@ -187,6 +187,11 @@ export class Fx {
       on('bounce', (e) => this.onBounce(e.x, e.y)),
       on('paddle', (e) => this.onPaddle(e.x, e.perfect)),
       on('miss', (e) => this.onMiss(e.x, e.child)),
+      // A ball being unmade: a collapsing violet ring with a short inward snap.
+      on('ballVoided', (e) => {
+        this.ring(e.x, e.y, 26, 4, 0xa64dff, 1, 0.4);
+        this.sparks(e.x, e.y, 10, 0xa64dff, 200, 0.4);
+      }),
       on('hurt', () => this.onHurt()),
       on('pickup', (e) => this.onPickup(e.x, e.y, e.kind)),
       on('bolt', (e) => this.onBolt(e.x0, e.y0, e.x1, e.y1, e.color)),

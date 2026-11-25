@@ -1,4 +1,5 @@
 import { RNG } from '../src/core/rng';
+import { difficultyOf, type DifficultyId } from '../src/game/difficulty';
 import { Session } from '../src/game/session';
 import type { RunMode } from '../src/game/run';
 import type { Starter } from '../src/game/starters';
@@ -63,6 +64,8 @@ export interface SimOptions {
   mode?: RunMode;
   starter?: Starter;
   policy?: Policy;
+  /** Difficulty tier for the whole run. Defaults to standard. */
+  difficulty?: DifficultyId;
   /** Hard stop in game-time, so a regression can never hang the suite. */
   maxSeconds?: number;
   /** Called after every simulated frame. Use it to assert on world state. */
@@ -80,7 +83,11 @@ export interface SimResult {
 
 export function simulate(options: SimOptions): SimResult {
   const seed = options.seed;
-  const session = new Session(options.mode ?? 'campaign', seed, { bot: true, starter: options.starter });
+  const session = new Session(options.mode ?? 'campaign', seed, {
+    bot: true,
+    starter: options.starter,
+    difficulty: difficultyOf(options.difficulty ?? 'standard'),
+  });
   const rng = new RNG(seed ^ 0x5eed);
   const policy = options.policy ?? synergy;
 

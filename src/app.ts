@@ -3,6 +3,7 @@ import { hashString, randomSeed, RNG } from './core/rng';
 import { addRunRecord, loadSave, runRank, storeSave, type RunRecord, type SaveData, type Settings } from './core/storage';
 import { AudioDirector } from './audio/director';
 import { ARENA_W } from './game/config';
+import { difficultyOf, type DifficultyId } from './game/difficulty';
 import { UPGRADE_MAP } from './game/upgrades/defs';
 import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
 import type { RunMode } from './game/run';
@@ -72,7 +73,7 @@ export class App implements UiActions {
   private demoTimer = -1;
   /** Seconds until the results screen appears, letting the death slow-motion play out. */
   private resultsTimer = -1;
-  private lastRun: { mode: RunMode; starter: Starter } | null = null;
+  private lastRun: { mode: RunMode; starter: Starter; difficulty: DifficultyId } | null = null;
   private autopilot = false;
   private autoPauseOnBlur = true;
   private frozen = false;
@@ -99,7 +100,7 @@ export class App implements UiActions {
       if (!pick) return;
       // A build passed here is in place before the first level opens, so ball count and the like are right from the start.
       const withBuild = build ? { ...pick, grants: { ...pick.grants, ...build } } : pick;
-      this.startRun(mode, withBuild, Math.max(1, Math.floor(level)));
+      this.startRun(mode, withBuild, undefined, Math.max(1, Math.floor(level)));
     },
     toMenu: (): void => this.quitToMenu(),
     /** Level of the final audio mix right now, or null before audio has been unlocked by a gesture. */
@@ -356,11 +357,11 @@ export class App implements UiActions {
 
   // ───────────────────────────── run control (called by the UI) ─────────────────────────────
 
-  startRun(mode: RunMode, starter: Starter, level = 1): void {
+  startRun(mode: RunMode, starter: Starter, difficulty: DifficultyId = 'standard', level = 1): void {
     this.audio.unlock();
-    this.lastRun = { mode, starter };
+    this.lastRun = { mode, starter, difficulty };
     this.scoring = level <= 1;
-    const session = new Session(mode, this.resolveSeed(), { starter, level });
+    const session = new Session(mode, this.resolveSeed(), { starter, level, difficulty: difficultyOf(difficulty) });
     this.ui.clearCallouts();
     this.adopt(session, false);
     if (this.scoring) {
@@ -402,7 +403,7 @@ export class App implements UiActions {
   }
 
   retry(): void {
-    if (this.lastRun) this.startRun(this.lastRun.mode, this.lastRun.starter);
+    if (this.lastRun) this.startRun(this.lastRun.mode, this.lastRun.starter, this.lastRun.difficulty);
     else this.quitToMenu();
   }
 
@@ -480,6 +481,7 @@ export class App implements UiActions {
     const world = this.session.world;
     const record: RunRecord = {
       mode: run.mode,
+      difficulty: run.difficulty,
       score,
       level: reached,
       code: run.mode === 'campaign' ? world.level.code : String(run.level),
@@ -731,6 +733,7 @@ export class App implements UiActions {
       mode: this.inRun ? 'run' : 'demo',
       paused: this.paused,
       screen: this.ui.screen,
+      difficulty: this.session.run.difficulty,
       fps: Math.round(this.fps),
       level: world.level.code,
       levelIndex: this.session.run.level,

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { addRunRecord, defaultSave, HISTORY_CAP, loadSave, runRank, type RunRecord } from '../src/core/storage';
+import {
+  addRunRecord,
+  defaultSave,
+  HISTORY_CAP,
+  loadSave,
+  runRank,
+  type RunRecord,
+} from '../src/core/storage';
 
 const KEY = 'shatterverse.save.v1';
 const store = new Map<string, string>();
@@ -56,7 +63,10 @@ describe('run history', () => {
       JSON.stringify({
         version: 1,
         settings: {},
-        records: { ...defaultSave().records, history: [{ nope: true }, { ...good, mode: 'sudden-death' }, good] },
+        records: {
+          ...defaultSave().records,
+          history: [{ nope: true }, { ...good, mode: 'sudden-death' }, good],
+        },
       }),
     );
     expect(loadSave().records.history).toEqual([good]);
@@ -74,5 +84,36 @@ describe('run history', () => {
     const b = defaultSave().records;
     addRunRecord(a, record());
     expect(b.history).toHaveLength(0);
+  });
+});
+
+describe('learned render step', () => {
+  it('is absent until the governor has learned one', () => {
+    expect(defaultSave().device).toBeNull();
+    store.set(KEY, JSON.stringify({ version: 1, settings: {}, records: {} }));
+    expect(loadSave().device).toBeNull();
+  });
+
+  it('keeps a learned step, stripped to its two fields', () => {
+    store.set(KEY, JSON.stringify({ settings: {}, device: { quality: 'low', scale: 0.75, extra: 'x' } }));
+    expect(loadSave().device).toEqual({ quality: 'low', scale: 0.75 });
+  });
+
+  it('drops anything that is not a real step', () => {
+    for (const bogus of [
+      { quality: 'high', scale: 0.75 },
+      { quality: 'low', scale: 0.5 },
+      { quality: 'low' },
+      { quality: 'ultra', scale: 1 },
+      'low',
+      7,
+      [],
+    ]) {
+      store.set(KEY, JSON.stringify({ settings: { music: 0.4 }, device: bogus }));
+      const save = loadSave();
+      expect(save.device).toBeNull();
+      // The rest of the save is untouched by the bad field.
+      expect(save.settings.music).toBe(0.4);
+    }
   });
 });

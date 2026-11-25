@@ -33,9 +33,19 @@ const PORTRAIT_BAND_BOTTOM = 96;
  * stats panel (right) get real estate beside it. On narrow desktop windows it fills the width
  * and the HUD overlays its edges. On upright screens it reserves HUD bands above and below:
  * the freed vertical bands are where the mobile HUD lives.
+ *
+ * `scale` shrinks the pixel ratio below the tier's cap: the frame is drawn smaller and the
+ * browser upscales it. The quality governor uses it as its last step on devices that stay slow
+ * even on "low".
  */
-export function computeLayout(cssW: number, cssH: number, quality: QualityLevel, deviceDpr: number): Layout {
-  const dpr = Math.min(deviceDpr, MAX_DPR[quality]);
+export function computeLayout(
+  cssW: number,
+  cssH: number,
+  quality: QualityLevel,
+  deviceDpr: number,
+  scale = 1,
+): Layout {
+  const dpr = Math.min(deviceDpr, MAX_DPR[quality]) * scale;
   const marginY = Math.min(26, cssH * 0.03);
   const marginX = Math.min(28, cssW * 0.02);
   const aspect = ARENA_W / ARENA_H;

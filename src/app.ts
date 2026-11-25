@@ -1,6 +1,15 @@
+import { FrameTimes } from './core/frametimes';
 import { clamp } from './core/math';
 import { hashString, randomSeed, RNG } from './core/rng';
-import { addRunRecord, loadSave, runRank, storeSave, type RunRecord, type SaveData, type Settings } from './core/storage';
+import {
+  addRunRecord,
+  loadSave,
+  runRank,
+  storeSave,
+  type RunRecord,
+  type SaveData,
+  type Settings,
+} from './core/storage';
 import { AudioDirector } from './audio/director';
 import { ARENA_W } from './game/config';
 import { difficultyOf, type DifficultyId } from './game/difficulty';
@@ -13,11 +22,15 @@ import type { UpgradeDef } from './game/upgrades/types';
 import { RARITY_INFO, upgradeColor } from './game/upgrades/present';
 import type { World } from './game/world';
 import { Fx, particleCapacity, type FxSettings } from './render/fx';
-import { computeLayout, type Layout, type QualityLevel } from './render/layout';
+import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './render/governor';
+import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette } from './render/renderer';
 import { drawScene, type SceneInfo } from './render/scene';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
-import { UI, type UiActions } from './ui/ui';
+import { UI, type PerfInfo, type UiActions } from './ui/ui';
+
+/** Minimum spacing between redraws of a screen where nothing moves (paused, drafting, over). */
+const IDLE_FRAME_MS = 66;
 
 /** Upgrades that make the title-screen demo spectacular. The attract mode draws its build from these. */
 const DEMO_POOL = [
@@ -44,6 +57,12 @@ const DEMO_POOL = [
 const DEMO_LEVELS = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 
 /**
+ */
+    },
+  });
+}
+
+/**
  * The application: everything that connects the simulation to the real world.
  *
  * It owns one session at a time — the bot-driven attract mode behind the title screen, or the
@@ -62,7 +81,8 @@ export class App implements UiActions {
   private paused = false;
   private worldWires: (() => void)[] = [];
   private sessionWires: (() => void)[] = [];
-  private layout: Layout;
+  /** Assigned by `refreshLayout`, which the constructor calls before anything reads it. */
+  private layout!: Layout;
   private readonly info: SceneInfo = { danger: 0, energy: 0 };
 
   private lastTime = 0;
@@ -81,13 +101,12 @@ export class App implements UiActions {
   private scoring = true;
   /** Which records the just-finished run set, shown on the results screen and the share card. */
   private lastFresh: string[] = [];
-  /**
-   * The quality actually in effect. Starts at the saved preference, but the auto-stepper may
-   * drop it for the session on devices that cannot keep up (phones); the saved value is untouched.
-   */
-  private quality: QualityLevel;
-  /** Consecutive over-budget frames; sustained struggle steps the quality down a notch. */
-  private slowFrames = 0;
+  /** The render step in effect: the player's choice, or lower while this device cannot keep up. */
+  private readonly governor: QualityGovernor;
+  /** Recent frame durations. Feeds the governor and the performance readout. */
+  private readonly frameTimes = new FrameTimes();
+  /** When the last frame was drawn. Idle screens are redrawn at a low rate (see `frame`). */
+  private lastRender = 0;
 
   /** Handle for automated inspection and for setting up specific builds while tuning. Exposed on `window`. */
   readonly debug = {
@@ -151,21 +170,31 @@ export class App implements UiActions {
       const url = await composeScorecard(this.scorecardData(), this.renderer.snapshot());
       return url ? { width: 1080, height: 1440, bytes: url.length, url } : null;
     },
+    /**
+     * GPU time of each render pass in ms (median over `frames` redraws of the current view),
+     * plus `total`. Every pass is read back and waited on, so the pipeline stalls: for diagnosis
+     * on real hardware, never during normal play.
+     */
+    profile: (frames = 12): Record<string, number> | null => this.profileGpu(frames),
+    /** Frame-rate figures over the last few seconds, and the render step currently in effect. */
+    perf: (): PerfInfo => this.perf(),
+        ? {
+          }
+        : null,
   };
 
   constructor(canvas: HTMLCanvasElement) {
     this.save = loadSave();
-    this.quality = this.save.settings.quality;
+    // Start where the player asked — unless this device has already proven that is too much.
+    const wanted = tierOf(this.save.settings.quality);
+    const learned = this.save.device;
+    const start = learned && isLighter(learned, wanted) ? learned : wanted;
+    this.governor = new QualityGovernor(wanted, start);
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
-    this.fx = new Fx(particleCapacity(this.quality), this.fxSettings());
+    this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.ui = new UI(this, this.audio, this.save);
-    this.layout = computeLayout(
-      window.innerWidth,
-      window.innerHeight,
-      this.save.settings.quality,
-      window.devicePixelRatio || 1,
-    );
+    this.refreshLayout();
     this.session = this.createDemo();
     this.adopt(this.session, true);
     this.bindInput();
@@ -181,7 +210,7 @@ export class App implements UiActions {
 
   private fxSettings(): FxSettings {
     const s = this.save.settings;
-    return { shake: s.shake, flashes: s.flashes, quality: this.quality };
+    return { shake: s.shake, flashes: s.flashes, quality: this.governor.current.quality };
   }
 
   private starterById(id: string): Starter | null {
@@ -369,12 +398,17 @@ export class App implements UiActions {
     this.audio.unlock();
     this.lastRun = { mode, starter, difficulty };
     this.scoring = level <= 1;
-    const session = new Session(mode, this.resolveSeed(), { starter, level, difficulty: difficultyOf(difficulty) });
+    const session = new Session(mode, this.resolveSeed(), {
+      starter,
+      level,
+      difficulty: difficultyOf(difficulty),
+    });
     this.ui.clearCallouts();
     this.adopt(session, false);
     if (this.scoring) {
       this.save.records.runs++;
       storeSave(this.save);
+      // Opens the server-side window for this run. Fire-and-forget: the first frame must not wait.
     }
     session.start();
   }
@@ -435,10 +469,57 @@ export class App implements UiActions {
 
   updateSettings(patch: Partial<Settings>): void {
     Object.assign(this.save.settings, patch);
-    if (patch.quality) this.quality = patch.quality;
+    if (patch.quality) {
+      // A choice made by hand outranks everything the governor has learned about this device.
+      this.governor.choose(tierOf(patch.quality));
+      this.save.device = null;
+    }
     storeSave(this.save);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.fx.applySettings(this.fxSettings());
+  }
+
+  perf(): PerfInfo {
+    return {
+      fps: +this.frameTimes.fps.toFixed(1),
+      lowFps: +this.frameTimes.lowFps.toFixed(1),
+      jank: +this.frameTimes.jank.toFixed(3),
+      samples: this.frameTimes.count,
+      tier: { ...this.governor.current },
+      adjusted: this.governor.adjusted,
+      gaveUp: this.governor.gaveUp,
+    };
+  }
+
+  /** See the debug hook of the same name: per-pass GPU timings; stalls the pipeline while it runs. */
+  profileGpu(frames = 12): Record<string, number> | null {
+    const samples = new Map<string, number[]>();
+    let last = 0;
+    this.renderer.profileHook = (label) => {
+      if (label === 'start') {
+        last = performance.now();
+        return;
+      }
+      this.renderer.gl.sync();
+      const now = performance.now();
+      const list = samples.get(label) ?? [];
+      list.push(now - last);
+      samples.set(label, list);
+      last = now;
+    };
+    this.refreshLayout();
+    try {
+      for (let i = 0; i < Math.max(1, Math.min(frames, 120)); i++) this.render(performance.now() / 1000);
+    } finally {
+      this.renderer.profileHook = null;
+    }
+    const out: Record<string, number> = { total: 0 };
+    for (const [label, list] of samples) {
+      list.sort((a, b) => a - b);
+      out[label] = +(list[Math.floor(list.length / 2)] ?? 0).toFixed(3);
+      out.total = +(out.total + out[label]).toFixed(3);
+    }
+    return out;
   }
 
   private canPause(): boolean {
@@ -510,6 +591,15 @@ export class App implements UiActions {
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);
     this.ui.showResults(this.session, won, fresh, { rank: runRank(sameMode, score), total: sameMode.length });
+    void this.submitRun(record);
+  }
+
+  /**
+   * only ever edits one line of it: a slow or failed upload must not delay the player's feedback,
+   * and a late answer must not land on a screen they have left.
+   */
+  private async submitRun(record: RunRecord): Promise<void> {
+    if (this.ui.screen !== 'over') return;
   }
 
   // ───────────────────────────── score card ─────────────────────────────
@@ -523,7 +613,9 @@ export class App implements UiActions {
     const history = this.save.records.history.filter((entry) => entry.mode === run.mode);
     const build: BuildIcon[] = Object.entries(run.upgrades)
       .map(([id, level]) => ({ def: UPGRADE_MAP[id], level }))
-      .filter((entry): entry is { def: UpgradeDef; level: number } => entry.def !== undefined && entry.level > 0)
+      .filter(
+        (entry): entry is { def: UpgradeDef; level: number } => entry.def !== undefined && entry.level > 0,
+      )
       .sort(
         (a, b) =>
           RARITY_INFO[b.def.rarity].rank - RARITY_INFO[a.def.rarity].rank || a.def.id.localeCompare(b.def.id),
@@ -652,20 +744,30 @@ export class App implements UiActions {
     const rawMs = now - this.lastTime;
     const dt = Math.min(0.05, Math.max(0, rawMs / 1000));
     this.lastTime = now;
-    if (dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
+    this.refreshLayout();
 
-    // Phones are the weakest hardware this runs on: hand the real frame duration to the audio
-    // director (a struggling device gets a thinner mix) and step the quality down if it persists.
-    this.audio.hintLoad(Math.min(rawMs, 100));
-    this.tickQuality(rawMs);
+    // Nothing moves while a run is paused, drafting or over (the title-screen demo keeps playing):
+    // those screens are redrawn at a low rate, so a phone is not heating up behind a dialog and
+    // has thermal headroom left for the play that follows.
+    const idle = this.inRun && (this.paused || this.session.phase === 'draft' || this.ui.screen === 'over');
+    if (!idle && dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
-    this.layout = computeLayout(
-      window.innerWidth,
-      window.innerHeight,
-      this.quality,
-      window.devicePixelRatio || 1,
-    );
-    this.ui.applyLayout(this.layout);
+    const resting =
+      !this.inRun ||
+      this.paused ||
+      this.session.phase === 'draft' ||
+      this.resultsTimer >= 0 ||
+      this.ui.screen === 'over';
+    // Every frame, including skipped ones: this keeps the score in step and the sequencer fed.
+    this.audio.update(resting ? (this.inRun ? 'quiet' : 'menu') : 'play', this.session.world, !this.inRun);
+
+    if (idle && now - this.lastRender < IDLE_FRAME_MS) {
+      requestAnimationFrame(this.frame);
+      return;
+    }
+    this.lastRender = now;
+    // Only frames that did the full work say anything about what this device can sustain.
+    if (!idle) this.tickQuality(rawMs);
 
     if (!this.paused && !this.frozen) {
       const world = this.session.world;
@@ -680,39 +782,60 @@ export class App implements UiActions {
 
     if (this.inRun && (this.ui.inPlay || this.paused)) this.ui.frame(this.session, this.dps, now);
 
-    const resting =
-      !this.inRun ||
-      this.paused ||
-      this.session.phase === 'draft' ||
-      this.resultsTimer >= 0 ||
-      this.ui.screen === 'over';
-    this.audio.update(resting ? (this.inRun ? 'quiet' : 'menu') : 'play', this.session.world, !this.inRun);
-
     this.render(now / 1000);
     requestAnimationFrame(this.frame);
   };
 
-  /**
-   * The auto-stepper: on a device that cannot hold the frame budget, drop the quality a notch
-   * (render resolution and FX load both follow it) until it can. Session-only — the saved
-   * preference is never rewritten, and the player is told what happened.
-   */
-  private tickQuality(rawMs: number): void {
-    if (rawMs > 34) this.slowFrames++;
-    else this.slowFrames = Math.max(0, this.slowFrames - 2);
-    if (this.slowFrames < 240 || this.quality === 'low') return;
-    this.slowFrames = 0;
-    this.quality = this.quality === 'high' ? 'medium' : 'low';
-    this.fx.applySettings(this.fxSettings());
-    this.ui.toast(
-      '画质已自动降低',
-      `切换到「${this.quality === 'medium' ? '中' : '低'}」以保持流畅，可在设置里改回`,
-      0xffd24a,
+  /** Works out where the arena sits at the current window size and render step, and tells CSS. */
+  private refreshLayout(): void {
+    const tier = this.governor.current;
+    this.layout = computeLayout(
+      window.innerWidth,
+      window.innerHeight,
+      tier.quality,
+      window.devicePixelRatio || 1,
+      tier.scale,
     );
+    this.ui.applyLayout(this.layout);
+  }
+
+  /** Feeds one fully worked frame to the statistics and the governor, and applies a step if due. */
+  private tickQuality(rawMs: number): void {
+    this.frameTimes.push(rawMs);
+    const event = this.governor.frame(rawMs);
+    if (!event) return;
+    if (event.stepped || event.gaveUp) this.fx.applySettings(this.fxSettings());
+    if (event.relieved) {
+      // The step measurably helped, so it is what this device can sustain: start here next time
+      // instead of stumbling through the same seconds of stutter again.
+      this.rememberStep(event.tier);
+      this.ui.toast(
+        '画质已自动调整',
+        `本机帧率不足，现为「${tierLabel(event.tier)}」，已为这台设备记住。可在设置里手动改回`,
+        0xffd24a,
+        'quality',
+      );
+    }
+    if (event.gaveUp) {
+      this.rememberStep(event.tier);
+      this.ui.toast(
+        '已恢复你选择的画质',
+        '降低画质并没有提高帧率，卡顿另有原因（常见于系统省电模式限制帧率）',
+        0x9ff3ff,
+        'quality',
+      );
+    }
+  }
+
+  /** Remembers a step for this device while it is below the player's choice; forgets it otherwise. */
+  private rememberStep(tier: Tier): void {
+    this.save.device = isLighter(tier, tierOf(this.save.settings.quality)) ? { ...tier } : null;
+    storeSave(this.save);
   }
 
   /** Timers that are about flow rather than simulation. */
-  private tick(dt: number): void {    if (!this.inRun) {
+  private tick(dt: number): void {
+    if (!this.inRun) {
       if (this.session.phase !== 'playing') {
         if (this.demoTimer < 0) this.demoTimer = 2.2;
         else if ((this.demoTimer -= dt) <= 0) this.adopt(this.createDemo(), true);
@@ -748,6 +871,9 @@ export class App implements UiActions {
    * is throttled in background tabs, so tests drive the game through here instead.
    */
   private advance(seconds: number): void {
+    // The frame loop normally refreshes the layout; do it here too, so stepping works — and
+    // frames come out framed correctly — in a tab whose animation frames are throttled or paused.
+    this.refreshLayout();
     const step = 1 / 60;
     for (let left = Math.min(seconds, 120); left > 1e-6; left -= step) {
       if (this.paused || this.frozen) break;
@@ -766,8 +892,10 @@ export class App implements UiActions {
       paused: this.paused,
       screen: this.ui.screen,
       difficulty: this.session.run.difficulty,
-      fps: Math.round(this.fps),
-      quality: this.quality,
+      fps: Math.round(this.frameTimes.count >= 30 ? this.frameTimes.fps : this.fps),
+      quality: this.governor.current.quality,
+      renderScale: this.governor.current.scale,
+      qualityAdjusted: this.governor.adjusted,
       level: world.level.code,
       levelIndex: this.session.run.level,
       state: world.state,

@@ -1,4 +1,5 @@
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
+import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
 
 export interface Settings {
@@ -55,6 +56,12 @@ export interface SaveData {
   version: 1;
   settings: Settings;
   records: Records;
+  /**
+   * What this device has learned about its own speed: the render step the quality governor last
+   * settled on, when that is below the player's choice. Null until the governor steps down, and
+   * cleared as soon as the player picks a quality by hand.
+   */
+  device: Tier | null;
 }
 
 /** Oldest runs fall off the local leaderboard beyond this. */
@@ -89,6 +96,7 @@ export function defaultSave(): SaveData {
     version: 1,
     settings: { ...DEFAULT_SETTINGS },
     records: { ...DEFAULT_RECORDS, discovered: [], history: [] },
+    device: null,
   };
 }
 
@@ -140,6 +148,8 @@ export function loadSave(): SaveData {
           .sort((a, b) => b.date - a.date)
       : [],
   };
+  // Only the two known fields are kept, and only when they name a real step.
+  save.device = isTier(data.device) ? { quality: data.device.quality, scale: data.device.scale } : null;
   return save;
 }
 

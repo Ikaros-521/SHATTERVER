@@ -43,25 +43,17 @@ export class AudioDirector {
   private pickupChain = 0;
   private pickupChainAt = 0;
   private muted = false;
-  /** Smoothed frame duration from `hintLoad`; high values thin the SFX mix on weak devices. */
-  private hitch = 0;
 
   constructor() {
     this.music = new Music(this.engine);
-    // The sequencer must be fed even when requestAnimationFrame is throttled — background tabs,
-    // notification banners and app switches on phones all starve rAF, and a starved sequencer is
-    // an audible stutter in the BGM. A slow timer tops the schedule up; when rAF runs normally
-    // the extra ticks find the horizon already full and do nothing.
+    // The sequencer must be fed even when requestAnimationFrame is throttled — notification banners
+    // and app switches on phones starve rAF, and a starved sequencer is an audible stutter in the
+    // BGM. A slow timer tops the schedule up; when rAF runs normally the extra ticks find the
+    // horizon already full and do nothing. A hidden tab is left alone: its timers are throttled to
+    // about once a second, which would turn the music into bursts.
     window.setInterval(() => {
-      if (this.engine.ready) this.music.update();
+      if (!document.hidden && this.engine.ready) this.music.update();
     }, 180);
-  }
-
-  /** Feeds the director the current frame duration, so it can thin the mix on struggling devices. */
-  hintLoad(frameMs: number): void {
-    // Clamp background-resume gaps: returning to the tab must not spike the average and mute
-    // the mix for the seconds it takes the EMA to decay.
-    this.hitch += (Math.min(frameMs, 100) - this.hitch) * 0.06;
   }
 
   /** Must be called from a user gesture. Idempotent. */
@@ -98,13 +90,15 @@ export class AudioDirector {
     this.engine.setMusicDuck(amount, seconds);
   }
 
-  /** How crowded the mix is, 0..1. Mirrors the FX layer's adaptive quality, plus device strain. */
+  /**
+   * How crowded the mix is, 0..1. Mirrors the FX layer's adaptive quality.
+   *
+   * Only the number of voices actually sounding counts. Frame rate deliberately does not: audio
+   * runs on its own thread, so thinning sounds buys no smoothness — it only takes the feedback
+   * away, exactly when a struggling device is dropping frames.
+   */
   private pressure(): number {
-    const busy = clamp((this.engine.busy - 8) / 26, 0, 1);
-    // Device strain only trims the mix — it must never silence it. Threshold starts below 30fps
-    // (phones at 30fps keep their full mix) and its worst case still lets half the sounds through.
-    const hitchy = clamp((this.hitch - 34) / 30, 0, 1);
-    return Math.max(busy, hitchy * 0.45);
+    return clamp((this.engine.busy - 8) / 26, 0, 1);
   }
 
   /** Plays a sound unless it is on cooldown or the mix is too busy for it. */

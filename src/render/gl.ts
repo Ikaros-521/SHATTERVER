@@ -25,6 +25,8 @@ export class GL {
   readonly hdr: boolean;
   readonly emptyVao: WebGLVertexArrayObject;
   private readonly uniformCache = new Map<WebGLProgram, Map<string, WebGLUniformLocation | null>>();
+  /** Scratch pixel for `sync`. */
+  private readonly syncPixel = new Uint8Array(4);
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', {
@@ -184,5 +186,21 @@ export class GL {
   /** Draws the fullscreen triangle into the currently bound target. */
   fullscreen(): void {
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+  }
+
+  /**
+   * Blocks until everything drawn so far has finished on the GPU.
+   *
+   * A one-pixel readback from the canvas waits for every command issued before it. It reads the
+   * back buffer rather than the pass's own target, so it works whatever that target's format is.
+   * Only the pass profiler calls this: the stall is what makes per-pass timings possible, and
+   * exactly why it must never run during normal play.
+   */
+  sync(): void {
+    const gl = this.gl;
+    const bound = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
+    if (bound) gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.syncPixel);
+    if (bound) gl.bindFramebuffer(gl.FRAMEBUFFER, bound);
   }
 }

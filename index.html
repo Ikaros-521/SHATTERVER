@@ -2,7 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#05060f" />
     <meta name="description" content="碎界 SHATTERVERSE — 以离谱构筑与极致爽感为核心的肉鸽打砖块。" />
     <title>碎界 SHATTERVERSE</title>
@@ -84,6 +87,9 @@
             </button>
             <button class="menu-item" type="button" data-action="settings">
               <span class="menu-index">05</span>
+            </button>
+            <button class="menu-item" type="button" data-action="settings">
+              <span class="menu-index">06</span>
               <span class="menu-label">设置<em>SETTINGS</em></span>
             </button>
           </nav>
@@ -196,6 +202,30 @@
         </div>
       </section>
 
+        <div class="dialog dialog-wide dialog-tall">
+          <header class="dialog-head">
+            <div class="eyebrow">CLOUD · CHEDDABOARDS</div>
+            <p class="dialog-sub">
+            </p>
+          </header>
+
+              <input
+                type="text"
+                maxlength="16"
+                placeholder="3–16 位英文字母、数字或下划线"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+          </div>
+
+
+          <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back">返回</button>
+          </footer>
+        </div>
+      </section>
+
       <section id="screen-codex" class="screen" hidden>
         <div class="dialog dialog-wide dialog-tall">
           <header class="dialog-head">
@@ -249,6 +279,15 @@
                 spellcheck="false"
             /></label>
           </div>
+          <p id="quality-note" class="setting-note" hidden></p>
+          <section class="perf" aria-label="性能诊断">
+            <div class="perf-head">
+              <span>性能诊断</span>
+              <span id="perf-line">正在采集…</span>
+            </div>
+            <p id="perf-gpu" class="perf-gpu" hidden></p>
+            <button id="btn-perf" class="btn btn-ghost btn-small" type="button">检测渲染耗时</button>
+          </section>
           <footer class="dialog-foot">
             <button class="btn" type="button" data-action="back">完成</button>
           </footer>

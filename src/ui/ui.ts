@@ -10,6 +10,7 @@ import { STARTERS, type Starter } from '../game/starters';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
 import { RARITY_INFO, RARITY_ORDER, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
+import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
 import { byId, el, hexCss, keep, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
@@ -29,11 +30,41 @@ export interface UiActions {
   updateSettings(patch: Partial<Settings>): void;
   /** Composes and downloads the run's score-card PNG. Resolves false when it could not be made. */
   downloadScorecard(): Promise<boolean>;
+  /** Frame-rate figures for the performance readout in settings. */
+  perf(): PerfInfo;
+  /** GPU time of each render pass in ms. Stalls rendering for a moment while it measures. */
+  profileGpu(frames?: number): Record<string, number> | null;
 }
 
-export type ScreenId = 'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history';
+/** Frame-rate figures behind the performance readout. */
+export interface PerfInfo {
+  /** Frames per second over the last few seconds of play. */
+  fps: number;
+  /** Mean rate of the slowest five percent of frames: how bad the stutters get. */
+  lowFps: number;
+  /** Share of frames that were late, 0..1. */
+  jank: number;
+  /** Frames the figures rest on. 0 right after load. */
+  samples: number;
+  tier: Tier;
+  /** True while the render step is below the player's choice. */
+  adjusted: boolean;
+  /** True once lowering the quality failed to raise the frame rate. */
+  gaveUp: boolean;
+}
 
-const SCREENS: ScreenId[] = ['menu', 'starter', 'draft', 'pause', 'over', 'codex', 'settings', 'history'];
+export type ScreenId =
+
+const SCREENS: ScreenId[] = [
+  'menu',
+  'starter',
+  'draft',
+  'pause',
+  'over',
+  'codex',
+  'settings',
+  'history',
+];
 
 export interface BannerOptions {
   title: string;
@@ -72,6 +103,10 @@ export class UI implements HudHost {
   private readonly tooltip = byId('tooltip');
   private readonly bannerHost = byId('banner');
   private readonly toastHost = byId('toasts');
+  /** Arena rectangle already handed to CSS, so unchanged values are not rewritten every frame. */
+  private readonly arenaVars: Record<string, string> = {};
+  /** Refreshes the performance readout while the settings screen is up. */
+  private perfTicker = 0;
 
   constructor(
     private readonly actions: UiActions,
@@ -80,6 +115,14 @@ export class UI implements HudHost {
   ) {
     this.difficulty = save.settings.difficulty;
     this.hud = new HUD(this);
+    // Phones and tablets do without the effects their compositor cannot afford (see the
+    // `[data-pointer]` rules in the stylesheet). Re-marked if the primary input ever changes.
+    const pointer = window.matchMedia('(pointer: coarse)');
+    const markPointer = (): void => {
+      document.documentElement.dataset.pointer = pointer.matches ? 'coarse' : 'fine';
+    };
+    markPointer();
+    pointer.addEventListener('change', markPointer);
     this.bind();
   }
 
@@ -141,8 +184,11 @@ export class UI implements HudHost {
     quality.addEventListener('change', () => {
       const value = quality.value;
       if (value === 'low' || value === 'medium' || value === 'high') patch({ quality: value });
+      // The note about automatic adjustments follows the choice at once, not on the next tick.
+      this.renderPerf();
     });
     seed.addEventListener('change', () => patch({ seed: seed.value.trim() }));
+    byId('btn-perf').addEventListener('click', () => this.runProfile());
 
     // One delegated listener gives every button the same hover tick.
     document.addEventListener('pointerover', (event) => {
@@ -160,6 +206,13 @@ export class UI implements HudHost {
     // The HUD stays up behind the pause menu so the build is still readable.
     this.hud.setVisible(id === null || id === 'pause');
     if (id !== null) this.hideTooltip();
+    // The performance figures follow the game live while the settings screen is up.
+    window.clearInterval(this.perfTicker);
+    this.perfTicker = 0;
+    if (id === 'settings') {
+      this.renderPerf();
+      this.perfTicker = window.setInterval(() => this.renderPerf(), 500);
+    }
   }
 
   get screen(): ScreenId | null {
@@ -173,7 +226,11 @@ export class UI implements HudHost {
 
   private back(): void {
     if (this.current === 'starter') this.showMenu();
-    else if (this.current === 'codex' || this.current === 'settings' || this.current === 'history') {
+    else if (
+      this.current === 'codex' ||
+      this.current === 'settings' ||
+      this.current === 'history' ||
+    ) {
       if (this.returnTo === 'pause' || this.returnTo === 'over') this.show(this.returnTo);
       else this.showMenu();
     }
@@ -183,15 +240,23 @@ export class UI implements HudHost {
 
   /** Passes the arena rectangle to CSS and collapses side panels when there is no room. */
   applyLayout(layout: Layout): void {
+    // This runs every frame, so a variable is only written when its value actually changes.
+    const vars: Record<string, string> = {
+      '--ax': `${layout.ax.toFixed(1)}px`,
+      '--ay': `${layout.ay.toFixed(1)}px`,
+      '--aw': `${layout.aw.toFixed(1)}px`,
+      '--ah': `${layout.ah.toFixed(1)}px`,
+      '--band-top': `${layout.hudTop.toFixed(0)}px`,
+      '--band-bottom': `${layout.hudBottom.toFixed(0)}px`,
+    };
     const style = document.documentElement.style;
-    style.setProperty('--ax', `${layout.ax.toFixed(1)}px`);
-    style.setProperty('--ay', `${layout.ay.toFixed(1)}px`);
-    style.setProperty('--aw', `${layout.aw.toFixed(1)}px`);
-    style.setProperty('--ah', `${layout.ah.toFixed(1)}px`);
+    for (const [name, value] of Object.entries(vars)) {
+      if (this.arenaVars[name] === value) continue;
+      this.arenaVars[name] = value;
+      style.setProperty(name, value);
+    }
     // Portrait HUD bands live in CSS via these vars; the panels stay mounted there instead of
     // being hidden, so their portrait styling must be ready whenever the bands exist.
-    style.setProperty('--band-top', `${layout.hudTop.toFixed(0)}px`);
-    style.setProperty('--band-bottom', `${layout.hudBottom.toFixed(0)}px`);
     const portrait = layout.hudTop > 0;
     this.hud.setRoom(portrait || layout.ax >= 300, portrait || layout.ax >= 220);
   }
@@ -320,6 +385,7 @@ export class UI implements HudHost {
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
     const tierLabel = tier.id !== 'standard' ? `${tier.name}难度 · ` : '';
+    // The upload line belongs to this run; the app fills it in when the submit settles.
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
     setText(byId('over-title'), won ? '深渊已被碾碎' : '护盾击穿');
     setText(
@@ -392,6 +458,19 @@ export class UI implements HudHost {
     this.show('history');
   }
 
+    this.returnTo = this.current === 'over' ? 'over' : 'menu';
+  }
+
+  /**
+   * Writes the upload result onto the results screen. Called when the submit settles, which can be
+   * a second or two after the screen appears — hence a separate entry point rather than a field of
+   * `showResults`.
+   */
+    line.hidden = false;
+    line.dataset.tone = tone;
+    setText(line, text);
+  }
+
   private renderHistory(): void {
     const records = this.save.records;
     document.querySelectorAll<HTMLButtonElement>('#history-tabs .tab').forEach((tab) => {
@@ -413,7 +492,10 @@ export class UI implements HudHost {
       body.append(
         el('div', {
           class: 'history-empty',
-          text: this.historyTab === 'campaign' ? '还没有闯关记录。第一局，从主菜单开始。' : '还没有无尽模式记录。',
+          text:
+            this.historyTab === 'campaign'
+              ? '还没有闯关记录。第一局，从主菜单开始。'
+              : '还没有无尽模式记录。',
         }),
       );
       return;
@@ -462,18 +544,19 @@ export class UI implements HudHost {
   private miniBuild(build: Record<string, number>): HTMLElement[] {
     const entries = Object.entries(build)
       .map(([id, level]) => ({ def: UPGRADE_MAP[id], level }))
-      .filter((entry): entry is { def: UpgradeDef; level: number } => entry.def !== undefined && entry.level > 0)
+      .filter(
+        (entry): entry is { def: UpgradeDef; level: number } => entry.def !== undefined && entry.level > 0,
+      )
       .sort((a, b) => RARITY_INFO[b.def.rarity].rank - RARITY_INFO[a.def.rarity].rank);
-    const icons: HTMLElement[] = entries
-      .slice(0, 8)
-      .map(({ def, level }) =>
-        el('img', {
-          src: sigil(def.id, upgradeColor(def.tags, def.rarity)),
-          alt: def.name,
-          title: `${def.name} Lv${level}`,
-        }),
-      );
-    if (entries.length > 8) icons.push(el('span', { class: 'rank-build-more', text: `+${entries.length - 8}` }));
+    const icons: HTMLElement[] = entries.slice(0, 8).map(({ def, level }) =>
+      el('img', {
+        src: sigil(def.id, upgradeColor(def.tags, def.rarity)),
+        alt: def.name,
+        title: `${def.name} Lv${level}`,
+      }),
+    );
+    if (entries.length > 8)
+      icons.push(el('span', { class: 'rank-build-more', text: `+${entries.length - 8}` }));
     return icons;
   }
 
@@ -510,6 +593,56 @@ export class UI implements HudHost {
     this.show('settings');
   }
 
+  /** Performance readout in settings: frame-rate figures plus the render step actually in effect. */
+  private renderPerf(): void {
+    const info = this.actions.perf();
+    setText(
+      byId('perf-line'),
+      info.samples < 30
+        ? '正在采集…'
+        : `平均 ${Math.round(info.fps)} fps · 低帧 ${Math.round(info.lowFps)} fps · 卡顿 ${Math.round(info.jank * 100)}%`,
+    );
+    const note = byId('quality-note');
+    note.hidden = !info.adjusted && !info.gaveUp;
+    if (info.adjusted) {
+      setText(
+        note,
+        `实际生效：${tierLabel(info.tier)}。本机帧率不足时游戏会自动降档并记住；手动选择画质后，会按你的选择重新尝试。`,
+      );
+    } else if (info.gaveUp) {
+      setText(note, '检测到帧率偏低，但降低画质并不能改善——多半是系统省电模式限制了帧率，与画质无关。');
+    }
+  }
+
+  /** Measures where the GPU time of one frame goes, for tuning on real hardware. */
+  private runProfile(): void {
+    const button = byId<HTMLButtonElement>('btn-perf');
+    button.disabled = true;
+    const passes = this.actions.profileGpu(24);
+    button.disabled = false;
+    const out = byId('perf-gpu');
+    out.hidden = false;
+    if (!passes || !(passes.total > 0)) {
+      setText(out, '未能测得渲染耗时。');
+      return;
+    }
+    const names: [string, string][] = [
+      ['composite', '合成'],
+      ['backdrop', '背景'],
+      ['lights', '光效'],
+      ['surfaces', '砖与球'],
+      ['bloom', '泛光'],
+      ['text', '数字'],
+    ];
+    const parts = names
+      .filter(([key]) => (passes[key] ?? 0) > 0)
+      .map(([key, label]) => `${label} ${Math.round(((passes[key] ?? 0) / passes.total) * 100)}%`);
+    setText(
+      out,
+      `GPU 每帧约 ${passes.total.toFixed(1)} ms — ${parts.join(' · ')}（每个通道含约 0.1ms 测量开销）`,
+    );
+  }
+
   // ───────────────────────────── call-outs ─────────────────────────────
 
   banner(options: BannerOptions): void {
@@ -535,11 +668,13 @@ export class UI implements HudHost {
     window.setTimeout(() => node.remove(), duration * 1000 + 120);
   }
 
-  toast(title: string, sub = '', color = this.accent): void {
+  /** `key`: a new toast with the same key replaces the old one, so an update never stacks on top. */
+  toast(title: string, sub = '', color = this.accent, key?: string): void {
+    if (key) this.toastHost.querySelectorAll(`[data-key="${key}"]`).forEach((node) => node.remove());
     while (this.toastHost.children.length >= 4) this.toastHost.firstElementChild?.remove();
     const node = el(
       'div',
-      { class: 'toast', style: `--c:${hexCss(color)}` },
+      { class: 'toast', style: `--c:${hexCss(color)}`, 'data-key': key },
       el('div', { class: 'toast-title', text: title }),
       sub ? el('div', { class: 'toast-sub', text: sub }) : null,
     );

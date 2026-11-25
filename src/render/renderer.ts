@@ -199,6 +199,8 @@ export class Renderer {
     const quarterB = this.quarterB as Target;
     const { layout, time, palette, post } = input;
     const [ar, ag, ab] = hexToRgb(palette.accent);
+    const mark = this.profileHook;
+    if (mark) mark('start');
 
     // ── 1. sky ──
     g.disable(g.BLEND);
@@ -214,6 +216,7 @@ export class Renderer {
     gl.set3(this.progNebula, 'uColC', c1, c2, c3);
     gl.set1(this.progNebula, 'uEnergy', input.info.energy);
     gl.fullscreen();
+    if (mark) mark('nebula');
 
     // ── 2. scene ──
     gl.bind(scene);
@@ -234,6 +237,7 @@ export class Renderer {
     gl.set1(this.progBackdrop, 'uEnergy', input.info.energy);
     gl.set1(this.progBackdrop, 'uDanger', input.info.danger);
     gl.fullscreen();
+    if (mark) mark('backdrop');
 
     g.enable(g.BLEND);
     const dpr = layout.dpr;
@@ -246,8 +250,10 @@ export class Renderer {
 
     g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
     this.drawInstances(0);
+    if (mark) mark('surfaces');
     g.blendFunc(g.ONE, g.ONE);
     this.drawInstances(1);
+    if (mark) mark('lights');
 
     g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
     g.useProgram(this.progText);
@@ -255,6 +261,7 @@ export class Renderer {
     gl.set2(this.progText, 'uResolution', W, H);
     gl.texture(this.progText, 'uAtlas', this.glyphTexture);
     this.drawText();
+    if (mark) mark('text');
 
     // ── 3. bloom ──
     g.disable(g.BLEND);
@@ -290,6 +297,7 @@ export class Renderer {
     gl.texture(this.progBlur, 'uTex', quarterB.tex);
     gl.set2(this.progBlur, 'uDir', 0, 2.4 / quarterA.h);
     gl.fullscreen();
+    if (mark) mark('bloom');
 
     // ── 4. composite ──
     gl.bind(null);
@@ -319,7 +327,14 @@ export class Renderer {
     g.uniform1i(gl.uniform(p, 'uShockCount'), post.shockCount);
     gl.set4(p, 'uLens', post.lens[0], post.lens[1], post.lens[2], post.lens[3]);
     gl.fullscreen();
+    if (mark) mark('composite');
   }
+
+  /**
+   * When set, called with a label after `start` and after every render pass. The pass profiler
+   * installs a hook that fences the GPU, which stalls the pipeline: diagnosis only, never play.
+   */
+  profileHook: ((label: string) => void) | null = null;
 
   /**
    * PNG of the last drawn frame. Only reliable in the same task as a `render()` call — the

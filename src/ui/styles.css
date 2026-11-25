@@ -44,7 +44,14 @@ body {
   line-height: 1.5;
   -webkit-user-select: none;
   user-select: none;
+  /* No long-press menu for the icons on iOS; the game owns every press. */
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Icons are interface, not pictures: never let a browser offer to save or drag one. */
+img {
+  -webkit-user-drag: none;
 }
 
 #gl {
@@ -2243,4 +2250,170 @@ button.sigil-tile:hover {
   .menu-item {
     padding: 9px 16px;
   }
+}
+
+/* ── settings: quality note & performance readout ── */
+.setting-note {
+  margin: 12px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--gold);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.perf {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgb(255 255 255 / 0.1);
+}
+
+.perf-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-gpu {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.btn-small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* ─────────────────────────  touch devices  ─────────────────────────
+   Phones and tablets do without what their compositor cannot afford. Backdrop blur is the costly
+   one: it re-blurs whatever lies behind the element on every frame the game draws, for panels that
+   stay on screen throughout play. The frosted look gives way to more opaque glass, which is free.
+   The attribute is set by the UI from `(pointer: coarse)`, so hybrids keep their effects. */
+:root[data-pointer='coarse'] {
+  --glass: rgb(9 13 30 / 0.9);
+}
+
+:root[data-pointer='coarse'] .hud-top,
+:root[data-pointer='coarse'] .panel,
+:root[data-pointer='coarse'] .toast,
+:root[data-pointer='coarse'] .screen {
+  backdrop-filter: none;
+}
+
+:root[data-pointer='coarse'] .hud-top {
+  background: linear-gradient(180deg, rgb(7 10 25 / 0.97), rgb(7 10 25 / 0.86));
+}
+
+:root[data-pointer='coarse'] .screen {
+  background: radial-gradient(120% 95% at 50% 42%, rgb(5 6 15 / 0.74) 0%, rgb(5 6 15 / 0.95) 100%);
+}
+
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+}
+
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--ink);
+  font: 600 13px var(--font);
+  letter-spacing: 0.06em;
+  outline: none;
+}
+
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.25);
+}
+
+  border-left-color: var(--accent);
+}
+
+  border-left-color: #ff5c8a;
+  color: #ffb0c4;
+}
+
+  border-left-color: rgb(255 255 255 / 0.25);
+}
+
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+  margin-top: 10px;
+}
+
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+}
+
+  border-color: rgb(var(--accent-rgb) / 0.5);
+  background: rgb(var(--accent-rgb) / 0.06);
+}
+
+.rank-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+  padding: 44px 12px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+  margin-right: auto;
+}
+
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+/* The upload result under the results tiles: one line, never a dialog. */
+  margin: 10px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 12.5px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+  border-left-color: var(--gold);
+  color: var(--gold);
 }

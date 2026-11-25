@@ -32,4 +32,16 @@ describe('computeLayout', () => {
     expect(computeLayout(390, 844, 'medium', 3).dpr).toBe(1.5);
     expect(computeLayout(390, 844, 'low', 3).dpr).toBe(1);
   });
+
+  it('scales the pixel ratio below the cap on request, and nothing else', () => {
+    const full = computeLayout(390, 844, 'low', 3);
+    const scaled = computeLayout(390, 844, 'low', 3, 0.75);
+    // Fewer pixels for the GPU; the arena still lands on the same CSS rectangle.
+    expect(scaled.dpr).toBe(0.75);
+    expect(scaled.dpr * scaled.dpr).toBeCloseTo(0.5625, 5);
+    expect(scaled.ax).toBe(full.ax);
+    expect(scaled.ay).toBe(full.ay);
+    expect(scaled.aw).toBe(full.aw);
+    expect(scaled.portrait).toBe(true);
+  });
 });

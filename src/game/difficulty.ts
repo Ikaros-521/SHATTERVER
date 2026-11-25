@@ -106,7 +106,15 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     bulletMult: 1.2,
     eraserChance: 0.07,
     purgePeriod: 0,
-    detail: ['砖块血量 +50%', '下沉速度 +60%', '额外 3 行砖', '挡板 −10%', '球速 −4%', '弹幕 +20%', '7% 湮灭砖'],
+    detail: [
+      '砖块血量 +50%',
+      '下沉速度 +60%',
+      '额外 3 行砖',
+      '挡板 −10%',
+      '球速 −4%',
+      '弹幕 +20%',
+      '7% 湮灭砖',
+    ],
   },
   {
     id: 'abyss',

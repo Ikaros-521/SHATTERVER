@@ -213,7 +213,11 @@ function bossCells(boss: BossDef): LevelCell[] {
  * Builds the plan for a 1-based level index. Same (level, rng state) → same level; the chosen
  * difficulty only ever scales what comes out, so a seed's geography stays reproducible.
  */
-export function buildLevel(index: number, rng: RNG, difficulty: Difficulty = difficultyOf('standard')): LevelPlan {
+export function buildLevel(
+  index: number,
+  rng: RNG,
+  difficulty: Difficulty = difficultyOf('standard'),
+): LevelPlan {
   const level = Math.max(1, Math.floor(index));
   const chapter = chapterOf(level);
   const cycle = cycleOf(level);

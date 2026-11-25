@@ -152,7 +152,12 @@ export function onBallHitBrick(
   // Eraser bricks trade a ball for the hit — but never the last few, so a playable core always
   // remains. The ball still deals its damage; the price is the ball itself, not the punch.
   if (brick.type === 'eraser' && world.freeBallCount() > MIN_FREE_BALLS) {
-    applyDamage(world, brick, power * (crit ? s.critMult : 1), makeCtx(cx, cy, power, 'ball', { ball, crit }));
+    applyDamage(
+      world,
+      brick,
+      power * (crit ? s.critMult : 1),
+      makeCtx(cx, cy, power, 'ball', { ball, crit }),
+    );
     world.voidBall(ball);
     return false;
   }

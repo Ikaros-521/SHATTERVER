@@ -13,7 +13,8 @@ import { sigil } from './sigil';
 const W = 1080;
 const H = 1440;
 const M = 64; // outer margin
-const FONT = '"Bahnschrift", "DIN Alternate", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif';
+const FONT =
+  '"Bahnschrift", "DIN Alternate", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif';
 
 export interface BuildIcon {
   id: string;
@@ -166,8 +167,19 @@ function drawChrome(ctx: Ctx2D, accent: number, date: number, mode: RunMode): vo
   ctx.stroke();
 
   // Header.
-  text(ctx, 'RUN REPORT · 战绩报告', M, 128, { size: 21, weight: 700, fill: 'rgba(234,242,255,0.55)', spacing: 7 });
-  text(ctx, '碎界', M, 226, { size: 82, weight: 900, fill: '#f2f7ff', glow: rgba(accent, 0.7), glowBlur: 34 });
+  text(ctx, 'RUN REPORT · 战绩报告', M, 128, {
+    size: 21,
+    weight: 700,
+    fill: 'rgba(234,242,255,0.55)',
+    spacing: 7,
+  });
+  text(ctx, '碎界', M, 226, {
+    size: 82,
+    weight: 900,
+    fill: '#f2f7ff',
+    glow: rgba(accent, 0.7),
+    glowBlur: 34,
+  });
   text(ctx, 'SHATTERVERSE', M + 216, 222, { size: 24, weight: 700, fill: cssHex(accent), spacing: 12 });
 
   const stamp = new Date(date);
@@ -196,7 +208,12 @@ function drawChrome(ctx: Ctx2D, accent: number, date: number, mode: RunMode): vo
 
 function drawScore(ctx: Ctx2D, data: ScorecardData): void {
   const { accent } = data;
-  text(ctx, '最终得分 · FINAL SCORE', M, 360, { size: 21, weight: 700, fill: 'rgba(234,242,255,0.5)', spacing: 7 });
+  text(ctx, '最终得分 · FINAL SCORE', M, 360, {
+    size: 21,
+    weight: 700,
+    fill: 'rgba(234,242,255,0.5)',
+    spacing: 7,
+  });
   text(ctx, formatScore(data.score), M, 502, {
     size: 124,
     weight: 800,
@@ -264,7 +281,12 @@ function drawTiles(ctx: Ctx2D, data: ScorecardData): void {
 
 async function drawBuild(ctx: Ctx2D, data: ScorecardData): Promise<void> {
   const y = 1054;
-  text(ctx, 'FINAL BUILD · 最终构筑', M, y, { size: 21, weight: 700, fill: 'rgba(234,242,255,0.5)', spacing: 7 });
+  text(ctx, 'FINAL BUILD · 最终构筑', M, y, {
+    size: 21,
+    weight: 700,
+    fill: 'rgba(234,242,255,0.5)',
+    spacing: 7,
+  });
 
   const icons = data.build.slice(0, 12);
   const size = 64;

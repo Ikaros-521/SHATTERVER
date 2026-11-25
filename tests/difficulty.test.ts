@@ -22,7 +22,10 @@ describe('difficulty: level generation (deep level, full ramp)', () => {
     expect(p.hard?.descent).toBeCloseTo((p.standard?.descent ?? 0) * DIFFICULTY_MAP.hard.descentMult, 6);
     // Boss HP rides the same multiplier through bossScale.
     const boss = plans(15);
-    expect(boss.abyss?.bossScale).toBeCloseTo((boss.standard?.bossScale ?? 0) * DIFFICULTY_MAP.abyss.hpMult, 6);
+    expect(boss.abyss?.bossScale).toBeCloseTo(
+      (boss.standard?.bossScale ?? 0) * DIFFICULTY_MAP.abyss.hpMult,
+      6,
+    );
   });
 
   it('stacks extra rows above the pattern on normal levels', () => {
@@ -80,7 +83,15 @@ describe('difficulty: in the world', () => {
   });
 
   it('an eraser brick eats a ball when there are plenty, and refuses when the core is small', () => {
-    const starter: Starter = { id: 'test', name: '', en: '', desc: '', color: 0, grants: { multiball: 2 }, crystals: 0 };
+    const starter: Starter = {
+      id: 'test',
+      name: '',
+      en: '',
+      desc: '',
+      color: 0,
+      grants: { multiball: 2 },
+      crystals: 0,
+    };
     const session = new Session('campaign', 11, { difficulty: difficultyOf('nightmare'), level: 9, starter });
     const world = session.world;
     const eraser = world.bricks.find((brick) => brick.type === 'eraser');
@@ -103,7 +114,15 @@ describe('difficulty: in the world', () => {
   });
 
   it('the abyss purge voids surplus balls over time', () => {
-    const starter: Starter = { id: 'test', name: '', en: '', desc: '', color: 0, grants: { multiball: 2 }, crystals: 0 };
+    const starter: Starter = {
+      id: 'test',
+      name: '',
+      en: '',
+      desc: '',
+      color: 0,
+      grants: { multiball: 2 },
+      crystals: 0,
+    };
     const session = new Session('endless', 21, { difficulty: difficultyOf('abyss'), bot: true, starter });
     // multiball ×2 puts eight balls on the field — comfortably above the protected core of four.
     expect(session.world.balls.filter((ball) => !ball.child).length).toBeGreaterThanOrEqual(6);

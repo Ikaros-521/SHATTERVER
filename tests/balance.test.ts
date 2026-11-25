@@ -114,7 +114,9 @@ describe('campaign balance (bot players)', () => {
     for (const seed of SEEDS) {
       const result = simulate({ seed, policy: sensible, difficulty: 'hard', maxSeconds: 3000 });
       if (result.won) wins++;
-      console.log(`[hard seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s · score ${Math.round(result.session.run.score)}`);
+      console.log(
+        `[hard seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s · score ${Math.round(result.session.run.score)}`,
+      );
       expect(worldIsFinite(result.session.world)).toBe(true);
     }
     expect(wins / SEEDS.length, 'hard tier sensible win rate').toBeGreaterThanOrEqual(0.375);
@@ -125,7 +127,9 @@ describe('campaign balance (bot players)', () => {
     for (const seed of SEEDS) {
       const result = simulate({ seed, policy: sensible, difficulty: 'nightmare', maxSeconds: 3000 });
       if (result.won) wins++;
-      console.log(`[nightmare seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s`);
+      console.log(
+        `[nightmare seed ${seed}] ${result.won ? 'WON' : 'lost at ' + result.session.run.level} · ${result.seconds.toFixed(0)}s`,
+      );
     }
     expect(wins / SEEDS.length, 'nightmare tier sensible wins').toBeGreaterThanOrEqual(0.25);
   }, 240_000);

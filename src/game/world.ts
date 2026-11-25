@@ -341,7 +341,11 @@ export class World {
   /** Current ball speed: base × upgrades × overdrive × level modifier. */
   ballSpeed(): number {
     return (
-      BALL_SPEED * this.stats.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult
+      BALL_SPEED *
+      this.stats.ballSpeed *
+      (this.odActive ? 1.22 : 1) *
+      this.level.speedMult *
+      this.diff.ballSpeedMult
     );
   }
 
@@ -876,7 +880,8 @@ export class World {
 
   private updateBalls(dt: number): void {
     const s = this.stats;
-    const speed = BALL_SPEED * s.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult;
+    const speed =
+      BALL_SPEED * s.ballSpeed * (this.odActive ? 1.22 : 1) * this.level.speedMult * this.diff.ballSpeedMult;
     const radius = BALL_RADIUS * s.ballRadius;
     const solar = s.solarDps > 0;
 

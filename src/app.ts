@@ -13,7 +13,7 @@ import type { UpgradeDef } from './game/upgrades/types';
 import { RARITY_INFO, upgradeColor } from './game/upgrades/present';
 import type { World } from './game/world';
 import { Fx, particleCapacity, type FxSettings } from './render/fx';
-import { computeLayout, type Layout } from './render/layout';
+import { computeLayout, type Layout, type QualityLevel } from './render/layout';
 import { Renderer, type Palette } from './render/renderer';
 import { drawScene, type SceneInfo } from './render/scene';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
@@ -81,6 +81,13 @@ export class App implements UiActions {
   private scoring = true;
   /** Which records the just-finished run set, shown on the results screen and the share card. */
   private lastFresh: string[] = [];
+  /**
+   * The quality actually in effect. Starts at the saved preference, but the auto-stepper may
+   * drop it for the session on devices that cannot keep up (phones); the saved value is untouched.
+   */
+  private quality: QualityLevel;
+  /** Consecutive over-budget frames; sustained struggle steps the quality down a notch. */
+  private slowFrames = 0;
 
   /** Handle for automated inspection and for setting up specific builds while tuning. Exposed on `window`. */
   readonly debug = {
@@ -148,8 +155,9 @@ export class App implements UiActions {
 
   constructor(canvas: HTMLCanvasElement) {
     this.save = loadSave();
+    this.quality = this.save.settings.quality;
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
-    this.fx = new Fx(particleCapacity(this.save.settings.quality), this.fxSettings());
+    this.fx = new Fx(particleCapacity(this.quality), this.fxSettings());
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.ui = new UI(this, this.audio, this.save);
     this.layout = computeLayout(
@@ -173,7 +181,7 @@ export class App implements UiActions {
 
   private fxSettings(): FxSettings {
     const s = this.save.settings;
-    return { shake: s.shake, flashes: s.flashes, quality: s.quality };
+    return { shake: s.shake, flashes: s.flashes, quality: this.quality };
   }
 
   private starterById(id: string): Starter | null {
@@ -427,6 +435,7 @@ export class App implements UiActions {
 
   updateSettings(patch: Partial<Settings>): void {
     Object.assign(this.save.settings, patch);
+    if (patch.quality) this.quality = patch.quality;
     storeSave(this.save);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.fx.applySettings(this.fxSettings());
@@ -640,15 +649,20 @@ export class App implements UiActions {
   // ───────────────────────────── main loop ─────────────────────────────
 
   private frame = (now: number): void => {
-    const dt = Math.min(0.05, Math.max(0, (now - this.lastTime) / 1000));
+    const rawMs = now - this.lastTime;
+    const dt = Math.min(0.05, Math.max(0, rawMs / 1000));
     this.lastTime = now;
     if (dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
-    const s = this.save.settings;
+    // Phones are the weakest hardware this runs on: hand the real frame duration to the audio
+    // director (a struggling device gets a thinner mix) and step the quality down if it persists.
+    this.audio.hintLoad(rawMs);
+    this.tickQuality(rawMs);
+
     this.layout = computeLayout(
       window.innerWidth,
       window.innerHeight,
-      s.quality,
+      this.quality,
       window.devicePixelRatio || 1,
     );
     this.ui.applyLayout(this.layout);
@@ -678,9 +692,27 @@ export class App implements UiActions {
     requestAnimationFrame(this.frame);
   };
 
+  /**
+   * The auto-stepper: on a device that cannot hold the frame budget, drop the quality a notch
+   * (render resolution and FX load both follow it) until it can. Session-only — the saved
+   * preference is never rewritten, and the player is told what happened.
+   */
+  private tickQuality(rawMs: number): void {
+    if (rawMs > 34) this.slowFrames++;
+    else this.slowFrames = Math.max(0, this.slowFrames - 2);
+    if (this.slowFrames < 240 || this.quality === 'low') return;
+    this.slowFrames = 0;
+    this.quality = this.quality === 'high' ? 'medium' : 'low';
+    this.fx.applySettings(this.fxSettings());
+    this.ui.toast(
+      '画质已自动降低',
+      `切换到「${this.quality === 'medium' ? '中' : '低'}」以保持流畅，可在设置里改回`,
+      0xffd24a,
+    );
+  }
+
   /** Timers that are about flow rather than simulation. */
-  private tick(dt: number): void {
-    if (!this.inRun) {
+  private tick(dt: number): void {    if (!this.inRun) {
       if (this.session.phase !== 'playing') {
         if (this.demoTimer < 0) this.demoTimer = 2.2;
         else if ((this.demoTimer -= dt) <= 0) this.adopt(this.createDemo(), true);
@@ -735,6 +767,7 @@ export class App implements UiActions {
       screen: this.ui.screen,
       difficulty: this.session.run.difficulty,
       fps: Math.round(this.fps),
+      quality: this.quality,
       level: world.level.code,
       levelIndex: this.session.run.level,
       state: world.state,

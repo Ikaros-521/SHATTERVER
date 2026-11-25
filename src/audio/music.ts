@@ -77,13 +77,15 @@ export class Music {
     return this.running;
   }
 
-  /** Call every frame. Schedules all steps that fall within the lookahead window. */
+  /** Call every frame (and from a slow interval — see the director). Fills the lookahead window. */
   update(): void {
     const engine = this.engine;
     if (!this.running || !engine.ready) return;
     if (this.delayNode === null) this.delayNode = engine.createDelay(STEP * 3, 0.34, 0.35);
-    if (this.nextTime < engine.now - 0.2) this.nextTime = engine.now + 0.05; // tab was asleep; resync
-    while (this.nextTime < engine.now + 0.14) {
+    // The horizon is the mobile-audio safety margin: a stalled or throttled frame must never run
+    // the schedule dry, or the BGM audibly stutters. 450ms rides out any ordinary hitch.
+    if (this.nextTime < engine.now - 0.55) this.nextTime = engine.now + 0.12; // audio slept; resync
+    while (this.nextTime < engine.now + 0.45) {
       this.scheduleStep(this.step, this.nextTime - engine.now);
       this.step = (this.step + 1) % (STEPS_PER_BAR * 4);
       this.nextTime += STEP;

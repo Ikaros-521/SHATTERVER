@@ -101,12 +101,32 @@ export class AudioEngine {
         const ctx = new Ctor();
         this.ctx = ctx;
         this.buildGraph(ctx);
+        this.watchdog(ctx);
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      // 'interrupted' (iOS: phone call, alarm banner) is a third state; resume covers it too.
+      if (this.ctx.state !== 'running') void this.ctx.resume();
     } catch {
       // Audio is optional. If the browser refuses, the game simply plays silently.
       this.ctx = null;
     }
+  }
+
+  /**
+   * Phones suspend or interrupt the context behind our back — a call, an alarm banner, the lock
+   * screen — and iOS reports it as its own 'interrupted' state. Keep nudging the context back:
+   * every state change schedules a retry (the first resume during an interruption fails, the one
+   * after the interruption lifts succeeds), and returning to the page retries immediately.
+   */
+  private watchdog(ctx: AudioContext): void {
+    ctx.addEventListener('statechange', () => {
+      if (ctx.state === 'running') return;
+      window.setTimeout(() => {
+        if (this.ctx === ctx && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+      }, 150);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+    });
   }
 
   private buildGraph(ctx: AudioContext): void {

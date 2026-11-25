@@ -43,9 +43,23 @@ export class AudioDirector {
   private pickupChain = 0;
   private pickupChainAt = 0;
   private muted = false;
+  /** Smoothed frame duration from `hintLoad`; high values thin the SFX mix on weak devices. */
+  private hitch = 0;
 
   constructor() {
     this.music = new Music(this.engine);
+    // The sequencer must be fed even when requestAnimationFrame is throttled — background tabs,
+    // notification banners and app switches on phones all starve rAF, and a starved sequencer is
+    // an audible stutter in the BGM. A slow timer tops the schedule up; when rAF runs normally
+    // the extra ticks find the horizon already full and do nothing.
+    window.setInterval(() => {
+      if (this.engine.ready) this.music.update();
+    }, 180);
+  }
+
+  /** Feeds the director the current frame duration, so it can thin the mix on struggling devices. */
+  hintLoad(frameMs: number): void {
+    this.hitch += (frameMs - this.hitch) * 0.06;
   }
 
   /** Must be called from a user gesture. Idempotent. */
@@ -82,9 +96,12 @@ export class AudioDirector {
     this.engine.setMusicDuck(amount, seconds);
   }
 
-  /** How crowded the mix is, 0..1. Mirrors the FX layer's adaptive quality. */
+  /** How crowded the mix is, 0..1. Mirrors the FX layer's adaptive quality, plus device strain. */
   private pressure(): number {
-    return clamp((this.engine.busy - 8) / 26, 0, 1);
+    const busy = clamp((this.engine.busy - 8) / 26, 0, 1);
+    // A device that is dropping frames cannot afford a dense mix either; trade sounds for smoothness.
+    const hitchy = clamp((this.hitch - 26) / 26, 0, 1);
+    return Math.max(busy, hitchy * 0.9);
   }
 
   /** Plays a sound unless it is on cooldown or the mix is too busy for it. */

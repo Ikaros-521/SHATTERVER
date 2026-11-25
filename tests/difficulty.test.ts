@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { onBallHitBrick } from '../src/game/combat';
 import { RNG } from '../src/core/rng';
+import { SCORE_SCALE } from '../src/game/config';
 import { DIFFICULTIES, DIFFICULTY_MAP, difficultyOf } from '../src/game/difficulty';
 import { buildLevel, difficultyRamp } from '../src/game/levels/generator';
 import { Session } from '../src/game/session';
@@ -80,6 +81,23 @@ describe('difficulty: in the world', () => {
     hitOnce(scaled);
     expect(scaled.run.score).toBeCloseTo(plain.run.score * DIFFICULTY_MAP.hard.scoreMult, 6);
     expect(scaled.run.difficulty).toBe('hard');
+  });
+
+  it('runs every point of score through SCORE_SCALE (Toy boards cap at 16 777 215)', () => {
+    const session = new Session('campaign', 1, { difficulty: difficultyOf('standard') });
+    const world = session.world;
+    let dealt = -1;
+    world.events.on('hit', (e) => {
+      dealt = e.dmg;
+    });
+    const brick = world.bricks.find((b) => b.type === 'normal' && !b.dead);
+    expect(brick).toBeDefined();
+    // One ball hit on level 1, combo still empty, standard tier: the raw award times SCORE_SCALE.
+    onBallHitBrick(world, world.balls[0]!, brick!, 0, -1, brick!.x, brick!.y);
+    expect(dealt).toBeGreaterThan(0);
+    expect(world.run.score).toBeCloseTo(dealt * 1 * (1 + 1 * 0.25) * 1 * SCORE_SCALE, 10);
+    // And a single hit must land far below the platform ceiling — sanity against future creep.
+    expect(world.run.score).toBeLessThan(16_777_215);
   });
 
   it('an eraser brick eats a ball when there are plenty, and refuses when the core is small', () => {

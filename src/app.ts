@@ -797,6 +797,16 @@ export class App implements UiActions {
   private bindInput(): void {
     window.addEventListener('pointermove', (event) => {
       if (!this.isPlaying()) return;
+      // A finger that taps the overdrive prompt must not teleport the paddle. Touch pointers keep
+      // targeting the element they landed on, so this also covers a tap that slides off the pill.
+      // The mouse keeps steering everywhere: its cursor is a hair-thin pointer, not a thumb.
+      if (
+        event.pointerType !== 'mouse' &&
+        event.target instanceof Element &&
+        event.target.closest('#od-hint')
+      ) {
+        return;
+      }
       // Map the pointer through the settled arena rect, not the shaken view: the paddle must track the hand exactly.
       const x = (event.clientX - this.layout.ax) / (this.layout.aw / ARENA_W);
       this.session.world.input.x = clamp(x, 0, ARENA_W);

@@ -2487,3 +2487,160 @@ button.sigil-tile:hover {
   border-left-color: var(--gold);
   color: var(--gold);
 }
+
+/* ─────────────────────────  tutorial  ───────────────────────── */
+/* A self-managed overlay above the menu screens (appended last inside #ui), styled from the
+   shared screen/dialog pieces. */
+.tutorial {
+  z-index: 5;
+}
+
+.tut-dialog {
+  width: min(760px, 94vw);
+}
+
+/* The skip control rides top-right beside the heading block, which the plain dialog-head stacks. */
+.tut-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tut-head > div {
+  min-width: 0;
+}
+
+.tut-skip {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tut-body {
+  min-height: 0;
+  margin: 14px 0 4px;
+  padding-right: 8px;
+  overflow: auto;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ink-dim);
+  animation: fade-in 0.25s ease-out;
+}
+
+.tut-body p {
+  margin: 0 0 10px;
+}
+
+.tut-body b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.tut-body ul {
+  margin: 0 0 10px;
+  padding-left: 1.2em;
+}
+
+.tut-body li {
+  margin: 4px 0;
+}
+
+/* The level-mutator grid on the debuff page: one tinted tile per modifier, data straight from MODIFIERS. */
+.tut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+
+.tut-mutator {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-left: 3px solid var(--c);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+}
+
+.tut-mutator b {
+  color: var(--c);
+}
+
+.tut-mutator-en {
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+}
+
+.tut-mutator p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tut-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tut-dots {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  justify-content: center;
+}
+
+.tut-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.tut-dot.on {
+  border-color: transparent;
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+.tut-nav {
+  display: flex;
+  gap: 10px;
+}
+
+/* Phones: the deck must fit 230–300px of width, so the dots move above the buttons. */
+@media (max-width: 560px) {
+  .tut-body {
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+
+  .tut-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tut-foot {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .tut-dots {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .tut-nav {
+    flex: 1;
+  }
+
+  .tut-nav .btn {
+    flex: 1;
+  }
+}

@@ -13,6 +13,8 @@ export interface Settings {
   seed: string;
   /** The difficulty tier preselected on the starter screen. */
   difficulty: DifficultyId;
+  /** True once the first-run tutorial has been shown (finished or skipped) on this device. */
+  tutorialSeen: boolean;
 }
 
 export interface Records {
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   seed: '',
   difficulty: DEFAULT_DIFFICULTY,
+  tutorialSeen: false,
 };
 
 export const DEFAULT_RECORDS: Records = {
@@ -129,6 +132,7 @@ export function loadSave(): SaveData {
         : 'high',
     seed: typeof settings.seed === 'string' ? settings.seed.slice(0, 24) : '',
     difficulty: isDifficultyId(settings.difficulty) ? settings.difficulty : DEFAULT_DIFFICULTY,
+    tutorialSeen: bool(settings.tutorialSeen, DEFAULT_SETTINGS.tutorialSeen),
   };
   save.records = {
     bestCampaign: Math.floor(num(records.bestCampaign, 0)),

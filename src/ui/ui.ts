@@ -17,6 +17,7 @@ import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
 import { sigil } from './sigil';
+import { shouldAutoShow, Tutorial } from './tutorial';
 
 /** Everything the UI can ask the app to do. The UI never touches a session or the renderer directly. */
 export interface UiActions {
@@ -118,6 +119,8 @@ export class UI implements HudHost {
   private perfTicker = 0;
   /** The cloud leaderboard screen, built only when this build can reach the service. */
   private readonly cloudPanel: CloudPanel | null;
+  /** The first-run tutorial overlay. A plain menu tool, so it never joins `ScreenId`. */
+  private readonly tutorial: Tutorial;
 
   constructor(
     private readonly actions: UiActions,
@@ -127,6 +130,8 @@ export class UI implements HudHost {
     this.difficulty = save.settings.difficulty;
     this.hud = new HUD(this);
     this.cloudPanel = actions.cloud ? new CloudPanel(actions.cloud, audio) : null;
+    // Any exit from the deck — finish, skip, Esc — marks it seen once, via the usual settings route.
+    this.tutorial = new Tutorial(audio, () => this.actions.updateSettings({ tutorialSeen: true }));
     // Phones and tablets do without the effects their compositor cannot afford (see the
     // `[data-pointer]` rules in the stylesheet). Re-marked if the primary input ever changes.
     const pointer = window.matchMedia('(pointer: coarse)');
@@ -155,6 +160,7 @@ export class UI implements HudHost {
     on('codex', () => this.showCodex());
     on('history', () => this.showHistory());
     on('cloud', () => this.showCloud());
+    on('tutorial', () => this.tutorial.openTutorial());
     on('settings', () => this.showSettings());
     on('back', () => this.back());
     on('resume', () => this.actions.resume());
@@ -313,6 +319,8 @@ export class UI implements HudHost {
       parts.length > 0 ? parts.join(' · ') : '还没有记录。第一局，从这里开始。';
     // A build without credentials simply has no cloud section: no dead menu entry.
     byId('menu-cloud').hidden = this.cloudPanel === null;
+    // First launch of a fresh save opens the deck on top of the menu; veterans keep their menu.
+    if (shouldAutoShow(this.save.settings, this.save.records)) this.tutorial.openTutorial();
     this.setAccent(DEFAULT_ACCENT);
     this.show('menu');
   }

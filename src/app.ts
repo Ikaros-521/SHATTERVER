@@ -57,12 +57,6 @@ const DEMO_POOL = [
 const DEMO_LEVELS = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 
 /**
- */
-    },
-  });
-}
-
-/**
  * The application: everything that connects the simulation to the real world.
  *
  * It owns one session at a time — the bot-driven attract mode behind the title screen, or the
@@ -178,9 +172,6 @@ export class App implements UiActions {
     profile: (frames = 12): Record<string, number> | null => this.profileGpu(frames),
     /** Frame-rate figures over the last few seconds, and the render step currently in effect. */
     perf: (): PerfInfo => this.perf(),
-        ? {
-          }
-        : null,
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -408,7 +399,6 @@ export class App implements UiActions {
     if (this.scoring) {
       this.save.records.runs++;
       storeSave(this.save);
-      // Opens the server-side window for this run. Fire-and-forget: the first frame must not wait.
     }
     session.start();
   }
@@ -591,15 +581,6 @@ export class App implements UiActions {
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);
     this.ui.showResults(this.session, won, fresh, { rank: runRank(sameMode, score), total: sameMode.length });
-    void this.submitRun(record);
-  }
-
-  /**
-   * only ever edits one line of it: a slow or failed upload must not delay the player's feedback,
-   * and a late answer must not land on a screen they have left.
-   */
-  private async submitRun(record: RunRecord): Promise<void> {
-    if (this.ui.screen !== 'over') return;
   }
 
   // ───────────────────────────── score card ─────────────────────────────

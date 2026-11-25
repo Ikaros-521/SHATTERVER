@@ -53,18 +53,9 @@ export interface PerfInfo {
   gaveUp: boolean;
 }
 
-export type ScreenId =
+export type ScreenId = 'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history';
 
-const SCREENS: ScreenId[] = [
-  'menu',
-  'starter',
-  'draft',
-  'pause',
-  'over',
-  'codex',
-  'settings',
-  'history',
-];
+const SCREENS: ScreenId[] = ['menu', 'starter', 'draft', 'pause', 'over', 'codex', 'settings', 'history'];
 
 export interface BannerOptions {
   title: string;
@@ -226,11 +217,7 @@ export class UI implements HudHost {
 
   private back(): void {
     if (this.current === 'starter') this.showMenu();
-    else if (
-      this.current === 'codex' ||
-      this.current === 'settings' ||
-      this.current === 'history' ||
-    ) {
+    else if (this.current === 'codex' || this.current === 'settings' || this.current === 'history') {
       if (this.returnTo === 'pause' || this.returnTo === 'over') this.show(this.returnTo);
       else this.showMenu();
     }
@@ -385,7 +372,6 @@ export class UI implements HudHost {
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
     const tierLabel = tier.id !== 'standard' ? `${tier.name}难度 · ` : '';
-    // The upload line belongs to this run; the app fills it in when the submit settles.
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
     setText(byId('over-title'), won ? '深渊已被碾碎' : '护盾击穿');
     setText(
@@ -456,19 +442,6 @@ export class UI implements HudHost {
     this.returnTo = this.current === 'over' ? 'over' : 'menu';
     this.renderHistory();
     this.show('history');
-  }
-
-    this.returnTo = this.current === 'over' ? 'over' : 'menu';
-  }
-
-  /**
-   * Writes the upload result onto the results screen. Called when the submit settles, which can be
-   * a second or two after the screen appears — hence a separate entry point rather than a field of
-   * `showResults`.
-   */
-    line.hidden = false;
-    line.dataset.tone = tone;
-    setText(line, text);
   }
 
   private renderHistory(): void {
@@ -632,6 +605,7 @@ export class UI implements HudHost {
       ['lights', '光效'],
       ['surfaces', '砖与球'],
       ['bloom', '泛光'],
+      ['nebula', '星云'],
       ['text', '数字'],
     ];
     const parts = names

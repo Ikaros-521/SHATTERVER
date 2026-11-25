@@ -184,7 +184,12 @@ export class UI implements HudHost {
     style.setProperty('--ay', `${layout.ay.toFixed(1)}px`);
     style.setProperty('--aw', `${layout.aw.toFixed(1)}px`);
     style.setProperty('--ah', `${layout.ah.toFixed(1)}px`);
-    this.hud.setRoom(layout.ax >= 300, layout.ax >= 220);
+    // Portrait HUD bands live in CSS via these vars; the panels stay mounted there instead of
+    // being hidden, so their portrait styling must be ready whenever the bands exist.
+    style.setProperty('--band-top', `${layout.hudTop.toFixed(0)}px`);
+    style.setProperty('--band-bottom', `${layout.hudBottom.toFixed(0)}px`);
+    const portrait = layout.hudTop > 0;
+    this.hud.setRoom(portrait || layout.ax >= 300, portrait || layout.ax >= 220);
   }
 
   setAccent(color: number): void {
@@ -316,9 +321,9 @@ export class UI implements HudHost {
       ),
     );
 
-    byId('over-build').replaceChildren(
-      ...this.hud.ownedUpgrades(run.upgrades).map(({ def, level: lv }) => this.hud.tile(def, lv, true)),
-    );
+    const owned = this.hud.ownedUpgrades(run.upgrades);
+    byId('over-build').replaceChildren(...owned.map(({ def, level: lv }) => this.hud.tile(def, lv, true)));
+    document.querySelector('.results-build')?.toggleAttribute('hidden', owned.length === 0);
 
     // One bar per level cleared: height is time taken, colour shifts to red as damage taken rises.
     const longest = Math.max(1, ...run.history.map((record) => record.time));

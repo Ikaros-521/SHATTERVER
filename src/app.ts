@@ -123,12 +123,16 @@ export class App implements UiActions {
       this.session.world.bot = on;
     },
     /** Drains the shield of a scoring run so the results flow can be exercised without playing it out. */
-    lose: (): void => {
+    lose: (): { hits: number; hp: number; state: string } => {
       const world = this.session.world;
+      let hits = 0;
       for (let guard = 0; world.state === 'playing' && guard < 100; guard++) {
+        const before = world.hp;
         world.damagePlayer(1);
+        if (world.hp !== before) hits++;
         if (world.state === 'playing') this.advance(1.05); // wait out the invulnerability window
       }
+      return { hits, hp: world.hp, state: world.state };
     },
     /**
      * Composes the share card from the current run without downloading it. Returns its metrics

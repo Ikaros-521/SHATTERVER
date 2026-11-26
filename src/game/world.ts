@@ -50,6 +50,7 @@ import {
 } from './config';
 import { botTarget } from './bot';
 import { difficultyOf, type Difficulty } from './difficulty';
+import { isGuided } from './guidance';
 import { stepBall } from './physics';
 import {
   applyDamage,
@@ -401,14 +402,19 @@ export class World {
     }
   }
 
-  /** Parked balls ride on the paddle until launch. */
+  /**
+   * Parked balls ride on the paddle until launch, in rows of nine centred on it. A lone ball sits
+   * dead centre: where the player sees it is exactly where the launch comes from.
+   */
   private dockBalls(): void {
     const paddle = this.paddle;
-    for (const ball of this.balls) {
-      if (!ball.docked) continue;
-      const slot = ball.dock % 9;
-      ball.x = paddle.x + (slot - 4) * Math.min(16, (paddle.halfW * 2) / 10);
-      ball.y = paddle.y - PADDLE_H / 2 - ball.radius - Math.floor(ball.dock / 9) * 20;
+    const parked = this.balls.filter((ball) => ball.docked);
+    const pitch = Math.min(16, (paddle.halfW * 2) / 10);
+    for (const ball of parked) {
+      const row = Math.floor(ball.dock / 9);
+      const inRow = Math.min(parked.length, (row + 1) * 9) - row * 9;
+      ball.x = paddle.x + ((ball.dock % 9) - (inRow - 1) / 2) * pitch;
+      ball.y = paddle.y - PADDLE_H / 2 - ball.radius - row * 20;
       ball.vx = 0;
       ball.vy = 0;
     }
@@ -425,11 +431,25 @@ export class World {
     );
   }
 
+  /**
+   * Fires every parked ball. Without guidance a ball goes straight up, perpendicular to the
+   * paddle: aiming is the player's, by parking the paddle under the brick they want hit. Guidance
+   * is the one thing that chooses a direction of its own, and a guided launch keeps its scatter —
+   * a volley fans out, because balls leaving side by side on one heading would all lock the same
+   * brick. `respawn` follows the same rule for a single ball.
+   */
   private launchAll(): void {
     const docked = this.balls.filter((ball) => ball.alive && ball.docked);
-    docked.forEach((ball, i) => {
+    const steered = docked.filter((ball) => isGuided(ball, this.live.homing));
+    docked.forEach((ball) => {
+      // Guided balls take their place in the fan by their rank among themselves, so it stays even.
+      const rank = steered.indexOf(ball);
       const spread =
-        docked.length === 1 ? this.rng.range(-0.25, 0.25) : ((i / (docked.length - 1)) * 2 - 1) * 0.95;
+        rank < 0
+          ? 0
+          : steered.length === 1
+            ? this.rng.range(-0.25, 0.25)
+            : ((rank / (steered.length - 1)) * 2 - 1) * 0.95;
       const angle = -Math.PI / 2 + spread;
       ball.speed = this.ballSpeed();
       ball.vx = Math.cos(angle) * ball.speed;
@@ -1202,17 +1222,20 @@ export class World {
     ball.docked = false;
     ball.x = this.paddle.x;
     ball.y = this.paddle.y - PADDLE_H / 2 - ball.radius;
-    const angle = -Math.PI / 2 + this.rng.range(-0.6, 0.6);
-    ball.speed = this.ballSpeed();
-    ball.vx = Math.cos(angle) * ball.speed;
-    ball.vy = Math.sin(angle) * ball.speed;
     ball.momentum = 0;
     ball.emp = 0;
     ball.stallT = 0;
     ball.floor = 0;
+    // A relaunch leaves the way a new ball does (`launchAll`), so the anti-stall clock starts over:
+    // a ball that was already dry when it fell must not set off drifting towards a brick.
+    ball.dryT = 0;
     ball.guided = this.live.guidedCharges;
     ball.lock = 0;
     ball.ignore.clear();
+    const angle = -Math.PI / 2 + (isGuided(ball, this.live.homing) ? this.rng.range(-0.6, 0.6) : 0);
+    ball.speed = this.ballSpeed();
+    ball.vx = Math.cos(angle) * ball.speed;
+    ball.vy = Math.sin(angle) * ball.speed;
   }
 
   private updateShards(dt: number): void {

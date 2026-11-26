@@ -3,7 +3,15 @@ import { RNG } from '../src/core/rng';
 import { angleDelta, clamp } from '../src/core/math';
 import { ARENA_W, BALL_ANTI_STALL, BALL_RADIUS, BALL_SPEED, PADDLE_Y, WALL } from '../src/game/config';
 import { makeBall, makeBrick, type Ball, type Brick } from '../src/game/entities';
-import { ANTI_STALL_TURN, guide, pickTarget, routeTo, turnToward, type Route } from '../src/game/guidance';
+import {
+  ANTI_STALL_TURN,
+  guide,
+  isGuided,
+  pickTarget,
+  routeTo,
+  turnToward,
+  type Route,
+} from '../src/game/guidance';
 import { buildLevel } from '../src/game/levels/generator';
 import { createRun } from '../src/game/run';
 import { computeStats } from '../src/game/upgrades/stats';
@@ -311,6 +319,16 @@ function clearCourt(world: World): void {
 }
 
 describe('guidance: in play', () => {
+  it('steers only with both charges left and a turn rate to spend them on', () => {
+    const ball = ballAt(360, 500, UP);
+    ball.guided = 0;
+    expect(isGuided(ball, WIDE)).toBe(false);
+    ball.guided = 3;
+    // Born holding a charge — but with no core or SEEKER capsule there is nothing to steer with.
+    expect(isGuided(ball, 0)).toBe(false);
+    expect(isGuided(ball, WIDE)).toBe(true);
+  });
+
   it('spends one charge per brick contact and flies straight once they are gone', () => {
     const world = makeWorld({ homing: 3 }, { balls: 1 });
     startPlaying(world);

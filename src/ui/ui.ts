@@ -572,7 +572,8 @@ export class UI implements HudHost {
     );
     setText(byId('draft-crystals'), formatNumber(session.run.crystals));
     setText(byId('reroll-cost'), `◆ ${info.rerollCost}`);
-    setText(byId('skip-reward'), `+◆ ${info.skipReward}`);
+    // An opening pick is forfeited when skipped, not traded — promising crystals here would lie.
+    setText(byId('skip-reward'), info.intro ? '' : `+◆ ${info.skipReward}`);
     byId<HTMLButtonElement>('btn-reroll').disabled = session.run.crystals < info.rerollCost;
   }
 
@@ -722,6 +723,11 @@ export class UI implements HudHost {
     if (this.current === 'menu') this.returnTo = 'menu';
     this.renderShop();
     this.show('shop');
+  }
+
+  /** Re-draws the shop in place when it is on screen; the wallet mirror calls this after adopting cloud state. */
+  refreshShopIfOpen(): void {
+    if (this.current === 'shop') this.renderShop();
   }
 
   private renderShop(): void {

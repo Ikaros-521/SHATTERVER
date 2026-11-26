@@ -761,6 +761,7 @@ export class App implements UiActions {
     // Owning it ends the trial: a taste of something you now have would be dead weight.
     if (econ.trialSupply === id) econ.trialSupply = null;
     storeSave(this.save);
+    this.pushWallet();
     return true;
   }
 
@@ -801,6 +802,7 @@ export class App implements UiActions {
     if (!isSupplyId(id) || econ.supplies.includes(id)) return;
     econ.trialSupply = econ.trialSupply === id ? null : id;
     storeSave(this.save);
+    this.pushWallet();
   }
 
   toggleLoadout(id: string): boolean {
@@ -855,7 +857,10 @@ export class App implements UiActions {
       if (adopted) {
         this.save.economy = adopted;
         storeSave(this.save);
+        // Both surfaces that quote the balance unprompted: the menu, and a shop opened within
+        // the seconds the cloud read took.
         if (this.ui.screen === 'menu') this.ui.showMenu();
+        else this.ui.refreshShopIfOpen();
       } else {
         this.pushWallet();
       }

@@ -66,8 +66,8 @@ describe('run coins', () => {
 });
 
 describe('catalog', () => {
-  it('offers fourteen protocols with unique ids that never collide with the free starters', () => {
-    expect(PROTOCOLS).toHaveLength(14);
+  it('offers fifteen protocols with unique ids that never collide with the free starters', () => {
+    expect(PROTOCOLS).toHaveLength(15);
     const free = new Set(STARTERS.map((starter) => starter.id));
     const ids = PROTOCOLS.map((protocol) => protocol.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -88,8 +88,8 @@ describe('catalog', () => {
     }
   });
 
-  it('prices the full protocol shelf at 10,200', () => {
-    expect(PROTOCOLS.reduce((sum, protocol) => sum + protocol.price, 0)).toBe(10_200);
+  it('prices the full protocol shelf at 12,700', () => {
+    expect(PROTOCOLS.reduce((sum, protocol) => sum + protocol.price, 0)).toBe(12_700);
   });
 
   it('offers six supplies whose slots exceed the loadout, so carrying is a choice', () => {

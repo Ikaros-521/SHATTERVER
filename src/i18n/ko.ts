@@ -957,6 +957,10 @@ export const ko: UiDict & { content: ContentOverrides } = {
         name: '부식 폭발',
         desc: '부식 Lv1 + 작열 부여 Lv1. 첫 스테이지부터 원소 반응 「부식 폭발」가 발동 가능.',
       },
+      wildcard: {
+        name: '와일드카드',
+        desc: '첫 스테이지 전에 커먼·레어 강화 중 2개를 직접 고른다. 자신만의 출발점을 스스로 만든다.',
+      },
     },
     chapters: [
       {
@@ -1106,6 +1110,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     gateClear: '캠페인 클리어 시 해금',
     loadoutTitle: '보유 보급',
     headstartEyebrow: 'HEAD START · 개막 보급',
+    wildcardEyebrow: 'WILDCARD · 나의 시작',
     secondWindSub: '세컨드 윈드 · 보호막 2 회복',
     earnedLine: '스타더스트 +{n}',
     earnedRun: '판 +{n}',
@@ -1123,6 +1128,8 @@ export const ko: UiDict & { content: ContentOverrides } = {
       reroll: { name: '무료 리롤', desc: '매번의 삼択에서 첫 리롤이 무료.' },
       headstart: { name: '헤드 스타트', desc: '첫 스테이지 전에 업그레이드를 하나 더 선택.' },
       secondwind: { name: '재전개 코어', desc: '그 판에서 처음 보호막이 깨질 때 2 회복 (판당 1회).' },
+      trial: '체험',
+      trialOn: '체험 중',
     },
     ms: {
       perfect: '첫 퍼펙트 캐치｜패들 정중앙으로 공을 받아내기',

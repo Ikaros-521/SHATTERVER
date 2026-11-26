@@ -44,6 +44,10 @@ export interface DraftOptions {
   level: number;
   rng: RNG;
   count?: number;
+  /** Restricts the pool to these rarities; unset or empty means every open rarity competes. */
+  rarities?: readonly UpgradeDef['rarity'][];
+  /** Upgrade ids the draft must not offer (e.g. what an opening self-pick already granted). */
+  exclude?: readonly string[];
 }
 
 /**
@@ -61,7 +65,11 @@ export function rollDraft(options: DraftOptions): UpgradeDef[] {
   const owned = new Set<string>();
   for (const def of UPGRADES) if ((levels[def.id] ?? 0) > 0) for (const tag of def.tags) owned.add(tag);
 
-  const pool = availableUpgrades(levels);
+  const band = options.rarities?.length ? new Set(options.rarities) : null;
+  const excluded = options.exclude?.length ? new Set(options.exclude) : null;
+  const pool = availableUpgrades(levels).filter(
+    (u) => (!band || band.has(u.rarity)) && (!excluded || !excluded.has(u.id)),
+  );
   const picked: UpgradeDef[] = [];
 
   for (let i = 0; i < count; i++) {

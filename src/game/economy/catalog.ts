@@ -1,4 +1,5 @@
 import type { Starter } from '../starters';
+import type { UpgradeDef } from '../upgrades/types';
 
 /**
  * The 星尘商店 catalog: purchasable opening protocols and carried supplies.
@@ -17,6 +18,10 @@ import type { Starter } from '../starters';
 /** A purchasable opening protocol. Once unlocked it plays exactly like a free starter. */
 export interface ShopProtocol extends Starter {
   price: number;
+  /** Self-picks this protocol grants before sector one opens (the wildcard's mechanic). */
+  introPicks?: number;
+  /** Rarity band those self-picks draw from; unset means every open rarity competes. */
+  introRarities?: UpgradeDef['rarity'][];
 }
 
 export const PROTOCOLS: ShopProtocol[] = [
@@ -159,6 +164,18 @@ export const PROTOCOLS: ShopProtocol[] = [
     grants: { poison: 1, fire: 1 },
     crystals: 0,
     price: 1200,
+  },
+  {
+    id: 'wildcard',
+    name: '自选协议',
+    en: 'WILDCARD',
+    desc: '开局从普通/稀有强化里自选两张，自己写自己的起点。',
+    color: 0xff9adf,
+    grants: {},
+    crystals: 0,
+    price: 2500,
+    introPicks: 2,
+    introRarities: ['common', 'rare'],
   },
 ];
 

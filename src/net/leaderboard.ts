@@ -11,6 +11,7 @@
 import type { RunRecord } from '../core/storage';
 import type { BoardInfo, BoardView, PlayerRank } from './cheddaboards';
 import type { CloudOutcome, NicknameOutcome } from './cloud';
+import type { WalletMirror } from './toywallet';
 
 export interface Leaderboard {
   /** Which backing service this is. */
@@ -42,4 +43,9 @@ export interface Leaderboard {
    * Omitted on Chedda, where the nickname is chosen in-game.
    */
   loadNickname?(): Promise<string | null>;
+  /**
+   * Toy only: best-effort mirror of the 星尘 wallet in the platform's per-user cloud storage, so
+   * the shop follows the player across devices. Omitted where the backing service has no storage.
+   */
+  readonly wallet?: WalletMirror;
 }

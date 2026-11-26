@@ -59,6 +59,7 @@ import { loadIdentity, storeIdentity } from './net/identity';
 import type { Leaderboard } from './net/leaderboard';
 import { isToyEnvironment, loadToySdk } from './net/toy';
 import { ToyChannel } from './net/toychannel';
+import { mergeWallet } from './net/toywallet';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
 import { UI, type EconomyPayout, type PerfInfo, type UiActions } from './ui/ui';
 
@@ -186,6 +187,8 @@ export class App implements UiActions {
   /** Seconds until the results screen appears, letting the death slow-motion play out. */
   private resultsTimer = -1;
   private lastRun: { mode: RunMode; starter: Starter; difficulty: DifficultyId } | null = null;
+  /** Pending wallet-mirror push; rapid purchases coalesce into one storage write. */
+  private walletPushTimer: ReturnType<typeof setTimeout> | null = null;
   private autopilot = false;
   private autoPauseOnBlur = true;
   private frozen = false;
@@ -342,6 +345,7 @@ export class App implements UiActions {
     applyDom();
     this.ui.showMenu();
     this.primeToyIdentity();
+    this.syncWalletAtBoot();
     this.lastTime = performance.now();
     requestAnimationFrame(this.frame);
   }
@@ -724,6 +728,7 @@ export class App implements UiActions {
     econ.protocols.push(id);
     if (econ.wishlist === id) econ.wishlist = null;
     storeSave(this.save);
+    this.pushWallet();
     return true;
   }
 
@@ -736,6 +741,7 @@ export class App implements UiActions {
     econ.supplies.push(id);
     if (econ.wishlist === id) econ.wishlist = null;
     storeSave(this.save);
+    this.pushWallet();
     return true;
   }
 
@@ -744,6 +750,7 @@ export class App implements UiActions {
     if (!PROTOCOL_MAP[id] && !isSupplyId(id)) return;
     econ.wishlist = econ.wishlist === id ? null : id;
     storeSave(this.save);
+    this.pushWallet();
   }
 
   toggleLoadout(id: string): boolean {
@@ -761,7 +768,48 @@ export class App implements UiActions {
       econ.loadout.push(id);
     }
     storeSave(this.save);
+    this.pushWallet();
     return true;
+  }
+
+  // ───────────────────────────── wallet mirror (B站 Toy storage) ─────────────────────────────
+
+  /**
+   * Coalesces a wallet push into the platform's per-user cloud storage. Best-effort by design:
+   * a refused or failed write costs nothing (the local save is the truth), and bursts of
+   * purchases collapse into one write so the shared storage quota is spent like a click, not
+   * like a keystroke.
+   */
+  private pushWallet(): void {
+    const mirror = this.cloud?.wallet;
+    if (!mirror) return;
+    if (this.walletPushTimer !== null) clearTimeout(this.walletPushTimer);
+    this.walletPushTimer = setTimeout(() => {
+      this.walletPushTimer = null;
+      void mirror.save(this.save.economy);
+    }, 500);
+  }
+
+  /**
+   * Adopts a richer wallet from the cloud once per launch, then pushes the local one back so the
+   * mirror follows this device from here on. The load can take seconds (the SDK loads lazily),
+   * so it never blocks the menu; when it adopts, the menu is refreshed if it is still on screen,
+   * which is the only surface that quotes the balance unprompted.
+   */
+  private syncWalletAtBoot(): void {
+    const mirror = this.cloud?.wallet;
+    if (!mirror) return;
+    void (async () => {
+      const cloud = await mirror.load();
+      const adopted = mergeWallet(this.save.economy, cloud);
+      if (adopted) {
+        this.save.economy = adopted;
+        storeSave(this.save);
+        if (this.ui.screen === 'menu') this.ui.showMenu();
+      } else {
+        this.pushWallet();
+      }
+    })();
   }
 
   perf(): PerfInfo {
@@ -875,6 +923,7 @@ export class App implements UiActions {
     };
     addRunRecord(records, record);
     storeSave(this.save);
+    this.pushWallet();
     this.lastFresh = fresh;
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);

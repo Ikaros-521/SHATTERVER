@@ -332,7 +332,9 @@ export class App implements UiActions {
   private primeToyIdentity(): void {
     const cloud = this.cloud;
     if (!cloud || cloud.kind !== 'toy' || !cloud.loadNickname) return;
-    const loadNickname = cloud.loadNickname;
+    // Bound: the method is stored and called later, and a bare `cloud.loadNickname` would run
+    // with `this` undefined and throw on its first line.
+    const loadNickname = cloud.loadNickname.bind(cloud);
     let gestures = 0;
     const retry = (): void => {
       if (cloud.nickname || gestures >= 2) {

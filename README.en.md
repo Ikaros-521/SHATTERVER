@@ -171,6 +171,12 @@ Beyond the local board, scores sync to [CheddaBoards](https://docs.cheddaboards.
 - **Credentials**: Game ID and API Key live in `src/net/config.ts`, overridable with `VITE_CB_GAME_ID` / `VITE_CB_API_KEY`; emptying the key disables the cloud board entirely (the menu entry disappears with it). The API Key is public by design: it ships with the build, cannot read private data and cannot alter the game.
 - **Privacy**: anonymous play uploads only a random device ID, nickname, score, best combo and session count; no email, location or advertising identifiers. See [CheddaBoards' privacy policy](https://cheddaboards.com/privacy).
 
+## Versions and release notes
+
+- **The version has one source**: `version` in `package.json`, read at start-up (`src/core/version.ts`) and shown in the main menu's bottom-left corner.
+- **The release notes live in the game**: tap the version number in that corner to open them, newest first, in all four languages. After an update the notes **open by themselves once** on the first visit to the main menu; closing them (the button or Esc) marks them as seen, and they do not come back until the next version. A fresh install sees none — there is nothing to update from — and gets the tutorial as usual. The seen version is stored as `settings.changelogSeen`; saves written before the changelog existed lack the field, so existing players see the notes once after the next update.
+- **Releasing a version**: bump `version` in `package.json` → add an entry with the same version and date to the top of `changelog.versions` in `zh.ts`, `en.ts`, `ja.ts` and `ko.ts` under `src/i18n/` → `pnpm test`. The tests stop a bumped version with no notes, locales whose entries or dates disagree, and Chinese copy that uses the platform's banned vocabulary.
+
 ## FAQ
 
 - **Do I need to install anything or create an account?** No. Open <https://ikaros-521.github.io/SHATTERVER/> to play immediately in your browser with local Top-50 records and PNG score card exports.

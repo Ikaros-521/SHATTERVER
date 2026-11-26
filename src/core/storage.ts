@@ -2,6 +2,7 @@ import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
+import { APP_VERSION } from './version';
 
 export interface Settings {
   /** 0..1 */
@@ -16,6 +17,13 @@ export interface Settings {
   difficulty: DifficultyId;
   /** True once the first-run tutorial has been shown (finished or skipped) on this device. */
   tutorialSeen: boolean;
+  /**
+   * Version whose release notes this device has already been shown, e.g. `0.3.0`; empty when none
+   * has. A fresh save starts out having seen the running version — there is nothing to update
+   * from — while a save written before the changelog existed reads as empty, so that device is
+   * shown the notes once on its next launch.
+   */
+  changelogSeen: string;
   /** Interface language. Chinese is the default regardless of the browser locale. */
   language: Lang;
 }
@@ -83,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   seed: '',
   difficulty: DEFAULT_DIFFICULTY,
   tutorialSeen: false,
+  changelogSeen: APP_VERSION,
   language: DEFAULT_LANG,
 };
 
@@ -137,6 +146,9 @@ export function loadSave(): SaveData {
     seed: typeof settings.seed === 'string' ? settings.seed.slice(0, 24) : '',
     difficulty: isDifficultyId(settings.difficulty) ? settings.difficulty : DEFAULT_DIFFICULTY,
     tutorialSeen: bool(settings.tutorialSeen, DEFAULT_SETTINGS.tutorialSeen),
+    // Deliberately not the default: only a save that predates the field lacks it, and that
+    // device has never seen the notes.
+    changelogSeen: typeof settings.changelogSeen === 'string' ? settings.changelogSeen.slice(0, 16) : '',
     language: isLang(settings.language) ? settings.language : DEFAULT_SETTINGS.language,
   };
   save.records = {

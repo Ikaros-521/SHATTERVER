@@ -453,6 +453,21 @@
         </div>
       </section>
 
+      <!-- The release notes' permanent address: the build's version, pinned to the main menu's
+           bottom-left corner so it stays in view when the menu is taller than the window. The app
+           fills the version tag in and shows the link on the menu only. -->
+      <button
+        id="menu-version"
+        class="menu-version"
+        type="button"
+        data-action="changelog"
+        data-i18n-aria="changelog.menuAria"
+        hidden
+      >
+        <span id="menu-version-tag" class="menu-version-tag"></span>
+        <span data-i18n="changelog.menuLabel">更新日志</span>
+      </button>
+
       <div id="tooltip" class="tooltip" hidden></div>
     </div>
 

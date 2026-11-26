@@ -7,6 +7,8 @@ import {
   runRank,
   type RunRecord,
 } from '../src/core/storage';
+import { APP_VERSION } from '../src/core/version';
+import { changelogUnseen } from '../src/ui/changelog';
 
 const KEY = 'shatterverse.save.v1';
 const store = new Map<string, string>();
@@ -114,6 +116,38 @@ describe('learned render step', () => {
       expect(save.device).toBeNull();
       // The rest of the save is untouched by the bad field.
       expect(save.settings.music).toBe(0.4);
+    }
+  });
+});
+
+describe('release-notes marker', () => {
+  it('starts a fresh save on the running version: a new player has nothing to be updated about', () => {
+    expect(defaultSave().settings.changelogSeen).toBe(APP_VERSION);
+    // Nothing stored at all reads the same way.
+    expect(loadSave().settings.changelogSeen).toBe(APP_VERSION);
+    expect(changelogUnseen(loadSave().settings)).toBe(false);
+  });
+
+  it('reads a save written before the changelog existed as never shown', () => {
+    store.set(KEY, JSON.stringify({ version: 1, settings: { music: 0.4 }, records: {} }));
+    const save = loadSave();
+    expect(save.settings.changelogSeen).toBe('');
+    expect(changelogUnseen(save.settings)).toBe(true);
+    // The rest of the save is untouched by the missing field.
+    expect(save.settings.music).toBe(0.4);
+  });
+
+  it('keeps the version a device has already been shown, seen or not', () => {
+    store.set(KEY, JSON.stringify({ settings: { changelogSeen: '0.0.1' }, records: {} }));
+    expect(loadSave().settings.changelogSeen).toBe('0.0.1');
+    store.set(KEY, JSON.stringify({ settings: { changelogSeen: APP_VERSION }, records: {} }));
+    expect(changelogUnseen(loadSave().settings)).toBe(false);
+  });
+
+  it('drops a malformed marker rather than trusting it', () => {
+    for (const bogus of [7, true, {}, [], null]) {
+      store.set(KEY, JSON.stringify({ settings: { changelogSeen: bogus }, records: {} }));
+      expect(loadSave().settings.changelogSeen, JSON.stringify(bogus)).toBe('');
     }
   });
 });

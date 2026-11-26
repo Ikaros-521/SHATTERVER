@@ -1000,6 +1000,51 @@ button.sigil-tile:hover {
   color: var(--ink-dim);
 }
 
+/* The version link: where the release notes live from the player's side. A child of #ui rather
+   than of the menu, so it can pin to the corner of the window and stay in view when the menu is
+   taller than that. The app shows it on the menu only and fills the version tag in. */
+.menu-version {
+  position: fixed;
+  left: 14px;
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  /* The attract-mode demo plays right behind it; a little glass keeps the text legible. */
+  background: rgb(5 6 15 / 0.6);
+  color: var(--ink-faint);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    color 0.18s ease-out,
+    border-color 0.18s ease-out,
+    background 0.18s ease-out;
+}
+
+.menu-version:hover,
+.menu-version:focus-visible {
+  border-color: var(--line);
+  background: rgb(var(--accent-rgb) / 0.12);
+  color: var(--ink);
+}
+
+.menu-version-tag {
+  font: 700 12px var(--mono);
+  color: var(--accent);
+}
+
+/* Windows narrow enough for the menu's centred footer text to reach that corner: let the menu
+   scroll its last line clear of the link. Wider ones never overlap it. */
+@media (max-width: 920px) {
+  #screen-menu {
+    padding-bottom: 64px;
+  }
+}
+
 /* ── difficulty selector (starter screen) ── */
 .diff-row {
   display: flex;
@@ -2824,5 +2869,138 @@ button.sigil-tile:hover {
 
   .tut-nav .btn {
     flex: 1;
+  }
+}
+
+/* ─────────────────────────  changelog  ───────────────────────── */
+/* The release notes: a self-managed overlay above the menu, like the tutorial, holding one
+   scrollable list of versions with the newest on top. */
+.changelog {
+  z-index: 5;
+}
+
+.log-dialog {
+  width: min(720px, 94vw);
+}
+
+/* The eyebrow carries the version in lowercase, as the menu link does; the eyebrow style's
+   uppercasing stops at the word. */
+.changelog .eyebrow {
+  text-transform: none;
+}
+
+.log-body {
+  min-height: 0;
+  margin: 14px 0 4px;
+  padding-right: 8px;
+  overflow: auto;
+  animation: fade-in 0.25s ease-out;
+  /* Usually taller than the dialog: its foot fades, so the cut-off line reads as "more below". */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+
+.log-entry {
+  padding: 16px 0 18px;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.log-entry:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+/* Room for the fade, so the last line reads in full once scrolled to the end. */
+.log-entry:last-child {
+  padding-bottom: 46px;
+}
+
+.log-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.log-version {
+  font: 800 18px var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.log-date {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.log-tag {
+  padding: 1px 8px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.6);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.log-title {
+  margin: 8px 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.log-notes {
+  margin: 0;
+  padding-left: 1.15em;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+.log-notes li {
+  margin: 5px 0;
+}
+
+.log-notes li::marker {
+  color: var(--accent);
+}
+
+.log-notes b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Below the release on top everything is history, and reads a step quieter than what is new. */
+.log-entry ~ .log-entry .log-version {
+  color: var(--ink-dim);
+}
+
+.log-entry ~ .log-entry .log-title {
+  font-size: 15px;
+  color: var(--ink-dim);
+}
+
+/* Phones: shorter lines, and a dismiss button that spans the dialog. */
+@media (max-width: 560px) {
+  .log-version {
+    font-size: 16px;
+  }
+
+  .log-title {
+    font-size: 15.5px;
+  }
+
+  .log-notes {
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+
+  .log-foot .btn {
+    flex: 1;
+    justify-content: center;
   }
 }

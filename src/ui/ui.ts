@@ -77,6 +77,8 @@ export interface UiActions {
   toggleWishlist(id: string): void;
   /** Toggles a supply in the carried loadout. False when unowned or the earned slots are full. */
   toggleLoadout(id: string): boolean;
+  /** Points the one-run free trial at an unowned supply; the same id again clears it. */
+  setTrialSupply?(id: string): void;
   /** Composes and downloads the run's score-card PNG. Resolves false when it could not be made. */
   downloadScorecard(): Promise<boolean>;
   /** Frame-rate figures for the performance readout in settings. */
@@ -546,7 +548,12 @@ export class UI implements HudHost {
     });
     setText(
       byId('draft-eyebrow'),
-      info.intro ? t('shop.headstartEyebrow') : t('draft.eyebrow', { code: session.world.level.code }),
+      // The opening draft names its source: the free head start, or the protocol's own self-picks.
+      info.intro
+        ? session.introRarities
+          ? t('shop.wildcardEyebrow')
+          : t('shop.headstartEyebrow')
+        : t('draft.eyebrow', { code: session.world.level.code }),
     );
     setText(byId('draft-crystals'), formatNumber(session.run.crystals));
     setText(byId('reroll-cost'), `◆ ${info.rerollCost}`);
@@ -775,6 +782,9 @@ export class UI implements HudHost {
             }
           : undefined,
         carried,
+        // An unowned supply can be tried free for one run; the mark rides on the trialed card.
+        onTrial: owned ? undefined : () => this.actions.setTrialSupply?.(supply.id),
+        trialed: econ.trialSupply === supply.id,
       });
     });
     return [header, ...cards];
@@ -823,6 +833,8 @@ export class UI implements HudHost {
     onBuy: () => boolean;
     onCarry?: () => boolean;
     carried?: boolean;
+    onTrial?: () => void;
+    trialed?: boolean;
   }): HTMLElement {
     const econ = this.save.economy;
     const affordable = econ.stardust >= opts.price;
@@ -864,6 +876,13 @@ export class UI implements HudHost {
               { class: `shop-wish${wished ? ' on' : ''}`, type: 'button' },
               el('span', { text: t(wished ? 'shop.wished' : 'shop.wish') }),
             ),
+        opts.onTrial
+          ? el(
+              'button',
+              { class: `shop-trial${opts.trialed ? ' on' : ''}`, type: 'button' },
+              el('span', { text: t(opts.trialed ? 'shop.supply.trialOn' : 'shop.supply.trial') }),
+            )
+          : null,
         opts.onCarry
           ? el(
               'button',
@@ -888,6 +907,12 @@ export class UI implements HudHost {
       this.audio.ui('uiClick');
       this.renderShop();
     });
+    const trial = card.querySelector<HTMLButtonElement>('.shop-trial');
+    trial?.addEventListener('click', () => {
+      opts.onTrial?.();
+      this.audio.ui('uiClick');
+      this.renderShop();
+    });
     const carry = card.querySelector<HTMLButtonElement>('.shop-carry');
     carry?.addEventListener('click', () => {
       opts.onCarry?.();
@@ -901,7 +926,9 @@ export class UI implements HudHost {
     const row = byId('loadout-row');
     const econ = this.save.economy;
     const owned = SUPPLIES.filter((supply) => econ.supplies.includes(supply.id));
-    row.hidden = owned.length === 0;
+    // The trial chip needs the row even when nothing is owned: it is a gift, not a toggle.
+    const trial = econ.trialSupply && isSupplyId(econ.trialSupply) ? SUPPLY_MAP[econ.trialSupply] : null;
+    row.hidden = owned.length === 0 && !trial;
     if (row.hidden) return;
     const used = supplyCost(econ.loadout);
     const limit = slotLimit(this.save.records.runs, this.campaignClears());
@@ -926,6 +953,20 @@ export class UI implements HudHost {
     row.replaceChildren(
       el('span', { class: 'loadout-title', text: t('shop.loadoutTitle') }),
       ...chips,
+      // The one-run trial rides along without taking a slot, so it is marked but not clickable.
+      ...(trial
+        ? [
+            el(
+              'span',
+              {
+                class: 'loadout-chip trial on',
+                title: `${t('shop.supply.trialOn')} · ${t(`shop.supply.${trial.id}.desc`)}`,
+              },
+              el('span', { text: t(`shop.supply.${trial.id}.name`) }),
+              el('span', { class: 'chip-trial', text: t('shop.supply.trial') }),
+            ),
+          ]
+        : []),
       el('span', {
         class: 'loadout-slots',
         text: t('shop.slots', { used, limit }),

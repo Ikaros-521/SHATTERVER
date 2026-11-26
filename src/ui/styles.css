@@ -3182,7 +3182,8 @@ button.sigil-tile:hover {
 }
 
 .shop-wish,
-.shop-carry {
+.shop-carry,
+.shop-trial {
   background: none;
   border: none;
   color: var(--ink-dim);
@@ -3193,7 +3194,8 @@ button.sigil-tile:hover {
 }
 
 .shop-wish.on,
-.shop-carry.on {
+.shop-carry.on,
+.shop-trial.on {
   color: var(--gold);
 }
 
@@ -3298,6 +3300,17 @@ button.sigil-tile:hover {
 .loadout-chip.on {
   border-color: var(--gold);
   color: var(--gold);
+}
+
+/* The one-run trial chip: a gift riding along, not a toggle. */
+.loadout-chip.trial {
+  cursor: default;
+}
+
+.loadout-chip .chip-trial {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.85;
 }
 
 .loadout-slots {

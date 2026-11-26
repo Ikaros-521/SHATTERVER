@@ -979,6 +979,10 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Corrosion Blast',
         desc: 'Corrosive Lv1 + Ignition Lv1. The reaction "Corrosion Blast" is live from level one.',
       },
+      wildcard: {
+        name: 'Wildcard',
+        desc: 'Hand-pick two of the common or rare upgrades before the first sector — you write your own opening.',
+      },
     },
     chapters: [
       {
@@ -1136,6 +1140,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     gateClear: 'Unlocks after clearing the campaign',
     loadoutTitle: 'Supplies',
     headstartEyebrow: 'HEAD START · OPENING SUPPLY',
+    wildcardEyebrow: 'WILDCARD · YOUR OPENING',
     secondWindSub: 'Second Wind · shield restored by 2',
     earnedLine: 'Stardust +{n}',
     earnedRun: 'Run +{n}',
@@ -1152,6 +1157,8 @@ export const en: UiDict & { content: ContentOverrides } = {
       reroll: { name: 'Free Reroll', desc: 'The first reroll of every draft is free.' },
       headstart: { name: 'Head Start', desc: 'Take one extra upgrade before the first sector.' },
       secondwind: { name: 'Second Wind', desc: 'The first time the shield breaks, restore 2 shield (once per run).' },
+      trial: 'Trial',
+      trialOn: 'On trial',
     },
     ms: {
       perfect: 'First perfect catch｜Return a ball dead-centre on the paddle',

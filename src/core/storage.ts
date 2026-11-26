@@ -97,6 +97,8 @@ export interface EconomyState {
   loadout: string[];
   /** The one catalog item the menu and results screens nudge towards; null clears it. */
   wishlist: string | null;
+  /** The unowned supply riding along free for the next run; spent the moment that run opens. */
+  trialSupply: string | null;
   /** Earned milestone ids; they settle automatically, there is no claim step. */
   milestones: string[];
   /** Upgrade kinds whose first-use bonus has already been paid. */
@@ -164,6 +166,7 @@ export const DEFAULT_ECONOMY: EconomyState = {
   supplies: [],
   loadout: [],
   wishlist: null,
+  trialSupply: null,
   milestones: [],
   firstUsed: {},
   firstGift: false,
@@ -241,6 +244,8 @@ function parseEconomy(raw: unknown): EconomyState | null {
   economy.supplies = Array.isArray(e.supplies) ? e.supplies.filter(isSupplyId) : [];
   economy.loadout = Array.isArray(e.loadout) ? e.loadout.filter(isSupplyId) : [];
   economy.wishlist = typeof e.wishlist === 'string' ? e.wishlist : null;
+  // A trial only ever names a real supply; anything else reads as no trial at all.
+  economy.trialSupply = typeof e.trialSupply === 'string' && isSupplyId(e.trialSupply) ? e.trialSupply : null;
   economy.milestones = Array.isArray(e.milestones)
     ? e.milestones.filter((id): id is string => typeof id === 'string').slice(0, 128)
     : [];

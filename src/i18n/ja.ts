@@ -973,6 +973,10 @@ export const ja: UiDict & { content: ContentOverrides } = {
         name: '腐食爆発',
         desc: '腐食 Lv1 + 灼熱付与 Lv1。開局から元素反応「腐食爆発」が発動可能。',
       },
+      wildcard: {
+        name: 'ワイルドカード',
+        desc: '開局前にコモン・レア強化から 2 つ自由に選べる。自分の起点は自分で決める。',
+      },
     },
     chapters: [
       {
@@ -1120,6 +1124,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     gateClear: 'キャンペーンクリアで解放',
     loadoutTitle: '持ち込み補給',
     headstartEyebrow: 'HEAD START · 開幕補給',
+    wildcardEyebrow: 'WILDCARD · 自分の始まり',
     secondWindSub: 'セカンドウィンド · シールドを 2 回復',
     earnedLine: 'スターダスト +{n}',
     earnedRun: '対戦 +{n}',
@@ -1136,6 +1141,8 @@ export const ja: UiDict & { content: ContentOverrides } = {
       reroll: { name: '無料リロール', desc: '毎回の三択で最初のリロールが無料。' },
       headstart: { name: 'ヘッドスタート', desc: '開局前にアップグレードをもう 1 つ選べる。' },
       secondwind: { name: '再始動コア', desc: 'その戦で初めてシールドが尽きた時、2 回復（戦に 1 回）。' },
+      trial: '体験',
+      trialOn: '体験中',
     },
     ms: {
       perfect: '初パーフェクトキャッチ｜パドル中央でボールを受け止める',

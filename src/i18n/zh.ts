@@ -507,6 +507,7 @@ export const zh = {
     gateClear: '通关闯关模式解锁',
     loadoutTitle: '携带补给',
     headstartEyebrow: 'HEAD START · 开局补给',
+    wildcardEyebrow: 'WILDCARD · 自选协议',
     secondWindSub: '续战核心 · 护盾补回 2 格',
     earnedLine: '星尘 +{n}',
     earnedRun: '对局 +{n}',
@@ -523,6 +524,8 @@ export const zh = {
       reroll: { name: '保底刷新', desc: '每次三选一的首次刷新免费。' },
       headstart: { name: '先手模块', desc: '开局先多选一次强化。' },
       secondwind: { name: '续战核心', desc: '本局首次护盾击穿时，补回 2 格护盾（每局一次）。' },
+      trial: '试用',
+      trialOn: '试用中',
     },
     ms: {
       perfect: '初次完美接球｜用挡板正中接回一颗球',

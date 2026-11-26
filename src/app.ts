@@ -620,15 +620,22 @@ export class App implements UiActions {
     this.audio.unlock();
     this.lastRun = { mode, starter, difficulty };
     this.scoring = level <= 1;
+    const econ = this.save.economy;
+    // The trial supply rides along as a one-run gift: it takes no loadout slot, and the session
+    // de-duplicates supplies, so a repeat entry is harmless.
+    const supplies = econ.trialSupply ? [...econ.loadout, econ.trialSupply] : econ.loadout;
     const session = new Session(mode, this.resolveSeed(), {
       starter,
       level,
       difficulty: difficultyOf(difficulty),
-      supplies: this.save.economy.loadout,
+      supplies,
     });
     this.ui.clearCallouts();
     this.adopt(session, false);
     if (this.scoring) {
+      // A real run spends the trial the moment it opens, whatever happens later in the run;
+      // deeper debug runs (level > 1) neither spend nor touch the save's run count.
+      econ.trialSupply = null;
       this.save.records.runs++;
       storeSave(this.save);
       // Opens the server-side window for this run. Fire-and-forget: the first frame must not wait.
@@ -735,6 +742,8 @@ export class App implements UiActions {
     econ.stardust -= def.price;
     econ.supplies.push(id);
     if (econ.wishlist === id) econ.wishlist = null;
+    // Owning it ends the trial: a taste of something you now have would be dead weight.
+    if (econ.trialSupply === id) econ.trialSupply = null;
     storeSave(this.save);
     return true;
   }
@@ -743,6 +752,15 @@ export class App implements UiActions {
     const econ = this.save.economy;
     if (!PROTOCOL_MAP[id] && !isSupplyId(id)) return;
     econ.wishlist = econ.wishlist === id ? null : id;
+    storeSave(this.save);
+  }
+
+  /** Points the one-run free trial at an unowned supply; the same id again clears it. */
+  setTrialSupply(id: string): void {
+    const econ = this.save.economy;
+    // A trial is a taste of something not owned yet: unknown or owned ids are refused.
+    if (!isSupplyId(id) || econ.supplies.includes(id)) return;
+    econ.trialSupply = econ.trialSupply === id ? null : id;
     storeSave(this.save);
   }
 

@@ -1,7 +1,7 @@
 import { Emitter } from '../core/emitter';
 import { hashCombine, RNG } from '../core/rng';
 import { MAX_HP_BASE } from './config';
-import { isSupplyId, PRECHARGE_ENERGY, SUPPLY_CRYSTALS } from './economy/catalog';
+import { isSupplyId, PRECHARGE_ENERGY, SUPPLY_CRYSTALS, type ShopProtocol } from './economy/catalog';
 import { difficultyOf, type Difficulty } from './difficulty';
 import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
@@ -17,7 +17,7 @@ export type SessionPhase = 'playing' | 'draft' | 'over' | 'won';
 export interface SessionEvents {
   phase: { phase: SessionPhase; previous: SessionPhase };
   level: { plan: LevelPlan; first: boolean };
-  /** `intro` marks the head-start draft shown before sector one opens. */
+  /** `intro` marks the opening draft (head start or a protocol's self-picks) before sector one. */
   draft: { options: UpgradeDef[]; rerollCost: number; skipReward: number; intro: boolean };
   pick: { def: UpgradeDef; level: number };
   skip: Record<string, never>;
@@ -43,7 +43,8 @@ export interface SessionOptions {
  *
  * Carried supplies (see `economy/catalog`) apply here: crystal cache and spare shield touch the
  * run at construction, free reroll and pre-charge and second wind ride along into each level,
- * and the head start holds the run in a first draft until the player picks or skips.
+ * and the head start (or a protocol's own self-picks, see `ShopProtocol.introPicks`) holds the
+ * run in an opening draft until every pick is spent.
  */
 export class Session {
   readonly events = new Emitter<SessionEvents>();
@@ -56,8 +57,12 @@ export class Session {
   rerolls = 0;
   private readonly rng: RNG;
   private readonly supplies: ReadonlySet<string>;
-  /** True while the head-start draft is up and sector one has not opened yet. */
-  private introPending = false;
+  /** Opening picks left before sector one opens; the head-start supply and protocols add to it. */
+  introPicks = 0;
+  /** Rarity band of the opening picks, when the protocol that granted them narrows the pool. */
+  readonly introRarities?: UpgradeDef['rarity'][];
+  /** Opening picks already spent; past the first one, follow-up drafts skip what is owned. */
+  private introTaken = 0;
 
   constructor(mode: RunMode, seed: number, options: SessionOptions = {}) {
     this.bot = options.bot ?? false;
@@ -74,14 +79,20 @@ export class Session {
     }
     if (this.supplies.has('cache')) this.run.crystals += SUPPLY_CRYSTALS;
     if (this.supplies.has('spare')) this.run.bonusHp = 1;
-    if (this.supplies.has('headstart')) this.introPending = true;
+    if (this.supplies.has('headstart')) this.introPicks++;
+    // A protocol may grant its own opening self-picks (wildcard); their rarity band rides along.
+    const protocol = starter as Partial<ShopProtocol> | undefined;
+    if (protocol?.introPicks) {
+      this.introPicks += protocol.introPicks;
+      this.introRarities = protocol.introRarities ? [...protocol.introRarities] : undefined;
+    }
     this.refreshStats();
     this.world = this.openLevel();
   }
 
-  /** Announces the first level — or, with a head start carried, the pre-sector draft. */
+  /** Announces the first level — or, with opening picks left, the pre-sector draft. */
   start(): void {
-    if (this.introPending) {
+    if (this.introPicks > 0) {
       this.setPhase('draft');
       this.rollNewDraft();
       return;
@@ -126,7 +137,7 @@ export class Session {
     this.run.upgrades[id] = level;
     this.refreshStats();
     this.events.emit('pick', { def, level });
-    if (this.introPending) return this.beginLevel();
+    if (this.introPicks > 0) return this.spendIntroPick();
     return this.advance();
   }
 
@@ -140,11 +151,14 @@ export class Session {
     return true;
   }
 
-  /** Trade the pick for crystals — or, on the head-start draft, forfeit the gift and just start. */
+  /**
+   * Trade the pick for crystals — or, on an opening draft, forfeit that one pick: a skipped
+   * pick is spent without a card, and whatever picks remain still stand.
+   */
   skip(): boolean {
     if (this.phase !== 'draft') return false;
     this.events.emit('skip', {});
-    if (this.introPending) return this.beginLevel();
+    if (this.introPicks > 0) return this.spendIntroPick();
     this.run.crystals += this.skipReward;
     return this.advance();
   }
@@ -179,9 +193,24 @@ export class Session {
     });
   }
 
-  /** Closes the head-start draft and opens sector one for real. */
+  /**
+   * Spends one opening pick: while picks remain, another draft goes up (past the first pick it
+   * skips everything already owned); at zero, sector one opens for real.
+   */
+  private spendIntroPick(): boolean {
+    this.introTaken++;
+    this.introPicks--;
+    if (this.introPicks > 0) {
+      this.rollNewDraft();
+      return true;
+    }
+    return this.beginLevel();
+  }
+
+  /** Closes the opening draft and opens sector one for real. */
   private beginLevel(): boolean {
-    this.introPending = false;
+    this.introPicks = 0;
+    this.introTaken = 0;
     // The pick may have changed the build; rebuild so ball count and the like start right.
     this.world = this.openLevel();
     this.setPhase('playing');
@@ -233,12 +262,24 @@ export class Session {
   }
 
   private rollNewDraft(): void {
-    this.draft = rollDraft({ levels: this.run.upgrades, level: this.run.level, rng: this.rng });
+    // Opening drafts run on the protocol's rarity band, if it set one, and a wider hand: the
+    // free head start keeps its three cards, a banded draft shows four to choose from. Past the
+    // first spent pick, what is already owned no longer comes back.
+    const intro = this.introPicks > 0;
+    this.draft = rollDraft({
+      levels: this.run.upgrades,
+      level: this.run.level,
+      rng: this.rng,
+      ...(intro
+        ? { count: this.introRarities ? 4 : 3, rarities: this.introRarities }
+        : {}),
+      ...(intro && this.introTaken > 0 ? { exclude: Object.keys(this.run.upgrades) } : {}),
+    });
     this.events.emit('draft', {
       options: this.draft,
       rerollCost: this.rerollCost,
       skipReward: this.skipReward,
-      intro: this.introPending,
+      intro,
     });
   }
 

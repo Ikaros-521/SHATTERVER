@@ -9,7 +9,6 @@ import {
   PLAGUE_RADIUS,
   PRISM_DAMAGE,
   PRISM_RANGE,
-  SCORE_SCALE,
   WILDFIRE_RADIUS,
 } from './config';
 import { makeBall, MIN_FREE_BALLS, type Ball, type Brick, type Hole } from './entities';
@@ -123,8 +122,7 @@ export function applyDamage(world: World, brick: Brick, amount: number, ctx: Dam
   brick.scale = Math.min(1.35, brick.scale + 0.16);
 
   world.totalDamage += dealt;
-  world.run.score +=
-    dealt * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25) * world.diff.scoreMult * SCORE_SCALE;
+  world.run.score += dealt * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25) * world.diff.scoreMult;
   if (ctx.source === 'ball' || ctx.source === 'secondary') world.addCombo();
 
   world.events.emit('hit', {

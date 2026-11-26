@@ -59,27 +59,41 @@ describe('isToyEnvironment', () => {
 });
 
 describe('clampToyScore', () => {
-  it('rounds to the platform integer', () => {
+  // Every campaign run a bot finishes, and standard endless through level 21, is stored as scored.
+  const AS_SCORED_UP_TO = 16_000_000;
+
+  it('stores a score that fits exactly as the game awarded it', () => {
     expect(clampToyScore(1234.6)).toBe(1235);
+    expect(clampToyScore(13_300_000)).toBe(13_300_000);
+    expect(clampToyScore(AS_SCORED_UP_TO - 0.4)).toBe(AS_SCORED_UP_TO);
   });
-  it('keeps realistic scores unchanged', () => {
-    expect(clampToyScore(9_999_999.4)).toBe(9_999_999);
-    expect(clampToyScore(16_777_215)).toBeGreaterThan(10_000_000);
-  });
-  it('compresses the deep tail instead of clamping everything to one ceiling', () => {
-    const deep = [99_000_000, 1e9, 9e9, 1e12, 1e18, 1e24].map((s) => clampToyScore(s));
-    for (let i = 1; i < deep.length; i++) expect(deep[i]!).toBeGreaterThan(deep[i - 1]!);
-    for (const value of deep) {
-      expect(value).toBeGreaterThan(10_000_000);
+  it('never leaves the platform range, whatever it is handed', () => {
+    const inputs = [-5, 0, NaN, 1, 99_000_000, 1e30, 1e60, 1e100, 1e300, Infinity];
+    for (const input of inputs) {
+      const value = clampToyScore(input);
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
       expect(value).toBeLessThanOrEqual(16_777_215);
     }
-  });
-  it('clamps the unbounded extreme to the ceiling', () => {
-    expect(clampToyScore(1e30)).toBe(16_777_215);
-    expect(clampToyScore(1e33)).toBe(16_777_215);
-  });
-  it('never goes below zero', () => {
     expect(clampToyScore(-5)).toBe(0);
+    expect(clampToyScore(NaN)).toBe(0);
+  });
+  it('keeps deep runs in strict order instead of clamping them into one tie', () => {
+    // Roughly the score of an endless run at levels 22, 25, 30, 50, 100, 200 and 400.
+    const ladder = [1.7e7, 6e7, 3e8, 4e11, 6e18, 4e32, 6e59];
+    const mapped = ladder.map((score) => clampToyScore(score));
+    for (let i = 1; i < mapped.length; i++) expect(mapped[i]!).toBeGreaterThan(mapped[i - 1]!);
+    expect(mapped[0]).toBeGreaterThan(AS_SCORED_UP_TO);
+    expect(mapped[mapped.length - 1]).toBeLessThan(16_777_215);
+  });
+  it('tells apart two deep runs a tenth of a percent apart, all the way up', () => {
+    for (const score of [2e7, 1e9, 1e20, 1e40, 1e60, 1e90]) {
+      expect(clampToyScore(score * 1.001)).toBeGreaterThan(clampToyScore(score));
+    }
+  });
+  it('shares the ceiling only beyond the depth the log segment is sized for', () => {
+    expect(clampToyScore(1e100)).toBe(16_777_215);
+    expect(clampToyScore(1e300)).toBe(16_777_215);
   });
 });
 
@@ -137,12 +151,17 @@ class FakeSdk implements ToyLike {
 }
 
 describe('ToyBoards', () => {
-  it('submits a clamped score to the requested board', async () => {
+  it('submits the mapped score to the requested board', async () => {
     const sdk = new FakeSdk();
     const client = new ToyBoards(sdk);
-    const result = await client.submit(2, 12_345.6);
-    expect(result.ok).toBe(true);
-    expect(sdk.submits).toEqual([{ board: 2, score: 12_346 }]);
+    // A score that fits goes up exactly as it was scored.
+    expect((await client.submit(2, 12_345.6)).ok).toBe(true);
+    // A deep endless run lands inside the platform range, not on its ceiling.
+    expect((await client.submit(1, 6e59)).ok).toBe(true);
+    const deep = sdk.submits[1]!.score;
+    expect(deep).toBeGreaterThan(16_000_000);
+    expect(deep).toBeLessThan(16_777_215);
+    expect(sdk.submits[0]).toEqual({ board: 2, score: 12_346 });
   });
   it('turns a rejected submit into a typed failure', async () => {
     const sdk = new FakeSdk();

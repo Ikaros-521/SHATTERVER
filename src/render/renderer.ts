@@ -3,6 +3,7 @@ import { InstanceBatch, Pen, TextBatch } from './batch';
 import { BLUR_FRAG, BRIGHT_FRAG, COMPOSITE_FRAG, COPY_FRAG } from './shaders/post';
 import { BACKDROP_FRAG, NEBULA_FRAG } from './shaders/background';
 import { INSTANCE_FRAG, INSTANCE_VERT } from './shaders/instances';
+import { SPRITE_FRAG, SPRITE_VERT } from './shaders/sprites';
 import { TEXT_FRAG, TEXT_VERT } from './shaders/text';
 import type { View } from './camera';
 import { hexToRgb } from '../core/math';
@@ -18,6 +19,26 @@ export interface Palette {
   accent: number;
 }
 
+/**
+ * The background theme worn this frame, or null for the chapters' own sky. A scene is drawn in
+ * one pass at a fraction of the canvas resolution — it is scenery, soft by nature, and a full
+ * resolution pass would cost more than the whole rest of the frame on a weak GPU.
+ */
+export interface ThemeFrame {
+  /** Which theme. Its scene is compiled once, the first time it is drawn. */
+  id: string;
+  /** The scene's complete fragment shader (see `render/themes/background.ts`). */
+  frag: string;
+  /** -1..1: where the paddle sits across the arena, the layers' parallax input. */
+  parallax: number;
+  /** 0..1: how much of the scene's detail the quality step can afford. */
+  detail: number;
+  /** The scene is drawn at 1/`scale` of the canvas resolution along each axis, then let up. */
+  scale: number;
+  /** One frame in this many redraws the scene; the others reuse it. 1 is every frame. */
+  refresh: number;
+}
+
 export interface FrameInput {
   layout: Layout;
   time: number;
@@ -26,11 +47,16 @@ export interface FrameInput {
   view: View;
   post: PostState;
   info: SceneInfo;
+  /** The background theme worn this frame. Omitted or null: the chapters' own sky. */
+  theme?: ThemeFrame | null;
 }
 
 /** Draw statistics for the debug overlay. */
 export interface RenderStats {
   surfaces: number;
+  /** Theme sprites: in front of the surfaces, and beneath them. */
+  sprites: number;
+  spritesUnder: number;
   lights: number;
   glyphs: number;
 }
@@ -38,6 +64,8 @@ export interface RenderStats {
 const INSTANCE_STRIDE = 20;
 const TEXT_STRIDE = 12;
 const CORNERS = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+/** Theme sprites in flight per layer. The layer sheds before it overflows (see `themes/layer.ts`). */
+const SPRITE_CAPACITY = 8192;
 
 /**
  * The rendering pipeline.
@@ -46,13 +74,22 @@ const CORNERS = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
  *                     ├─→ scene (HDR) ─→ bright ─→ blur ×2 (1/2) ─┬─→ composite ─→ screen
  *   backdrop (full) ──┘                        └─→ blur ×2 (1/4) ─┘
  *
+ * With a background theme worn, a themed scene (1/2 res) takes the nebula's place and the
+ * backdrop skips its stars and grid: the composite then only lays the arena's darker plate over
+ * the scene, exactly as it does over the nebula.
+ *
  * Ten draw calls in total. The scene itself is three instanced calls — surfaces, additive light,
  * glyphs — so whether there are four bricks or four hundred, the CPU cost is filling the buffers.
+ *
+ * A worn theme adds up to two more instanced calls, in the same alpha-blended pass around the
+ * surfaces: its sprites beneath them, and its sprites in front of them. Both are skipped when
+ * empty, and their program is compiled the first time either has something to draw — a player in
+ * the stock look never compiles it.
  */
 export class Renderer {
   readonly gl: GL;
   readonly pen: Pen;
-  readonly stats: RenderStats = { surfaces: 0, lights: 0, glyphs: 0 };
+  readonly stats: RenderStats = { surfaces: 0, sprites: 0, spritesUnder: 0, lights: 0, glyphs: 0 };
   /**
    * Set when the WebGL context was lost and not yet reported restored (the app listens on the
    * canvas). Draw calls check it alongside `gl.isLost()` so a context that never fires
@@ -69,13 +106,43 @@ export class Renderer {
   private readonly progBlur: WebGLProgram;
   private readonly progCopy: WebGLProgram;
   private readonly progComposite: WebGLProgram;
+  /** The worn background theme's scene program, compiled the first time that theme is drawn. */
+  private progTheme: WebGLProgram | null = null;
+  private themeId: string | null = null;
+  /** Scenes that would not compile on this device. They draw as the stock sky instead of throwing every frame. */
+  private readonly brokenThemes = new Set<string>();
+  /**
+   * Every shader fault swallowed so far (a theme scene that would not compile). The app folds
+   * these into its debug `errors`, so an automated run sees a silently degraded background.
+   */
+  readonly faults: unknown[] = [];
+  /** The theme sprites' program, compiled the first time a frame has a sprite to draw. */
+  private progSprite: WebGLProgram | null = null;
+  /**
+   * True once that program would not compile on this device. The sprites then simply are not
+   * drawn — and the app, which reads this, draws the stock paddle and ball instead of a themed
+   * one that would be missing its looks.
+   */
+  spritesBroken = false;
+  private readonly spriteFront: InstanceBatch;
+  private readonly spriteBack: InstanceBatch;
+  private readonly spriteVaos: [WebGLVertexArrayObject, WebGLVertexArrayObject];
   private readonly instanceVaos: [WebGLVertexArrayObject, WebGLVertexArrayObject];
   private readonly textVao: WebGLVertexArrayObject;
   private readonly glyphTexture: WebGLTexture;
 
   private scene: Target | null = null;
   private nebula: Target | null = null;
+  private theme: Target | null = null;
+  /** Resolution divisor the theme target was last sized for. */
+  private themeScale = 0;
+  /** Set when the theme target holds nothing (or another theme's scene): the next frame must redraw it. */
+  private themeStale = true;
+  private frames = 0;
   private halfA: Target | null = null;
+  /** The frame being drawn and its view, for the sprite program's uniforms. */
+  private lastInput!: FrameInput;
+  private lastView!: View;
   private halfB: Target | null = null;
   private quarterA: Target | null = null;
   private quarterB: Target | null = null;
@@ -102,7 +169,9 @@ export class Renderer {
     const surfaces = new InstanceBatch(capacity.surfaces);
     const lights = new InstanceBatch(capacity.lights);
     const text = new TextBatch(capacity.glyphs);
-    this.pen = new Pen(surfaces, lights, text, glyphs);
+    this.spriteFront = new InstanceBatch(SPRITE_CAPACITY);
+    this.spriteBack = new InstanceBatch(SPRITE_CAPACITY);
+    this.pen = new Pen(surfaces, lights, text, glyphs, this.spriteFront, this.spriteBack);
 
     // One static corner buffer shared by every instanced VAO.
     const corners = g.createBuffer();
@@ -111,6 +180,10 @@ export class Renderer {
     g.bufferData(g.ARRAY_BUFFER, CORNERS, g.STATIC_DRAW);
 
     this.instanceVaos = [this.makeInstanceVao(surfaces, corners), this.makeInstanceVao(lights, corners)];
+    this.spriteVaos = [
+      this.makeInstanceVao(this.spriteFront, corners),
+      this.makeInstanceVao(this.spriteBack, corners),
+    ];
     this.textVao = this.makeTextVao(text, corners);
 
     g.disable(g.DEPTH_TEST);
@@ -188,6 +261,65 @@ export class Renderer {
     gl.resize(this.halfB as Target, width / 2, height / 2);
     gl.resize(this.quarterA as Target, width / 4, height / 4);
     gl.resize(this.quarterB as Target, width / 4, height / 4);
+    // A resized target is empty: the theme's scene has to be drawn into it again.
+    if (this.theme) {
+      gl.resize(this.theme, width / this.themeScale, height / this.themeScale);
+      this.themeStale = true;
+    }
+  }
+
+  /**
+   * Draws the worn background theme's scene into its own target. False when there is none to
+   * draw — no theme is worn, or its scene would not compile — and the caller draws the nebula.
+   */
+  private drawTheme(input: FrameInput): boolean {
+    const theme = input.theme;
+    if (!theme || this.brokenThemes.has(theme.id)) return false;
+    const mark = this.profileHook;
+    this.frames++;
+    if (this.themeId !== theme.id) {
+      try {
+        this.progTheme = this.gl.program(`theme:${theme.id}`, FULLSCREEN_VERT, theme.frag);
+      } catch (error) {
+        // A scene that will not compile on this device costs its looks, not the frame.
+        console.error(error);
+        this.faults.push(error);
+        this.brokenThemes.add(theme.id);
+        return false;
+      }
+      this.themeId = theme.id;
+      this.themeStale = true;
+    }
+
+    const gl = this.gl;
+    const width = Math.max(1, Math.floor(this.width / theme.scale));
+    const height = Math.max(1, Math.floor(this.height / theme.scale));
+    if (!this.theme) {
+      this.theme = gl.target(width, height, gl.hdr);
+      this.themeScale = theme.scale;
+      this.themeStale = true;
+    } else if (this.themeScale !== theme.scale) {
+      gl.resize(this.theme, width, height);
+      this.themeScale = theme.scale;
+      this.themeStale = true;
+    }
+    // A slow step may hold each scene for a few frames: the scenery drifts, it never snaps.
+    if (!this.themeStale && theme.refresh > 1 && this.frames % theme.refresh !== 0) return true;
+    this.themeStale = false;
+
+    const { layout, time, info } = input;
+    const p = this.progTheme as WebGLProgram;
+    gl.bind(this.theme);
+    gl.gl.useProgram(p);
+    gl.set2(p, 'uCss', layout.cssW, layout.cssH);
+    gl.set4(p, 'uArena', layout.ax + layout.aw / 2, layout.ay + layout.ah / 2, layout.aw / 2, layout.ah / 2);
+    gl.set1(p, 'uTime', time);
+    gl.set1(p, 'uEnergy', info.energy);
+    gl.set1(p, 'uPar', theme.parallax);
+    gl.set1(p, 'uDetail', theme.detail);
+    gl.fullscreen();
+    if (mark) mark('theme scene');
+    return true;
   }
 
   /** Draws the current contents of `this.pen` plus everything in `input`. Call after filling the pen. */
@@ -208,30 +340,37 @@ export class Renderer {
     const quarterA = this.quarterA as Target;
     const quarterB = this.quarterB as Target;
     const { layout, time, palette, post } = input;
+    // Kept for the sprite draw, which runs its own program and needs the same frame's view.
+    this.lastInput = input;
     const [ar, ag, ab] = hexToRgb(palette.accent);
     const mark = this.profileHook;
     if (mark) mark('start');
 
     // ── 1. sky ──
     g.disable(g.BLEND);
-    gl.bind(nebula);
-    g.useProgram(this.progNebula);
-    gl.set2(this.progNebula, 'uRes', W, H);
-    gl.set1(this.progNebula, 'uTime', time);
-    const [a1, a2, a3] = hexToRgb(palette.a);
-    const [b1, b2, b3] = hexToRgb(palette.b);
-    const [c1, c2, c3] = hexToRgb(palette.c);
-    gl.set3(this.progNebula, 'uColA', a1, a2, a3);
-    gl.set3(this.progNebula, 'uColB', b1, b2, b3);
-    gl.set3(this.progNebula, 'uColC', c1, c2, c3);
-    gl.set1(this.progNebula, 'uEnergy', input.info.energy);
-    gl.fullscreen();
+    // A theme's scene stands in for the nebula; the backdrop below is told which it is sampling.
+    const themed = this.drawTheme(input);
+    if (!themed) {
+      gl.bind(nebula);
+      g.useProgram(this.progNebula);
+      gl.set2(this.progNebula, 'uRes', W, H);
+      gl.set1(this.progNebula, 'uTime', time);
+      const [a1, a2, a3] = hexToRgb(palette.a);
+      const [b1, b2, b3] = hexToRgb(palette.b);
+      const [c1, c2, c3] = hexToRgb(palette.c);
+      gl.set3(this.progNebula, 'uColA', a1, a2, a3);
+      gl.set3(this.progNebula, 'uColB', b1, b2, b3);
+      gl.set3(this.progNebula, 'uColC', c1, c2, c3);
+      gl.set1(this.progNebula, 'uEnergy', input.info.energy);
+      gl.fullscreen();
+    }
     if (mark) mark('nebula');
 
     // ── 2. scene ──
     gl.bind(scene);
     g.useProgram(this.progBackdrop);
-    gl.texture(this.progBackdrop, 'uNebula', nebula.tex);
+    gl.texture(this.progBackdrop, 'uNebula', themed ? (this.theme as Target).tex : nebula.tex);
+    gl.set1(this.progBackdrop, 'uThemed', themed ? 1 : 0);
     gl.set2(this.progBackdrop, 'uRes', W, H);
     gl.set1(this.progBackdrop, 'uDpr', layout.dpr);
     gl.set1(this.progBackdrop, 'uTime', time);
@@ -252,6 +391,7 @@ export class Renderer {
     g.enable(g.BLEND);
     const dpr = layout.dpr;
     const view = input.view;
+    this.lastView = view;
     g.useProgram(this.progInstance);
     gl.set4(this.progInstance, 'uView', view.scale * dpr, view.tx * dpr, view.ty * dpr, 0);
     gl.set2(this.progInstance, 'uResolution', W, H);
@@ -259,8 +399,14 @@ export class Renderer {
     gl.set1(this.progInstance, 'uPixel', 1 / (view.scale * dpr));
 
     g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
+    // A theme's drifting layer and particles go down first: the surfaces paint over them.
+    this.drawSprites(1);
+    if (mark) mark('sprites under');
     this.drawInstances(0);
     if (mark) mark('surfaces');
+    // …then a themed paddle's and ball's own sprites, in front of the bricks.
+    this.drawSprites(0);
+    if (mark) mark('sprites');
     g.blendFunc(g.ONE, g.ONE);
     this.drawInstances(1);
     if (mark) mark('lights');
@@ -357,12 +503,54 @@ export class Renderer {
   }
 
   private drawInstances(which: 0 | 1): void {
-    const g = this.gl.gl;
     const batch = which === 0 ? this.pen.box : this.pen.glow;
     if (which === 0) this.stats.surfaces = batch.count;
     else this.stats.lights = batch.count;
-    if (batch.count === 0 || !batch.buffer) return;
-    g.bindVertexArray(this.instanceVaos[which]);
+    if (batch.count === 0) return;
+    this.drawBatch(this.instanceVaos[which], batch);
+  }
+
+  /**
+   * Draws one layer of theme sprites: `which` 0 in front of the surfaces, 1 beneath them. Nothing
+   * happens while the layer is empty, which is every frame for a player in the stock look.
+   */
+  private drawSprites(which: 0 | 1): void {
+    const batch = which === 0 ? this.spriteFront : this.spriteBack;
+    if (which === 0) this.stats.sprites = batch.count;
+    else this.stats.spritesUnder = batch.count;
+    if (batch.count === 0) return;
+    if (!this.progSprite) {
+      if (this.spritesBroken) return;
+      try {
+        this.progSprite = this.gl.program('sprite', SPRITE_VERT, SPRITE_FRAG);
+      } catch (error) {
+        // The game's own shapes never run this program, so its failure costs a theme its looks
+        // and nothing else. Reported like a scene that will not compile.
+        console.error(error);
+        this.faults.push(error);
+        this.spritesBroken = true;
+        return;
+      }
+    }
+    const g = this.gl.gl;
+    g.useProgram(this.progSprite);
+    const { layout, time } = this.lastInput;
+    const dpr = layout.dpr;
+    const view = this.lastView;
+    g.uniform4f(this.gl.uniform(this.progSprite, 'uView'), view.scale * dpr, view.tx * dpr, view.ty * dpr, 0);
+    g.uniform2f(this.gl.uniform(this.progSprite, 'uResolution'), this.width, this.height);
+    g.uniform1f(this.gl.uniform(this.progSprite, 'uTime'), time);
+    g.uniform1f(this.gl.uniform(this.progSprite, 'uPixel'), 1 / (view.scale * dpr));
+    this.drawBatch(this.spriteVaos[which], batch);
+    // Back to the game's own program: its uniforms were set once above and live on the program.
+    g.useProgram(this.progInstance);
+  }
+
+  /** Uploads one instance batch and draws it with whatever program is current. */
+  private drawBatch(vao: WebGLVertexArrayObject, batch: InstanceBatch): void {
+    const g = this.gl.gl;
+    if (!batch.buffer) return;
+    g.bindVertexArray(vao);
     g.bindBuffer(g.ARRAY_BUFFER, batch.buffer);
     g.bufferSubData(g.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * INSTANCE_STRIDE));
     g.drawArraysInstanced(g.TRIANGLE_STRIP, 0, 4, batch.count);

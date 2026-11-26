@@ -1182,7 +1182,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       trial: 'Trial',
       trialOn: 'On trial',
     },
-    skinGroup: { ball: 'Ball skins', paddle: 'Paddle skins', bg: 'Backdrop theme' },
+    skinGroup: { themes: 'Theme sets', ball: 'Ball skins', paddle: 'Paddle skins', bg: 'Backdrop theme' },
     skin: {
       classic: { name: 'Classic', desc: 'The stock white ball, untouched.' },
       startrail: { name: 'Startrail', desc: 'A cold cyan-white comet tail, like a star crossing the night.' },
@@ -1194,6 +1194,61 @@ export const en: UiDict & { content: ContentOverrides } = {
       frostline: { name: 'Frostline', desc: 'Paddle skin: an ice-blue steel body, cold as frost.' },
       duskveil: { name: 'Duskveil', desc: 'Paddle skin: dusk purple settling onto one paddle.' },
       neon: { name: 'Neon Arcade', desc: 'Backdrop theme: shifts every chapter\u2019s colours into neon.' },
+      sakura_paddle: {
+        name: 'Sakura Fan',
+        desc: 'Paddle theme: a fan of pink light with blossom ribs at each end, shedding petals as it moves.',
+      },
+      sakura_ball: {
+        name: 'Sakura Core',
+        desc: 'Ball theme: a pink-white core in a pale halo, its trail turning to falling petals.',
+      },
+      sakura_bg: {
+        name: 'Sakura Night Garden',
+        desc: 'Backdrop theme: a garden under the moon, with far hills, stone lanterns, a small bridge and blossom coming down.',
+      },
+      ocean_paddle: {
+        name: 'Neptune Flow',
+        desc: 'Paddle theme: water gathered into a bar of light, curling up at both ends and trailing bubbles.',
+      },
+      ocean_ball: {
+        name: 'Abyss Crystal',
+        desc: 'Ball theme: a glowing blue crystal inside a skin of water, leaving a trail of bubbles.',
+      },
+      ocean_bg: {
+        name: 'Sunken Temple',
+        desc: 'Backdrop theme: a temple asleep in shafts of daylight, with coral and weed.',
+      },
+      forest_paddle: {
+        name: 'Elven Bough',
+        desc: 'Paddle theme: a bending bough with leaves along its sides and a life gem at its heart.',
+      },
+      forest_ball: {
+        name: 'Life Gem',
+        desc: 'Ball theme: a green gem with energy flowing inside, fireflies in its wake.',
+      },
+      forest_bg: {
+        name: 'Enchanted Forest',
+        desc: 'Backdrop theme: old trees, vines and a waterfall, sun through the leaves, fireflies adrift.',
+      },
+    },
+    theme: {
+      buySet: 'Exchange set',
+      complete: 'Finish the set',
+      wear: 'Wear the set',
+      worn: 'Set worn',
+      part: { paddle: 'Paddle', ball: 'Ball', bg: 'Backdrop' },
+      sakura: {
+        name: 'Sakura Fantasy',
+        desc: 'A garden of night blossom in pink and violet: the Sakura Fan, the Sakura Core and a full moon.',
+      },
+      ocean: {
+        name: 'Ocean Fantasy',
+        desc: 'A dream of the sea floor in blue and teal: Neptune Flow, the Abyss Crystal and a sunken ruin.',
+      },
+      forest: {
+        name: 'Forest Fantasy',
+        desc: 'A healing wood in green: the Elven Bough, the Life Gem and a glade full of light.',
+      },
     },
     ms: {
       perfect: 'First perfect catch｜Return a ball dead-centre on the paddle',

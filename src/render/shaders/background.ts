@@ -1,4 +1,4 @@
-/** Background: a low-resolution procedural nebula, composited at full resolution with stars and a perspective grid. */
+/** Background: a low-resolution procedural nebula, composited at full resolution with stars and a perspective grid. With a theme worn, the theme's scene takes the nebula's place and only the arena's plate is laid over it (see `render/themes`). */
 
 export const NEBULA_FRAG = `#version 300 es
 precision highp float;
@@ -80,6 +80,8 @@ uniform vec3 uAccent;
 uniform float uEnergy;
 // 0..1, how close the brick field is to the danger line
 uniform float uDanger;
+// 1 when a theme's scene stands in for the nebula: no stars, no grid, and a softer arena plate.
+uniform float uThemed;
 
 out vec4 outColor;
 
@@ -99,39 +101,53 @@ void main() {
   vec2 px = vec2(vUv.x, 1.0 - vUv.y) * uRes / uDpr;
   vec3 col = texture(uNebula, vUv).rgb;
 
-  // Two parallax layers of twinkling stars.
-  for (int layer = 0; layer < 2; layer++) {
-    float scale = layer == 0 ? 52.0 : 27.0;
-    vec2 g = px / scale + vec2(uTime * (layer == 0 ? 0.010 : 0.026), float(layer) * 3.7);
-    vec2 cell = floor(g);
-    vec2 f = fract(g);
-    float h = hash21(cell + float(layer) * 17.0);
-    vec2 pos = vec2(hash21(cell + 3.1), hash21(cell + 7.7));
-    float dist = length(f - pos) * scale;
-    float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + h * 3.0) + h * 40.0);
-    float star = (1.0 - smoothstep(0.0, 1.2 + h * 1.5, dist)) * step(0.84, h) * twinkle;
-    col += mix(vec3(0.6, 0.85, 1.0), uAccent, h) * star * (layer == 0 ? 0.5 : 0.9);
-  }
-
-  // Perspective floor scrolling towards the viewer.
-  float horizon = uRes.y / uDpr * 0.36;
-  float z = (px.y - horizon) / max(horizon, 1.0);
-  if (z > 0.0) {
-    float depth = 1.0 / (z + 0.035);
-    vec2 g = vec2((px.x - uArena.x) / horizon * depth, depth * 1.6 + uTime * 0.4);
-    vec2 gf = abs(fract(g) - 0.5);
-    float aa = max(fwidth(g.x), fwidth(g.y));
-    float line = 1.0 - smoothstep(0.012, 0.012 + aa, min(gf.x, gf.y));
-    float fade = smoothstep(0.0, 0.1, z) * (1.0 - smoothstep(0.7, 1.0, z) * 0.45);
-    col += uAccent * line * 0.13 * fade * (0.7 + 0.6 * uEnergy);
-  }
-
-  // The arena is a darker plate so neon bricks read against it; a soft shadow separates it from the sky.
   vec2 ap = px - uArena.xy;
   float ad = sdRoundBox(ap, uArena.zw + vec2(6.0), 22.0);
-  float inside = 1.0 - smoothstep(-1.5, 1.5, ad);
-  col = mix(col, col * 0.34 + uAccent * 0.022, inside);
-  col *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, 54.0, abs(ad))) * (1.0 - inside);
+  // How much of the arena's darker plate a pixel takes: set by either branch below.
+  float inside = 0.0;
+
+  if (uThemed < 0.5) {
+    // Two parallax layers of twinkling stars.
+    for (int layer = 0; layer < 2; layer++) {
+      float scale = layer == 0 ? 52.0 : 27.0;
+      vec2 g = px / scale + vec2(uTime * (layer == 0 ? 0.010 : 0.026), float(layer) * 3.7);
+      vec2 cell = floor(g);
+      vec2 f = fract(g);
+      float h = hash21(cell + float(layer) * 17.0);
+      vec2 pos = vec2(hash21(cell + 3.1), hash21(cell + 7.7));
+      float dist = length(f - pos) * scale;
+      float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + h * 3.0) + h * 40.0);
+      float star = (1.0 - smoothstep(0.0, 1.2 + h * 1.5, dist)) * step(0.84, h) * twinkle;
+      col += mix(vec3(0.6, 0.85, 1.0), uAccent, h) * star * (layer == 0 ? 0.5 : 0.9);
+    }
+
+    // Perspective floor scrolling towards the viewer.
+    float horizon = uRes.y / uDpr * 0.36;
+    float z = (px.y - horizon) / max(horizon, 1.0);
+    if (z > 0.0) {
+      float depth = 1.0 / (z + 0.035);
+      vec2 g = vec2((px.x - uArena.x) / horizon * depth, depth * 1.6 + uTime * 0.4);
+      vec2 gf = abs(fract(g) - 0.5);
+      float aa = max(fwidth(g.x), fwidth(g.y));
+      float line = 1.0 - smoothstep(0.012, 0.012 + aa, min(gf.x, gf.y));
+      float fade = smoothstep(0.0, 0.1, z) * (1.0 - smoothstep(0.7, 1.0, z) * 0.45);
+      col += uAccent * line * 0.13 * fade * (0.7 + 0.6 * uEnergy);
+    }
+
+    // The arena is a darker plate so neon bricks read against it; a soft shadow separates it from the sky.
+    inside = 1.0 - smoothstep(-1.5, 1.5, ad);
+    col = mix(col, col * 0.34 + uAccent * 0.022, inside);
+    col *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, 54.0, abs(ad))) * (1.0 - inside);
+  } else {
+    // A theme's scene gets the same darker plate, feathered wide, so a bough or a gate that
+    // straddles the arena's edge fades across it instead of being cut by it. It is darkest over
+    // the brick field (the arena's upper half), where the bricks must win every comparison, and
+    // lets a little more of the scene through below the danger line, where only the balls fly.
+    inside = 1.0 - smoothstep(-18.0, 18.0, ad);
+    float overBricks = smoothstep(-0.2, 0.5, -ap.y / uArena.w);
+    col = mix(col, col * mix(0.40, 0.20, overBricks) + uAccent * 0.012, inside);
+    col *= 1.0 - 0.35 * (1.0 - smoothstep(18.0, 78.0, abs(ad))) * (1.0 - inside);
+  }
 
   // Danger wash along the bottom of the arena as the field closes in.
   float dz = smoothstep(uArena.w * 0.42, uArena.w, ap.y) * inside;

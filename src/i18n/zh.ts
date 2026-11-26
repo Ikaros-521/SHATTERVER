@@ -545,7 +545,7 @@ export const zh = {
       trial: '试用',
       trialOn: '试用中',
     },
-    skinGroup: { ball: '球体涂装', paddle: '弹板涂装', bg: '背景主题' },
+    skinGroup: { themes: '主题套装', ball: '球体涂装', paddle: '弹板涂装', bg: '背景主题' },
     skin: {
       classic: { name: '原色', desc: '最初的白色球体，不加任何修饰。' },
       startrail: { name: '星轨', desc: '冷白青的拖尾，像一颗星划过夜空。' },
@@ -557,6 +557,34 @@ export const zh = {
       frostline: { name: '霜线', desc: '弹板涂装：冰蓝钢体，冷冽如霜。' },
       duskveil: { name: '暮帷', desc: '弹板涂装：暮色的紫落在一块板上。' },
       neon: { name: '霓虹回廊', desc: '背景主题：每章的底色与强调色做霓虹偏移。' },
+      sakura_paddle: {
+        name: '樱花魔法扇',
+        desc: '弹板主题：粉色能量扇面，两端展开樱花扇骨，移动时洒落花瓣。',
+      },
+      sakura_ball: { name: '樱花核心', desc: '球体主题：粉白能量核心带着淡粉光环，拖尾化作飘落的花瓣。' },
+      sakura_bg: { name: '夜樱庭院', desc: '背景主题：月下的庭园，远山、石灯笼与小桥，樱花缓缓飘落。' },
+      ocean_paddle: {
+        name: '海神水流',
+        desc: '弹板主题：凝聚的水元素能量，两端水流向上卷曲，移动时冒出气泡。',
+      },
+      ocean_ball: { name: '深海水晶', desc: '球体主题：蓝色发光水晶裹在透明水球里，拖着气泡前行。' },
+      ocean_bg: { name: '深海遗迹', desc: '背景主题：海面透下的光束里，沉睡的海底神殿、珊瑚与海草。' },
+      forest_paddle: {
+        name: '精灵树枝',
+        desc: '弹板主题：一根弯曲的魔法树枝，两侧生着叶片，中央嵌着生命宝石。',
+      },
+      forest_ball: { name: '生命宝石', desc: '球体主题：绿色生命宝石，内部流淌着能量，身后跟着萤火。' },
+      forest_bg: { name: '魔法森林', desc: '背景主题：古树、藤蔓与瀑布的魔法森林，阳光穿过树叶，萤火漂浮。' },
+    },
+    theme: {
+      buySet: '兑换套装',
+      complete: '补齐套装',
+      wear: '一键装备',
+      worn: '套装已装备',
+      part: { paddle: '弹板', ball: '球体', bg: '背景' },
+      sakura: { name: '樱花物语', desc: '粉紫色的夜樱庭院：樱花魔法扇、樱花核心与一轮明月。' },
+      ocean: { name: '深海秘境', desc: '蓝青色的梦幻海底：海神水流、深海水晶与光束下的遗迹。' },
+      forest: { name: '精灵森林', desc: '绿色的治愈森林：精灵树枝、生命宝石与洒满光束的林间空地。' },
     },
     ms: {
       perfect: '初次完美接球｜用挡板正中接回一颗球',

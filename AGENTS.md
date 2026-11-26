@@ -131,6 +131,9 @@ pnpm test          # 全量测试，含文案词汇守门
 | `scripts/encode-blocklist.mjs`    | 重新生成编码词表                                                      |
 | `scripts/check-package.mjs`       | 发布包扫描（词表 + 站外 + 夸大表达）                                  |
 | `promo/scripts/make_og_cover.mjs` | 网页版 og 封面重生成（勿手改 PNG，不进提审包）                        |
+| `src/render/themes/`              | 主题皮肤系统（目录、美术、绘制器、运行时——见第八节）                  |
+| `src/render/shaders/sprites.ts`   | 主题精灵的独立着色器程序（按需编译，不进 `instances.ts`）             |
+| `tests/themes.test.ts`            | 主题目录、判定、存档、「不改物理」与文案的守门                        |
 
 ## 七、改名的连锁点
 
@@ -141,3 +144,25 @@ pnpm test          # 全量测试，含文案词汇守门
 - 更新日志 `src/i18n/zh.ts` 的 `changelog.versions`（若点名了该强化）
 
 `rg '旧名' src tests` 确认无残留后再构建。
+
+主题部件或套装改名时：中文母本在 `src/render/themes/facts/<id>.ts`，四语在 `src/i18n/*.ts` 的
+`shop.theme.<id>` 与 `shop.skin.<id>_{paddle,ball,bg}`（中文须与母本逐字一致，测试会比对）。
+
+## 八、主题皮肤系统（`src/render/themes/`）
+
+三套主题（樱花物语 / 深海秘境 / 精灵森林）各含弹板、球体、背景三个部件，可单件兑换与装备，
+也可整套装一键装备。全部程序化绘制，没有图片资源。
+
+- **目录与美术分离**：`ids.ts`（标识符）→ `facts/<id>.ts`（名称、价格、配色）→ `catalog.ts`
+  （货架与兑换 / 装备判定）。商店、存档、钱包镜像**只**依赖这条链，不含任何着色器源码。
+  `art/<id>.ts`（背景 GLSL + 粒子配方）、`paint/<id>.ts`（弹板 / 球体绘制器）、`index.ts`（注册表）
+  只有 WebGL 渲染层才加载。微信小游戏包目前不带主题场景——别把 `art/` 接进 `catalog.ts` 或
+  `render/skins.ts`。
+- **不动原有渲染**：`shaders/instances.ts`（砖块、挡板、光晕）保持原样。主题精灵走独立程序
+  `shaders/sprites.ts`，只在该帧确有精灵时才编译；编译失败只让主题退回原版弹板 / 球体，不影响
+  游戏。物理、碰撞、输入一律不碰——`tests/themes.test.ts` 有「穿戴全套主题后模拟逐位一致」的守门。
+- **新增一套主题**：`ids.ts` 的 `THEME_IDS` → `facts/<id>.ts` → `art/<id>.ts` → `paint/<id>.ts` →
+  `catalog.ts` 的 `THEME_FACTS` 与 `index.ts` 的 `ART` / `PAINTERS` → 四语字典的 `shop.theme.<id>`
+  与 `shop.skin.<id>_{paddle,ball,bg}` → `src/ui/themeArt.ts` 的缩略图（纯图形，不含文字）。
+  游戏核心、商店逻辑、存档格式都不用改。
+- 主题文案同样遵守第二节（含 2.3 的「兑换、不谈钱」）；`tests/themes.test.ts` 对主题文案单独守门。

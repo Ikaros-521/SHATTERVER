@@ -30,8 +30,20 @@ import type { World } from './game/world';
 import { Fx, particleCapacity, type FxSettings } from './render/fx';
 import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './render/governor';
 import { computeLayout, type Layout } from './render/layout';
-import { Renderer, type Palette } from './render/renderer';
+import { Renderer, type Palette, type ThemeFrame } from './render/renderer';
 import { drawScene, type BallSkinOverride, type PaddleSkinOverride, type SceneInfo } from './render/scene';
+import { THEMES } from './render/themes';
+import {
+  canBuyTheme,
+  canEquipTheme,
+  isThemeId,
+  themeMissing,
+  themePart,
+  themePartId,
+  themeRemainder,
+} from './render/themes/catalog';
+import { ThemeLayer, themeDt, type ThemeSlots } from './render/themes/layer';
+import type { ThemeConfig } from './render/themes/types';
 import {
   applyBgSkin,
   canBuySkin,
@@ -160,6 +172,8 @@ export class App implements UiActions {
   readonly save: SaveData;
   readonly audio = new AudioDirector();
   readonly fx: Fx;
+  /** The cosmetic theme layer: what is worn in each slot, its particles and its parallax. */
+  private readonly theme: ThemeLayer;
   readonly ui: UI;
   /**
    * The cloud leaderboard mirror, or null when the feature is off. The backing service is picked
@@ -224,10 +238,16 @@ export class App implements UiActions {
   private readonly frameTimes = new FrameTimes();
   /** When the last frame was drawn. Idle screens are redrawn at a low rate (see `frame`). */
   private lastRender = 0;
+  /** How many of the renderer's shader faults have already reached `debug.errors`. */
+  private faultsSeen = 0;
 
   /** Handle for automated inspection and for setting up specific builds while tuning. Exposed on `window`. */
   readonly debug = {
-    /** Uncaught errors and rejections, collected by `main.ts`. Should stay empty. */
+    /**
+     * Everything that went wrong. Uncaught errors and rejections arrive here through `main.ts`
+     * and the frame loop; the shader faults the renderer swallowed (a theme scene that fell back
+     * to the stock sky) are folded in as each frame renders. Should stay empty.
+     */
     errors: [] as unknown[],
     advance: (seconds: number): void => this.advance(seconds),
     grant: (id: string, levels = 1): boolean => this.session.grant(id, levels),
@@ -309,6 +329,25 @@ export class App implements UiActions {
         : null,
     /** The 星尘 wallet, purchases, loadout and milestone progress. For tests and tuning. */
     economy: (): Record<string, unknown> => ({ ...this.save.economy }),
+    /** What is worn on the paddle, the ball and the background, and every skin owned. */
+    skins: (): Record<string, unknown> => ({
+      paddle: this.save.economy.skinPaddle,
+      ball: this.save.economy.skinBall,
+      bg: this.save.economy.skinBg,
+      owned: [...this.save.economy.skins],
+      /** The themes actually drawn this frame, by slot: null is the stock look. */
+      worn: {
+        paddle: this.theme.slots().paddle?.id ?? null,
+        ball: this.theme.slots().ball?.id ?? null,
+        bg: this.theme.slots().bg?.id ?? null,
+      },
+      /** Theme particles in flight, and how many drift in the background layer. */
+      particles: this.theme.particles,
+      ambient: this.theme.ambientCount,
+    }),
+    /** For tests: equips as the shop's buttons do, with the same ownership rules. */
+    equipSkin: (id: string | null, kind: 'ball' | 'paddle' | 'bg'): boolean => this.equipSkin(id, kind),
+    equipTheme: (id: string | null): boolean => this.equipTheme(id),
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -349,6 +388,7 @@ export class App implements UiActions {
     this.governor = new QualityGovernor(wanted, start);
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
     this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
+    this.theme = new ThemeLayer(this.governor.current.quality);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.ui = new UI(this, this.audio, this.save);
     this.refreshLayout();
@@ -459,11 +499,12 @@ export class App implements UiActions {
     this.ui.announceLevel(session);
   }
 
-  /** Connects one world to effects and sound, and (for real runs) to the HUD call-outs. */
+  /** Connects one world to effects, the theme layer and sound, and (for real runs) to the HUD call-outs. */
   private wireWorld(world: World, demo: boolean): void {
     this.dropWorldWires();
     this.fx.clear();
-    this.worldWires.push(this.fx.attach(world), this.audio.attach(world));
+    this.theme.clear();
+    this.worldWires.push(this.fx.attach(world), this.audio.attach(world), this.theme.attach(world));
     if (this.autopilot) world.bot = true;
     if (!demo) this.worldWires.push(this.wireCallouts(world));
     this.lastDamage = world.totalDamage;
@@ -741,6 +782,7 @@ export class App implements UiActions {
     storeSave(this.save);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
     this.fx.applySettings(this.fxSettings());
+    this.theme.setQuality(this.governor.current.quality);
   }
 
   // ───────────────────────────── 星尘商店 (called by the UI) ─────────────────────────────
@@ -772,7 +814,7 @@ export class App implements UiActions {
     return true;
   }
 
-  /** Spends 星尘 on a cosmetic skin. The verdict itself is a pure function (see `render/skins`). */
+  /** Spends 星尘 on a cosmetic skin — a recolouring, or one part of a theme. The verdict itself is a pure function (see `render/skins`). */
   buySkin(id: string): boolean {
     const econ = this.save.economy;
     if (!canBuySkin(econ.stardust, econ.skins, id)) return false;
@@ -780,6 +822,49 @@ export class App implements UiActions {
     econ.skins.push(id);
     if (econ.wishlist === id) econ.wishlist = null;
     storeSave(this.save);
+    this.pushWallet();
+    return true;
+  }
+
+  /**
+   * Spends 星尘 on a whole theme at once: every part of it the wallet lacks, at the set price
+   * less what its owned parts already cost. The verdict is a pure function (see
+   * `render/themes/catalog`); the parts land in the same list a single purchase would put them.
+   */
+  buyTheme(id: string): boolean {
+    if (!isThemeId(id)) return false;
+    const econ = this.save.economy;
+    if (!canBuyTheme(econ.stardust, econ.skins, id)) return false;
+    econ.stardust -= themeRemainder(econ.skins, id);
+    for (const kind of themeMissing(econ.skins, id)) {
+      const part = themePartId(id, kind);
+      econ.skins.push(part);
+      if (econ.wishlist === part) econ.wishlist = null;
+    }
+    storeSave(this.save);
+    this.pushWallet();
+    return true;
+  }
+
+  /**
+   * Wears a theme whole — its paddle, its ball and its background in the three slots at once —
+   * or, with null, takes every theme off and returns all three to the stock look. Wearing is
+   * only ever a change of what is drawn: nothing in the run is touched.
+   */
+  equipTheme(id: string | null): boolean {
+    const econ = this.save.economy;
+    if (id === null) {
+      econ.skinPaddle = null;
+      econ.skinBall = null;
+      econ.skinBg = null;
+    } else {
+      if (!isThemeId(id) || !canEquipTheme(econ.skins, id)) return false;
+      econ.skinPaddle = themePartId(id, 'paddle');
+      econ.skinBall = themePartId(id, 'ball');
+      econ.skinBg = themePartId(id, 'bg');
+    }
+    storeSave(this.save);
+    this.pushWallet();
     return true;
   }
 
@@ -1247,6 +1332,8 @@ export class App implements UiActions {
         const world = this.session.world;
         const timeScale = this.fx.update(dt, world);
         this.session.update(dt * timeScale);
+        // The theme follows the same slowed clock as the gameplay FX, after the world has moved.
+        this.theme.update(themeDt(dt, timeScale), world);
         this.tick(dt);
         // Damage per second as a short exponential average: it should jump on a burst and settle quickly.
         const dealt = Math.max(0, world.totalDamage - this.lastDamage);
@@ -1286,7 +1373,10 @@ export class App implements UiActions {
     this.frameTimes.push(rawMs);
     const event = this.governor.frame(rawMs);
     if (!event) return;
-    if (event.stepped || event.gaveUp) this.fx.applySettings(this.fxSettings());
+    if (event.stepped || event.gaveUp) {
+      this.fx.applySettings(this.fxSettings());
+      this.theme.setQuality(this.governor.current.quality);
+    }
     if (event.relieved) {
       // The step measurably helped, so it is what this device can sustain: start here next time
       // instead of stumbling through the same seconds of stutter again.
@@ -1330,25 +1420,62 @@ export class App implements UiActions {
 
   /** The equipped ball skin as a draw-time override, or null for the free stock look 「原色」. */
   private ballSkin(): BallSkinOverride | null {
+    // A theme's ball wears the theme's glow colours, and says how much of the stock glow it wants.
+    const theme = this.theme.slots().ball;
+    if (theme) {
+      return {
+        glow: theme.ball.glow.glow,
+        trail: theme.ball.glow.trail,
+        core: theme.ball.glow.core,
+        halo: theme.ball.halo,
+      };
+    }
     const id = this.save.economy.skinBall;
     const def = isBallSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
-    return def && def.kind === 'ball'
+    return def && def.kind === 'ball' && 'colors' in def
       ? { glow: def.colors.glow, trail: def.colors.trail, core: def.colors.core }
       : null;
   }
 
-  /** The equipped paddle skin as a draw-time override, or null for the stock paddle. */
+  /** The equipped paddle skin as a draw-time override, or null for the stock paddle. A theme's paddle draws itself. */
   private paddleSkin(): PaddleSkinOverride | null {
     const id = this.save.economy.skinPaddle;
     const def = isPaddleSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
-    return def && def.kind === 'paddle' ? { body: def.colors.body, glow: def.colors.glow } : null;
+    return def && def.kind === 'paddle' && 'colors' in def
+      ? { body: def.colors.body, glow: def.colors.glow }
+      : null;
   }
 
-  /** The equipped backdrop theme, or null for the chapters' own palettes. */
+  /** The equipped backdrop recolouring, or null for the chapters' own palettes (and for a theme's scene). */
   private bgSkin(): BgSkinDef | null {
     const id = this.save.economy.skinBg;
     const def = isBgSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
-    return def && def.kind === 'bg' ? def : null;
+    return def && def.kind === 'bg' && 'transform' in def ? def : null;
+  }
+
+  /**
+   * The themes the save's equips add up to, slot by slot. Each slot is read on its own, so the
+   * paddle, the ball and the background may come from three different themes — or from none. An
+   * equipped id that was never bought reads as nothing worn, the same as for a plain skin.
+   */
+  private wornThemes(): ThemeSlots {
+    const econ = this.save.economy;
+    const owned = econ.skins;
+    const worn = (id: string | null, kind: 'paddle' | 'ball' | 'bg'): ThemeConfig | null => {
+      if (!id || !owned.includes(id)) return null;
+      const part = themePart(id);
+      return part && part.kind === kind ? THEMES.get(part.theme) : null;
+    };
+    // A themed paddle and ball are made of sprites. If their program would not compile on this
+    // device, those two slots read as the stock look — the ball then falls back to a recolouring
+    // or to plain — while the background's scene, which is another program, keeps drawing. A
+    // paddle missing its body would be worse than a plain one.
+    const bare = this.renderer.spritesBroken;
+    return {
+      paddle: bare ? null : worn(econ.skinPaddle, 'paddle'),
+      ball: bare ? null : worn(econ.skinBall, 'ball'),
+      bg: worn(econ.skinBg, 'bg'),
+    };
   }
 
   private render(time: number): void {
@@ -1356,12 +1483,50 @@ export class App implements UiActions {
     const chapter = CHAPTERS[world.level.chapter] ?? CHAPTERS[0];
     const view = this.fx.camera.view(this.layout);
     this.fx.resolveView(view);
-    // A backdrop theme runs the chapter palette through its fixed transform; no theme, no change.
-    const theme = this.bgSkin();
+    const layout = this.layout;
+    // Dress the theme layer first: everything below asks it what is worn.
+    this.theme.wear(this.wornThemes());
+    this.theme.begin({
+      width: layout.cssW,
+      height: layout.cssH,
+      scale: view.scale,
+      ox: view.tx,
+      oy: view.ty,
+      ax: layout.ax,
+      ay: layout.ay,
+      aw: layout.aw,
+      ah: layout.ah,
+    });
+    // A backdrop theme owns the frame's accent, and its scene takes the nebula's place. Its deep
+    // colours fill the palette anyway: should the scene ever fail to draw, the stock sky that
+    // stands in is at least the theme's own.
+    const scene = this.theme.slots().bg;
+    const theme = scene ? null : this.bgSkin();
     const skinned = theme ? applyBgSkin(chapter.bg, chapter.accent, theme) : null;
-    const palette: Palette = skinned
-      ? { a: skinned.bg[0], b: skinned.bg[1], c: skinned.bg[2], accent: skinned.accent }
-      : { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
+    const palette: Palette = scene
+      ? {
+          a: scene.colors.depths[0],
+          b: scene.colors.depths[1],
+          c: scene.colors.depths[2],
+          accent: scene.colors.accent,
+        }
+      : skinned
+        ? { a: skinned.bg[0], b: skinned.bg[1], c: skinned.bg[2], accent: skinned.accent }
+        : { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
+    // The scene is the one full-screen pass a theme adds, so it is where the quality steps bite:
+    // the low step draws it at a third of the resolution, with less detail, every other frame.
+    const low = this.governor.current.quality === 'low';
+    const background: ThemeFrame | null =
+      scene === null
+        ? null
+        : {
+            id: scene.id,
+            frag: scene.bg.frag,
+            parallax: this.theme.drift,
+            detail: low ? 0 : 1,
+            scale: low ? 3 : 2,
+            refresh: low ? 2 : 1,
+          };
     this.renderer.pen.reset();
     drawScene(
       this.renderer.pen,
@@ -1372,8 +1537,23 @@ export class App implements UiActions {
       this.info,
       this.ballSkin(),
       this.paddleSkin(),
+      this.theme.active ? this.theme : null,
+      // A theme's background owns the frame around it and the colour of a plain bounce.
+      scene?.colors.accent ?? null,
     );
-    this.renderer.render({ layout: this.layout, time, palette, view, post: this.fx.post, info: this.info });
+    this.renderer.render({
+      layout,
+      time,
+      palette,
+      view,
+      post: this.fx.post,
+      info: this.info,
+      theme: background,
+    });
+    // A theme scene that would not compile is swallowed by the renderer, for the player's sake;
+    // an automated run still has to see it.
+    for (const fault of this.renderer.faults.slice(this.faultsSeen)) this.debug.errors.push(fault);
+    this.faultsSeen = this.renderer.faults.length;
   }
 
   // ───────────────────────────── debug hooks ─────────────────────────────
@@ -1394,6 +1574,7 @@ export class App implements UiActions {
       const world = this.session.world;
       const timeScale = this.fx.update(step, world);
       this.session.update(step * timeScale);
+      this.theme.update(themeDt(step, timeScale), world);
       this.tick(step);
     }
     this.render(performance.now() / 1000);
@@ -1422,6 +1603,14 @@ export class App implements UiActions {
       balls: world.balls.length,
       combo: world.combo,
       paddleX: Math.round(world.paddle.x),
+      /** Every ball in flight, as [x, y, ordinary] in world units, for pointing a camera at one. */
+      ballList: world.balls
+        .filter((ball) => ball.alive && !ball.docked)
+        .map((ball) => [
+          Math.round(ball.x),
+          Math.round(ball.y),
+          Number(!(ball.clone || ball.child || ball.ghost || ball.emp > 0)),
+        ]),
       energy: +world.energy.toFixed(1),
       overdrive: world.odActive,
       timeStop: +world.timeStop.toFixed(2),
@@ -1443,6 +1632,26 @@ export class App implements UiActions {
       build: this.session.run.upgrades,
       draft: this.session.draft.map((def) => def.id),
       particles: this.fx.particles.alive,
+      /** Where the arena sits in the window (CSS px), the window itself, and the pixel ratio in use. */
+      arena: {
+        ax: Math.round(this.layout.ax),
+        ay: Math.round(this.layout.ay),
+        aw: Math.round(this.layout.aw),
+        ah: Math.round(this.layout.ah),
+        w: this.layout.cssW,
+        h: this.layout.cssH,
+        dpr: +this.layout.dpr.toFixed(3),
+        portrait: this.layout.portrait,
+      },
+      /** The themes drawn this frame, by slot: null is the stock look. */
+      skins: {
+        paddle: this.theme.slots().paddle?.id ?? null,
+        ball: this.theme.slots().ball?.id ?? null,
+        bg: this.theme.slots().bg?.id ?? null,
+      },
+      /** Theme particles in flight, and how many drift in the background layer. */
+      themeParticles: this.theme.particles,
+      ambient: this.theme.ambientCount,
       draw: { ...this.renderer.stats },
       hdr: this.renderer.gl.hdr,
       audio: this.audio.status,

@@ -51,13 +51,31 @@ import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
-import { applyBgSkin, SKINS, defaultBallSkin, defaultPaddleSkin, type SkinKind } from '../render/skins';
+import {
+  canBuyTheme,
+  THEME_FACTS,
+  themeMissing,
+  themePartId,
+  themeRemainder,
+  type ThemeId,
+} from '../render/themes/catalog';
+import type { ThemeFacts, ThemePartKind } from '../render/themes/types';
+import {
+  applyBgSkin,
+  SKINS,
+  THEME_PARTS,
+  defaultBallSkin,
+  defaultPaddleSkin,
+  type SkinKind,
+  type ThemePartSkinDef,
+} from '../render/skins';
 import { Changelog, changelogUnseen } from './changelog';
 import { CloudPanel } from './cloud';
-import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
+import { byId, el, hexCss, keep, rgbaCss, scoreEl, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
 import { NicknamePrompt, shouldAskNickname } from './nickname';
 import { sigil } from './sigil';
+import { themeArt, themeArtId, themePartArtId } from './themeArt';
 import { shouldAutoShow, Tutorial } from './tutorial';
 
 /** Everything the UI can ask the app to do. The UI never touches a session or the renderer directly. */
@@ -80,6 +98,13 @@ export interface UiActions {
   buySkin(id: string): boolean;
   /** Equips an owned skin of the kind; null clears back to the stock look. False when not owned. */
   equipSkin(id: string | null, kind: SkinKind): boolean;
+  /** Spends 星尘 on a whole theme: every part of it the wallet lacks. False when complete or unaffordable. */
+  buyTheme(id: string): boolean;
+  /**
+   * Wears a theme whole — its paddle, ball and background in the three slots at once — or, with
+   * null, returns every slot to the stock look. False when a part is not owned.
+   */
+  equipTheme(id: string | null): boolean;
   /** Points the menu/results nudge at a catalog item, or clears the nudge when it is the same one. */
   toggleWishlist(id: string): void;
   /** Toggles a supply in the carried loadout. False when unowned or the earned slots are full. */
@@ -799,8 +824,11 @@ export class UI implements HudHost {
     return [header, ...cards];
   }
 
-  /** The cosmetic shelf: the free stock ball look, four ball skins, one backdrop theme. */
-  /** The cosmetic shelf: ball looks, paddle looks and the backdrop theme, in labelled groups. */
+  /**
+   * The cosmetic shelf. Themes come first, each as one card for the whole set, then the three
+   * shelves — ball, paddle, background — where every part is also sold and worn on its own,
+   * next to the recolourings. So one tap dresses a whole theme, and any mix of parts works too.
+   */
   private skinCards(): HTMLElement[] {
     const econ = this.save.economy;
     const classicCard = (
@@ -879,10 +907,15 @@ export class UI implements HudHost {
             : t(equipped ? 'shop.equipped' : 'shop.equip'),
       });
     });
+    const byKind = (kind: SkinKind): HTMLElement[] => [
+      ...cards.filter((_, i) => SKINS[i]!.kind === kind),
+      ...THEME_PARTS.filter((part) => part.kind === kind).map((part) => this.themePartCard(part)),
+    ];
     const head = (label: string): HTMLElement =>
       el('div', { class: 'shop-skin-head' }, el('span', { text: label }));
-    const byKind = (kind: SkinKind): HTMLElement[] => cards.filter((_, i) => SKINS[i]!.kind === kind);
     return [
+      head(t('shop.skinGroup.themes')),
+      ...THEME_FACTS.map((theme) => this.themeCard(theme)),
       head(t('shop.skinGroup.ball')),
       classicBall,
       ...byKind('ball'),
@@ -892,6 +925,128 @@ export class UI implements HudHost {
       head(t('shop.skinGroup.bg')),
       ...byKind('bg'),
     ];
+  }
+
+  /** A whole theme on one card: its preview, which of its three parts are owned, and the set's one button. */
+  private themeCard(theme: ThemeFacts<ThemeId>): HTMLElement {
+    const econ = this.save.economy;
+    const c = theme.colors;
+    const owned = (kind: ThemePartKind): boolean => econ.skins.includes(themePartId(theme.id, kind));
+    const complete = themeMissing(econ.skins, theme.id).length === 0;
+    const worn =
+      owned('paddle') &&
+      owned('ball') &&
+      owned('bg') &&
+      econ.skinPaddle === themePartId(theme.id, 'paddle') &&
+      econ.skinBall === themePartId(theme.id, 'ball') &&
+      econ.skinBg === themePartId(theme.id, 'bg');
+    const left = themeRemainder(econ.skins, theme.id);
+    const part = (kind: ThemePartKind, label: string): HTMLElement =>
+      el(
+        'span',
+        { class: `shop-theme-part${owned(kind) ? ' owned' : ''}` },
+        el('i', {}),
+        el('span', { text: label }),
+      );
+    const side: HTMLElement[] = [];
+    if (complete) {
+      // Owned: one tap wears the whole set; a second tap takes all three off again.
+      const wear = el(
+        'button',
+        { class: `shop-equip${worn ? ' on' : ''}`, type: 'button' },
+        el('span', { text: t(worn ? 'shop.theme.worn' : 'shop.theme.wear') }),
+      );
+      wear.addEventListener('click', () => {
+        if (!this.actions.equipTheme(worn ? null : theme.id)) this.audio.ui('deny');
+        else this.audio.ui('uiClick');
+        this.renderShop();
+      });
+      side.push(el('span', { class: 'shop-owned', text: t('shop.owned') }), wear);
+    } else {
+      // Nothing owned buys the set; something owned finishes it, for what is left of its price.
+      const begun = owned('paddle') || owned('ball') || owned('bg');
+      const buy = el(
+        'button',
+        {
+          class: `btn shop-buy${econ.stardust >= left ? '' : ' locked'}`,
+          type: 'button',
+          disabled: econ.stardust < left,
+        },
+        el('span', { text: t(begun ? 'shop.theme.complete' : 'shop.theme.buySet') }),
+        el('span', { class: 'cost', text: t('shop.stardustLine', { n: formatNumber(left) }) }),
+      );
+      buy.addEventListener('click', () => {
+        if (this.actions.buyTheme(theme.id)) this.audio.ui('pick');
+        else this.audio.ui('deny');
+        this.renderShop();
+      });
+      side.push(buy);
+    }
+    return el(
+      'article',
+      {
+        class: `shop-theme${complete ? ' owned' : ''}${worn ? ' worn' : ''}`,
+        style: `--c:${hexCss(c.accent)};--c3:${hexCss(c.primary)};--glow:${rgbaCss(c.primary, 0.14)}`,
+      },
+      el(
+        'div',
+        { class: 'shop-theme-art' },
+        el('img', { src: themeArt(themeArtId(theme.id)) ?? '', alt: '', draggable: 'false' }),
+      ),
+      el(
+        'div',
+        { class: 'shop-body' },
+        el('h3', { class: 'shop-name', text: t(`shop.theme.${theme.id}.name`) }),
+        el('div', { class: 'shop-code', text: theme.en }),
+        el('p', { class: 'shop-desc', text: t(`shop.theme.${theme.id}.desc`) }),
+        el(
+          'div',
+          { class: 'shop-theme-parts' },
+          part('paddle', t('shop.theme.part.paddle')),
+          part('ball', t('shop.theme.part.ball')),
+          part('bg', t('shop.theme.part.bg')),
+        ),
+      ),
+      el('div', { class: 'shop-side' }, ...side),
+    );
+  }
+
+  /** One part of a theme on its shelf: bought and worn exactly like a recolouring, drawn by its theme. */
+  private themePartCard(part: ThemePartSkinDef): HTMLElement {
+    const econ = this.save.economy;
+    const theme = THEME_FACTS.find((entry) => entry.id === part.theme);
+    const owned = econ.skins.includes(part.id);
+    const equipped =
+      (part.kind === 'ball' && econ.skinBall === part.id) ||
+      (part.kind === 'paddle' && econ.skinPaddle === part.id) ||
+      (part.kind === 'bg' && econ.skinBg === part.id);
+    return this.shopItem({
+      id: part.id,
+      color: theme?.colors.accent ?? 0xe6faff,
+      glyph: themePartArtId(part.theme, part.kind),
+      name: t(`shop.skin.${part.id}.name`),
+      en: part.en,
+      desc: t(`shop.skin.${part.id}.desc`),
+      price: part.price,
+      owned,
+      ownedLabel: t('shop.owned'),
+      onBuy: () => this.actions.buySkin(part.id),
+      wishable: false,
+      // A background clears by being equipped again, as the backdrop theme does; paddle and ball
+      // parts clear through their free 「原色」 card.
+      onEquip: owned
+        ? () =>
+            part.kind === 'bg'
+              ? this.actions.equipSkin(equipped ? null : part.id, 'bg')
+              : this.actions.equipSkin(part.id, part.kind)
+        : undefined,
+      equipped,
+      equipLabel: !owned
+        ? t('shop.equip')
+        : part.kind === 'bg'
+          ? t(equipped ? 'shop.unequip' : 'shop.equip')
+          : t(equipped ? 'shop.equipped' : 'shop.equip'),
+    });
   }
 
   private progressRows(): HTMLElement[] {
@@ -995,7 +1150,12 @@ export class UI implements HudHost {
       el(
         'div',
         { class: 'shop-glyph' },
-        el('img', { src: sigil(opts.glyph, opts.color), alt: '', draggable: 'false' }),
+        // A theme part's tile shows the part itself; everything else gets its generated sigil.
+        el('img', {
+          src: themeArt(opts.glyph) ?? sigil(opts.glyph, opts.color),
+          alt: '',
+          draggable: 'false',
+        }),
       ),
       el(
         'div',
@@ -1146,11 +1306,13 @@ export class UI implements HudHost {
     const wish = this.wishlistLine();
     wishLine.hidden = wish === null;
     if (wish) setText(wishLine, wish);
-    // The badge marks something new to spend on: the unpaid first gift, or any affordable item.
+    // The badge marks something new to spend on: the unpaid first gift, or any affordable item —
+    // a single part of a theme, or what is left of a set (which can cost less than its last part).
     const affordable =
       PROTOCOLS.some((p) => !econ.protocols.includes(p.id) && econ.stardust >= p.price) ||
       SUPPLIES.some((s) => !econ.supplies.includes(s.id) && econ.stardust >= s.price) ||
-      SKINS.some((s) => !econ.skins.includes(s.id) && econ.stardust >= s.price);
+      [...SKINS, ...THEME_PARTS].some((s) => !econ.skins.includes(s.id) && econ.stardust >= s.price) ||
+      THEME_FACTS.some((theme) => canBuyTheme(econ.stardust, econ.skins, theme.id));
     const badge = byId('shop-badge');
     badge.hidden = !(affordable || !econ.firstGift);
     if (!badge.hidden) setText(badge, econ.firstGift ? t('shop.menuBadge') : t('shop.giftBadge'));

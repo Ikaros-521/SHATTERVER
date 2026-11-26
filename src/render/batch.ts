@@ -1,5 +1,6 @@
 import type { GlyphAtlas } from './textAtlas';
 import { SHAPE_BOX, SHAPE_GLOW, SHAPE_RING, SHAPE_STROKE } from './shaders/instances';
+import { FLAG_MIRROR } from './shaders/sprites';
 
 /** 0xRRGGBB, or an [r, g, b] triple for HDR colours that may exceed 1. */
 export type Color = number | readonly [number, number, number];
@@ -67,6 +68,24 @@ export interface BoxOptions {
   halo?: number;
 }
 
+/** What a theme sprite may say about itself beyond its place and colour. Each shape reads its own subset. */
+export interface SpriteOptions {
+  /** First shape parameter. */
+  p0?: number;
+  /** Second shape parameter. */
+  p1?: number;
+  /** Third shape parameter. */
+  p2?: number;
+  /** White flash, 0..1: the shape's lit colour pushed towards white. */
+  flash?: number;
+  /** Strength of the additive rim around the sprite, in HDR units. */
+  halo?: number;
+  /** Mirror the shape across its own vertical axis. */
+  mirror?: boolean;
+  /** World units of quad padding beyond the half extents, for rims that reach past the shape. */
+  pad?: number;
+}
+
 // Scratch for the current colour, so drawing helpers never allocate.
 let cr = 0;
 let cg = 0;
@@ -86,19 +105,43 @@ function split(color: Color): void {
 /**
  * Drawing helpers over the batches. All positions and sizes are world units, y down.
  * One `Pen` belongs to one frame.
+ *
+ * A pen has two layers for theme sprites, which are drawn in the alpha-blended pass with the
+ * surfaces: `sprite` on this pen goes in front of every surface (a themed paddle over the
+ * bricks), and the same call on {@link under} goes beneath them all (petals drifting behind the
+ * field). Everything else lands where it always did.
  */
 export class Pen {
+  /**
+   * The batch this pen's sprites go to: `spritesFront` for the pen itself, `spritesBack` for its
+   * `under`.
+   */
+  private readonly sprites: InstanceBatch;
+  /** The same pen, for what belongs beneath the surfaces. It is its own `under`. */
+  readonly under: Pen;
+
   constructor(
     readonly box: InstanceBatch,
     readonly glow: InstanceBatch,
     readonly text: TextBatch,
     readonly glyphs: GlyphAtlas,
-  ) {}
+    readonly spritesFront: InstanceBatch,
+    readonly spritesBack: InstanceBatch,
+    sprites: InstanceBatch = spritesFront,
+  ) {
+    this.sprites = sprites;
+    this.under =
+      sprites === spritesFront
+        ? new Pen(box, glow, text, glyphs, spritesFront, spritesBack, spritesBack)
+        : this;
+  }
 
   reset(): void {
     this.box.reset();
     this.glow.reset();
     this.text.reset();
+    this.spritesFront.reset();
+    this.spritesBack.reset();
   }
 
   /** Hard surface: bricks, the paddle, shards. `hw`/`hh` are the shape's half extents. */
@@ -141,10 +184,45 @@ export class Pen {
     rot = 0,
     core = 0,
   ): void {
-    const i = this.glow.reserve();
+    this.radial(this.glow, x, y, rx, ry, color, alpha, sharp, rot, core);
+  }
+
+  /**
+   * The same light, but ordered beneath every surface drawn after it: it goes into the
+   * alpha-blended batch, where the next brick simply paints over it. For layers that belong
+   * behind the play field (a theme's drifting lights), where `light` would sit on top of it all.
+   * It is a stock glow, so it needs no theme: the sprite program never draws it.
+   */
+  haze(
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    color: Color,
+    alpha = 1,
+    sharp = 0.5,
+    rot = 0,
+    core = 0,
+  ): void {
+    this.radial(this.box, x, y, rx, ry, color, alpha, sharp, rot, core);
+  }
+
+  private radial(
+    batch: InstanceBatch,
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    color: Color,
+    alpha: number,
+    sharp: number,
+    rot: number,
+    core: number,
+  ): void {
+    const i = batch.reserve();
     if (i < 0) return;
     split(color);
-    const d = this.glow.data;
+    const d = batch.data;
     d[i] = x;
     d[i + 1] = y;
     d[i + 2] = rx;
@@ -170,6 +248,51 @@ export class Pen {
   /** A solid disc of light with a soft edge. */
   disc(x: number, y: number, radius: number, color: Color, alpha = 1, soft = 0.75): void {
     this.light(x, y, radius, radius, color, alpha, soft);
+  }
+
+  /**
+   * A theme sprite: one of the decorative SDF shapes (`SHAPE_PETAL` and up, see
+   * `shaders/sprites`), alpha blended like a surface. On this pen it goes in front of the
+   * surfaces; on `under`, behind them. Within one layer, later sprites paint over earlier ones.
+   * `hw`/`hh` are the shape's half extents.
+   */
+  sprite(
+    shape: number,
+    x: number,
+    y: number,
+    hw: number,
+    hh: number,
+    rot: number,
+    color: Color,
+    alpha = 1,
+    o: SpriteOptions = {},
+  ): void {
+    const batch = this.sprites;
+    const i = batch.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = batch.data;
+    const pad = o.pad ?? 3;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = hw + pad;
+    d[i + 3] = hh + pad;
+    d[i + 4] = rot;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = alpha;
+    d[i + 9] = shape;
+    d[i + 10] = hw;
+    d[i + 11] = hh;
+    d[i + 12] = o.p0 ?? 0;
+    d[i + 13] = o.p1 ?? 0;
+    d[i + 14] = o.mirror ? FLAG_MIRROR : 0;
+    d[i + 15] = o.flash ?? 0;
+    d[i + 16] = o.halo ?? 0;
+    d[i + 17] = o.p2 ?? 0;
+    d[i + 18] = 0;
+    d[i + 19] = 0;
   }
 
   /** Expanding circle, e.g. a shock ring. */

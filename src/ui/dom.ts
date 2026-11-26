@@ -86,3 +86,8 @@ export function pop(node: HTMLElement, scale = 1.3, duration = 150): void {
 export function hexCss(hex: number): string {
   return `#${hex.toString(16).padStart(6, '0')}`;
 }
+
+/** 0xRRGGBB at an opacity, as a CSS `rgba()` colour. */
+export function rgbaCss(hex: number, alpha: number): string {
+  return `rgb(${(hex >> 16) & 255} ${(hex >> 8) & 255} ${hex & 255} / ${Math.min(1, Math.max(0, alpha))})`;
+}

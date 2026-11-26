@@ -129,23 +129,25 @@ src/
 
 The page exposes `window.__shatterverse` for automated inspection and tuning:
 
-| Method                                 | Description                                                                                                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `state()`                              | Snapshot of current state (level, combo, boss, draw stats, fps, audio state…)                                                                      |
-| `advance(seconds)`                     | Advances the simulation and draws one frame without real-time frames                                                                               |
-| `freeze(on)`                           | Freezes the simulation, for capturing an exact frame                                                                                               |
-| `autopilot(on)`                        | Lets the built-in bot take over the paddle                                                                                                         |
-| `start(mode, starter, level?, build?)` | Starts a run, optionally at a deeper level with a set build (skipped runs don't touch records). Starter ids: `blank` `barrage` `battery` `element` |
-| `grant(id, levels)`                    | Grants an upgrade to the current run                                                                                                               |
-| `buff(id)`                             | Grants a temporary power-up to the current level, as if its capsule had been caught                                                                |
-| `lose()`                               | Drains the run's shield, entering the results flow                                                                                                 |
-| `scorecard()`                          | Composes the score card (no download); returns size, bytes and data URL for inspection                                                             |
-| `profile(frames?)`                     | GPU time per render pass (ms, median) and total. Forces a GPU wait after each pass — stalls the pipeline, diagnostics only                         |
-| `perf()`                               | Frame-rate stats over recent seconds (avg / worst 5% / late share) and the render step actually in effect                                          |
-| `autoPause(on)`                        | Toggles blur auto-pause                                                                                                                            |
-| `audio()`                              | Output levels (peak / RMS)                                                                                                                         |
-| `errors`                               | Uncaught error list; should stay empty                                                                                                             |
-| `cloud()`                              | Cloud identity (`playerId`, nickname, whether pending); `null` when this build has no credentials                                                  |
+| Method                                           | Description                                                                                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state()`                                        | Snapshot of current state (level, combo, boss, draw stats, fps, audio state…)                                                                      |
+| `advance(seconds)`                               | Advances the simulation and draws one frame without real-time frames                                                                               |
+| `freeze(on)`                                     | Freezes the simulation, for capturing an exact frame                                                                                               |
+| `autopilot(on)`                                  | Lets the built-in bot take over the paddle                                                                                                         |
+| `start(mode, starter, level?, build?)`           | Starts a run, optionally at a deeper level with a set build (skipped runs don't touch records). Starter ids: `blank` `barrage` `battery` `element` |
+| `grant(id, levels)`                              | Grants an upgrade to the current run                                                                                                               |
+| `buff(id)`                                       | Grants a temporary power-up to the current level, as if its capsule had been caught                                                                |
+| `lose()`                                         | Drains the run's shield, entering the results flow                                                                                                 |
+| `scorecard()`                                    | Composes the score card (no download); returns size, bytes and data URL for inspection                                                             |
+| `profile(frames?)`                               | GPU time per render pass (ms, median) and total. Forces a GPU wait after each pass — stalls the pipeline, diagnostics only                         |
+| `perf()`                                         | Frame-rate stats over recent seconds (avg / worst 5% / late share) and the render step actually in effect                                          |
+| `autoPause(on)`                                  | Toggles blur auto-pause                                                                                                                            |
+| `audio()`                                        | Output levels (peak / RMS)                                                                                                                         |
+| `errors`                                         | Uncaught error list; should stay empty                                                                                                             |
+| `cloud()`                                        | Cloud identity (`playerId`, nickname, whether pending); `null` when this build has no credentials                                                  |
+| `skins()`                                        | The themes actually worn on the paddle, the ball and the background; owned skins; theme particles and background drifters in flight                |
+| `equipSkin(id, kind)` / `equipTheme(id \| null)` | Wears one skin or a whole theme by the shop's own rules; `null` takes it off (looks only — the run is untouched)                                   |
 
 `quality` / `renderScale` / `qualityAdjusted` in `state()` are the step actually in effect, not the settings preference.
 

@@ -9,13 +9,25 @@
  * background palette through its transform (an HSL hue rotation with mild saturation/brightness
  * factors) — deterministic, no randomness.
  *
+ * The full themes (`render/themes`) sell their three parts through this same catalog: a theme's
+ * paddle, ball and background are skin ids of their own kind, owned and equipped exactly like a
+ * recolouring, so the save, the wallet mirror and the equip rules never learn that themes exist.
+ * What a theme part *draws* is the theme layer's business; this file only lists it.
+ *
  * Chinese names/descriptions are canonical here; the UI reads its copy through the
  * `shop.skin.<id>` keys (see `i18n/zh.ts`), which every locale must carry. The stock looks
  * 「原色」 (ball and paddle) are not catalog entries: they are free, always owned, and expressed
  * as a null equip.
  */
 
-export type SkinId = 'startrail' | 'molten' | 'aurora' | 'deepspace' | 'emberfall' | 'frostline' | 'duskveil' | 'neon';
+import { themePartDefs, type ThemeId, type ThemePartId } from './themes/catalog';
+
+/** The recolouring skins: the shelf as it stood before themes. */
+export type LegacySkinId =
+  'startrail' | 'molten' | 'aurora' | 'deepspace' | 'emberfall' | 'frostline' | 'duskveil' | 'neon';
+
+/** Any skin the catalog sells: a recolouring, or one part of a theme. */
+export type SkinId = LegacySkinId | ThemePartId;
 
 export type SkinKind = 'ball' | 'bg' | 'paddle';
 
@@ -78,10 +90,29 @@ export interface PaddleSkinDef {
   colors: PaddleSkinColors;
 }
 
-export type SkinDef = BallSkinDef | BgSkinDef | PaddleSkinDef;
+/**
+ * One part of a full theme (`render/themes`): its paddle, its ball or its background. It has no
+ * colours of its own here — the theme draws it — but it is bought and equipped as a skin.
+ */
+export interface ThemePartSkinDef {
+  id: ThemePartId;
+  kind: SkinKind;
+  /** The theme it belongs to. */
+  theme: ThemeId;
+  price: number;
+  name: string;
+  en: string;
+  desc: string;
+}
 
-/** Ball skins first, then paddle skins, in ascending price; the backdrop theme closes the shelf. */
-export const SKINS: readonly SkinDef[] = [
+/** A recolouring skin: one of the three looks that are only a set of colours. */
+export type LegacySkinDef = BallSkinDef | BgSkinDef | PaddleSkinDef;
+
+/** Anything the shelf sells: a recolouring, or one part of a theme. */
+export type SkinDef = LegacySkinDef | ThemePartSkinDef;
+
+/** The recolouring skins, ball skins first, then paddle skins, in ascending price; the backdrop theme closes the shelf. */
+export const SKINS: readonly LegacySkinDef[] = [
   {
     id: 'startrail',
     kind: 'ball',
@@ -156,7 +187,13 @@ export const SKINS: readonly SkinDef[] = [
   },
 ];
 
-export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((skin) => [skin.id, skin]));
+/** Every theme's parts as catalog rows: theme by theme, paddle, ball, then background. */
+export const THEME_PARTS: readonly ThemePartSkinDef[] = themePartDefs();
+
+/** Every skin the catalog sells, by id: recolourings and theme parts alike. */
+export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(
+  [...SKINS, ...THEME_PARTS].map((skin) => [skin.id, skin]),
+);
 
 /** The equipped-ball value that means 「原色」: not a catalog item, never bought, always available. */
 export const defaultBallSkin: string = 'classic';

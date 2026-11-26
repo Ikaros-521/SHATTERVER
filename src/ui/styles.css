@@ -3579,3 +3579,87 @@ button.sigil-tile:hover {
   color: var(--gold);
   border-color: var(--gold);
 }
+
+/* Theme sets, at the top of the skin shelf: the set's preview, its three parts, one button.
+   Unlike an owned catalog row the card keeps full opacity — the preview is the point. */
+.shop-theme {
+  display: grid;
+  grid-template-columns: 156px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 14px 10px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  border-radius: 10px;
+  background: radial-gradient(130% 150% at 0% 0%, var(--glow), transparent 62%), rgba(10, 14, 24, 0.55);
+}
+
+/* Worn as a whole set: the theme's own colour runs round the card. */
+.shop-theme.worn {
+  border-color: var(--c3);
+  box-shadow: inset 0 0 0 1px var(--c3);
+}
+
+.shop-theme-art {
+  width: 156px;
+  aspect-ratio: 15 / 7;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.03);
+}
+
+.shop-theme-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shop-theme-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.shop-theme-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A dot per part: hollow until it is owned, then lit in the theme's colour. */
+.shop-theme-part i {
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.shop-theme-part.owned {
+  color: var(--ink-dim);
+}
+
+.shop-theme-part.owned i {
+  border-color: var(--c3);
+  background: var(--c3);
+  box-shadow: 0 0 8px var(--c3);
+}
+
+@media (max-width: 560px) {
+  .shop-theme {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .shop-theme-art {
+    width: 100%;
+  }
+
+  .shop-theme > .shop-side {
+    width: 100%;
+  }
+}

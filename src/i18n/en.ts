@@ -250,7 +250,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     qualityAdjustedTitle: 'Quality adjusted automatically',
     qualityAdjustedBody:
       'The frame rate fell short, so the game is now at 「{tier}」 and will remember it for this device. Change it any time in settings.',
-    qualityGaveUpTitle: 'Restored your chosen quality',
+    qualityGaveUpTitle: 'Settled on the most sustainable quality',
     qualityGaveUpBody:
       'Lowering quality did not raise the frame rate — the stutter has another cause (often a system power saver capping the frame rate).',
   },
@@ -284,7 +284,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         html: `
       <p>Steer the paddle with your <b>mouse or finger</b>. A ball that reaches the bottom is <b>never lost</b> — it relaunches from the paddle shortly after.</p>
       <p>Where you catch the ball steers its return angle: the <b>edges</b> send it wide, the <b>center</b> sends it straight up. A dead-center catch is a <b>perfect catch</b> and charges the most.</p>
-      <p><b>Overdrive</b>: hits and catches charge the paddle. When full, press <kbd>Space</kbd> or tap the prompt at the bottom of the screen for {overdrive} seconds of boosted damage and speed.</p>
+      <p><b>Overdrive</b>: hits and catches charge the paddle. When full, press <kbd>Space</kbd> or tap the on-screen prompt button (top-left on touch screens) for {overdrive} seconds of boosted damage and speed.</p>
       <p>On desktop, <kbd>P</kbd> or <kbd>Esc</kbd> pauses at any time.</p>`,
       },
       {
@@ -318,7 +318,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         mutators: true,
         html: `
       <p>Some levels open with a <b>mutator</b> announcement: the whole level plays by altered rules — some make trouble, some pay out.</p>
-      <p>Higher difficulties also field <b>ball-swallowing eraser bricks</b>; on Abyss a surplus ball is erased every 16 seconds. The longer a boss fight drags, the more dangerous it gets — past its timer the boss goes <b>enraged</b> and its barrages thicken.</p>`,
+      <p>Higher difficulties also field <b>ball-swallowing eraser bricks</b>; on Abyss a surplus ball is erased every 16 seconds. The longer a boss fight drags, the more dangerous it gets — past its timer the boss goes <b>enraged</b> and its wall starts pressing down faster.</p>`,
       },
       {
         eyebrow: 'TUTORIAL · 06',
@@ -808,7 +808,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       storm: {
         name: 'Elemental Storm',
-        desc: 'Hits apply burn, frost, corrosion and lightning at once, setting off every elemental reaction.',
+        desc: 'Hits apply burn, corrosion and lightning, with a 35% chance of frost, setting off every elemental reaction.',
       },
       timestop: {
         name: 'Time Stop',
@@ -838,14 +838,14 @@ export const en: UiDict & { content: ContentOverrides } = {
       advanced: {
         name: 'Advanced',
         desc: 'Thicker walls, sinking faster. Strength starts to matter.',
-        detail: ['Brick health +25%', 'Descent speed +30%', '+1 row of bricks'],
+        detail: ['Brick health +15%', 'Descent speed +20%', '+1 row of bricks'],
       },
       hard: {
         name: 'Hard',
         desc: 'A narrower paddle, denser barrages, and ball-eating eraser bricks.',
         detail: [
-          'Brick health +30%',
-          'Descent speed +40%',
+          'Brick health +25%',
+          'Descent speed +30%',
           '+2 rows of bricks',
           'Paddle −5%',
           'Barrages +10%',
@@ -856,8 +856,8 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Nightmare',
         desc: 'Ball speed suppressed, eraser bricks in ranks. The exam hall for absurd builds.',
         detail: [
-          'Brick health +50%',
-          'Descent speed +60%',
+          'Brick health +40%',
+          'Descent speed +50%',
           '+3 rows of bricks',
           'Paddle −10%',
           'Ball speed −4%',
@@ -869,13 +869,13 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Abyss',
         desc: 'Something from beyond the rift. Every 16 seconds, one surplus ball is erased.',
         detail: [
-          'Brick health +75%',
-          'Descent speed +90%',
+          'Brick health +60%',
+          'Descent speed +75%',
           '+4 rows of bricks',
-          'Paddle −22%',
-          'Ball speed −10%',
-          'Barrages +50%',
-          '12% eraser bricks',
+          'Paddle −15%',
+          'Ball speed −8%',
+          'Barrages +40%',
+          '10% eraser bricks',
           'Erases one surplus ball every 16s',
         ],
       },

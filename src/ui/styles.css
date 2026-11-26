@@ -594,6 +594,47 @@ button.sigil-tile:hover {
   animation: none;
 }
 
+/* Touch-only pause pill in the arena's top-right corner, the mirror of the coarse-mode overdrive
+   pill in the top-left. Desktop hides it: Esc/P and blur-pause already cover that. It renders as
+   two pause bars (no text), so only the aria label needs translating. It sets no z-index and sits
+   before the screens in the DOM, so every screen overlay (tutorial/changelog sit at z-index: 5)
+   paints on top of it — and it hides itself once a screen opens, since data-screen leaves 'play'. */
+#pause-btn {
+  position: fixed;
+  display: none;
+  top: calc(var(--ay) + 10px);
+  right: calc(100vw - var(--ax) - var(--aw) - 10px);
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgb(39 224 255 / 0.5);
+  border-radius: 999px;
+  background: rgb(5 6 15 / 0.6);
+  color: #a9f6ff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#pause-btn::before,
+#pause-btn::after {
+  content: '';
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: currentcolor;
+  box-shadow: 0 0 10px #27e0ff;
+}
+
+#pause-btn::before {
+  margin-right: 5px;
+}
+
+#pause-btn:hover {
+  border-color: #d4fbff;
+}
+
 /* ─────────────────────────  temporary buffs  ─────────────────────────
    One chip per buff in force, draining as it runs out. With a margin beside the arena the strip
    is a column under the stats panel. `.overlay` — set by the layout when there is no margin —
@@ -2312,6 +2353,12 @@ button.sigil-tile:hover {
    right — with a taller pill so the tap target survives a moving thumb. Mouse players keep the
    desktop spot: their pointer never occludes the arena. */
 @media (pointer: coarse) {
+  /* Show the touch pause pill only while a run is actually on screen (see show(): data-screen is
+     'play' exactly when no modal screen is up). */
+  body[data-screen='play'] #pause-btn {
+    display: flex;
+  }
+
   .od-hint {
     top: calc(var(--ay) + 10px);
     bottom: auto;

@@ -83,6 +83,7 @@ export const zh = {
     statComboBonus: '连击加成',
     statCrit: '暴击率',
     buffs: '增益',
+    pauseAria: '暂停',
   },
   starter: {
     title: '选择初始协议',

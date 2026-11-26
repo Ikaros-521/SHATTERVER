@@ -58,6 +58,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     statComboBonus: 'コンボ補正',
     statCrit: 'クリティカル率',
     buffs: 'パワーアップ',
+    pauseAria: '一時停止',
   },
   starter: {
     title: '初期プロトコルを選択',

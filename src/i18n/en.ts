@@ -58,6 +58,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     statComboBonus: 'Combo bonus',
     statCrit: 'Crit chance',
     buffs: 'Power-ups',
+    pauseAria: 'Pause',
   },
   starter: {
     title: 'Pick a starting protocol',

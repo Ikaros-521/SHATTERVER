@@ -217,6 +217,12 @@ export class UI implements HudHost {
     on('shot', () => void this.takeScorecard());
     // The on-screen prompt is a button too, so touch players have a way to fire overdrive.
     byId('od-hint').addEventListener('click', () => this.actions.overdrive());
+    // Touch players have no Esc/P, so the pause button piggybacks on the keyboard path: it
+    // re-fires the synthetic Escape keydown the app's window listener already routes, which
+    // gives toggle semantics (pause while playing, resume while paused) with zero new wiring.
+    on('pause', () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
+    });
 
     byId('codex-tabs').addEventListener('click', (event) => {
       const tab = (event.target as HTMLElement).closest<HTMLButtonElement>('.tab');

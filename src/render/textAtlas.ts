@@ -1,6 +1,17 @@
 import type { GL } from './gl';
 
 /**
+ * A 2D-baking canvas that works on every platform. The browser uses `document`; the WeChat
+ * minigame runtime has no document — the shell's first `wx.createCanvas` call took the screen,
+ * so every later call hands out an offscreen canvas, which is exactly what baking needs.
+ */
+function makeBakingCanvas(): HTMLCanvasElement {
+  if (typeof document !== 'undefined') return document.createElement('canvas');
+  const api = (globalThis as { wx?: { createCanvas(): HTMLCanvasElement } }).wx;
+  return api!.createCanvas();
+}
+
+/**
  * Glyph atlas for in-world numbers ("1.2K", "999!").
  *
  * All other text in the game is DOM. Only damage numbers need to live inside the world —
@@ -30,7 +41,7 @@ export interface GlyphAtlas {
 }
 
 export function createGlyphAtlas(gl: GL): GlyphAtlas {
-  const canvas = document.createElement('canvas');
+  const canvas = makeBakingCanvas();
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('2D canvas is not available');
 

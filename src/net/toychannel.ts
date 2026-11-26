@@ -26,6 +26,7 @@ import type { CloudOutcome, NicknameOutcome } from './cloud';
 import { FANOUT_BOARDS } from './cloud';
 import type { Leaderboard } from './leaderboard';
 import { TOY_BOARDS, ToyBoards, decompressToyScore, loadToySdk, type ToyFailure, type ToyLike } from './toy';
+import { ToyWalletMirror, type WalletMirror } from './toywallet';
 
 /** How long one board read is reused. Matches the Chedda edge cache; Toy reads cost quota. */
 const BOARD_TTL_MS = 30_000;
@@ -87,6 +88,8 @@ export class ToyChannel implements Leaderboard {
   readonly playerId = 'toy';
   /** The B站 nickname once `loadNickname` has resolved; empty before that. */
   nickname = '';
+  /** Best-effort wallet mirror into the platform's per-user cloud storage. Never throws. */
+  readonly wallet: WalletMirror;
 
   private readonly sdkLoader: () => Promise<ToyLike | null>;
   private readonly chedda: Pick<CloudApi, 'getBoard'> | null;
@@ -102,6 +105,7 @@ export class ToyChannel implements Leaderboard {
     this.sdkLoader = deps.sdk ?? loadToySdk;
     this.chedda = deps.chedda ?? null;
     this.now = deps.now ?? (() => Date.now());
+    this.wallet = new ToyWalletMirror(this.sdkLoader);
   }
 
   /** Resolves the SDK once and keeps it; null means the script never loaded or never defined it. */

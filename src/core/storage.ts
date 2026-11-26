@@ -255,8 +255,12 @@ function migrateEconomy(records: Records): EconomyState {
   return economy;
 }
 
-/** Coerces one stored economy state, keeping every well-formed field and dropping the rest. */
-function parseEconomy(raw: unknown): EconomyState | null {
+/**
+ * Coerces one stored economy state, keeping every well-formed field and dropping the rest.
+ * Public because the Toy wallet mirror parses a cloud copy with the same rules (see
+ * `net/toywallet.ts`); a malformed mirror therefore reads as "no wallet", never as corruption.
+ */
+export function parseEconomyState(raw: unknown): EconomyState | null {
   if (!raw || typeof raw !== 'object') return null;
   const e = raw as Partial<EconomyState>;
   const economy = defaultEconomy();
@@ -384,7 +388,7 @@ export function loadSave(): SaveData {
   };
   // A stored economy state is kept field by field; anything else (a v1 save, a corrupted one)
   // migrates from the records, so old progress still counts towards the milestones.
-  save.economy = parseEconomy(data.economy) ?? migrateEconomy(save.records);
+  save.economy = parseEconomyState(data.economy) ?? migrateEconomy(save.records);
   // Only the two known fields are kept, and only when they name a real step.
   save.device = isTier(data.device) ? { quality: data.device.quality, scale: data.device.scale } : null;
   return save;

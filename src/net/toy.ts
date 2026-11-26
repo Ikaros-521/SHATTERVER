@@ -87,6 +87,16 @@ export interface ToyLike {
     period?: 'all' | 'month' | 'week' | 'day';
   }): Promise<{ ranked: boolean; rank: number; score: number }>;
   getUserProfile?(): Promise<ToyProfile>;
+  /**
+   * The per-user cloud KV store (abilities `getCloudStorage` / `setCloudStorage` / `removeCloudStorage`).
+   * Values are host data passed through raw, so payloads are shape-checked at the consumption
+   * point, same as the board reads. Missing on hosts without the ability.
+   */
+  storage?: {
+    get(req: { keys: string[] }): Promise<unknown>;
+    set(req: { items: Record<string, unknown> }): Promise<unknown>;
+    remove(req: { keys: string[] }): Promise<unknown>;
+  };
 }
 
 /**
@@ -230,6 +240,15 @@ async function raceToyCall<T>(run: () => Promise<T>): Promise<ToyResult<T>> {
   }
 }
 
+/**
+ * Asks the SDK whether an ability is available. Never throws and never blocks long: an unanswered
+ * or refused check simply reads as "no", and the caller decides whether to retry later.
+ */
+export async function toySupports(sdk: ToyLike, ability: string): Promise<boolean> {
+  const result = await raceToyCall(() => sdk.isSupport(ability));
+  return result.ok && result.data === true;
+}
+
 type ToyWindow = { toy?: ToyLike };
 
 /**
@@ -318,5 +337,32 @@ export class ToyBoards {
     if (!supported.ok) return supported;
     if (!supported.data) return { ok: true, data: null };
     return raceToyCall(() => getUserProfile.call(this.sdk));
+  }
+}
+
+/**
+ * The typed, never-throwing view of the SDK's per-user cloud KV store (the `toy.storage` object).
+ * The same contract as {@link ToyBoards}: every call resolves to a result object, so a stalled or
+ * refused storage can never interrupt a run's settlement. Values are host data passed through
+ * raw, so `get` checks the shape here and hands back a plain record.
+ */
+export class ToyStorage {
+  constructor(private readonly store: NonNullable<ToyLike['storage']>) {}
+
+  async get(keys: readonly string[]): Promise<ToyResult<Record<string, unknown>>> {
+    const result = await raceToyCall(() => this.store.get({ keys: [...keys] }));
+    if (!result.ok) return result;
+    const data = result.data;
+    return data && typeof data === 'object' && !Array.isArray(data)
+      ? { ok: true, data: data as Record<string, unknown> }
+      : { ok: false, kind: 'error', error: 'malformed storage payload' };
+  }
+
+  async set(items: Record<string, unknown>): Promise<ToyResult<unknown>> {
+    return raceToyCall(() => this.store.set({ items }));
+  }
+
+  async remove(keys: readonly string[]): Promise<ToyResult<unknown>> {
+    return raceToyCall(() => this.store.remove({ keys: [...keys] }));
   }
 }

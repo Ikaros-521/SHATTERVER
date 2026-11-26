@@ -268,6 +268,8 @@ export const zh = {
     qualityAdjustedBody: '本机帧率不足，现为「{tier}」，已为这台设备记住。可在设置里手动改回',
     qualityGaveUpTitle: '已回到最合适的画质',
     qualityGaveUpBody: '降低画质并没有提高帧率，卡顿另有原因（常见于系统省电模式限制帧率）',
+    contextLostTitle: '图形驱动已断开',
+    contextLostBody: '显卡上下文丢失，已自动暂停。建议刷新页面后继续。',
   },
   governor: {
     qualityHigh: '高',

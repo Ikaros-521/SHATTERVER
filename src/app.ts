@@ -139,6 +139,8 @@ export class App implements UiActions {
    */
   readonly cloud: Leaderboard | null;
   private readonly renderer: Renderer;
+  /** The WebGL canvas, kept for the context-loss listeners bound in `bindInput`. */
+  private readonly canvas: HTMLCanvasElement;
 
   private session: Session;
   private inRun = false;
@@ -258,6 +260,7 @@ export class App implements UiActions {
 
   constructor(canvas: HTMLCanvasElement) {
     this.save = loadSave();
+    this.canvas = canvas;
     const toy = isToyEnvironment();
     this.cloud = toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
     // Start where the player asked — unless this device has already proven that is too much.
@@ -856,6 +859,19 @@ export class App implements UiActions {
       // responding, so the game stops too rather than letting bricks sink unattended.
       if (this.autoPauseOnBlur) this.pause();
     });
+    // A lost WebGL context blanks the canvas while the simulation keeps running unseen. Stop the
+    // run and say so; `preventDefault` declines the context's own fast-restore path. Rebuilding
+    // every GL resource on `webglcontextrestored` is out of scope, so restore only clears the
+    // flag — play stays paused and the toast's advice (reload the page) is the way back.
+    this.canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      this.renderer.lost = true;
+      if (this.canPause()) this.pause();
+      this.ui.toast(t('callouts.contextLostTitle'), t('callouts.contextLostBody'), 0xffd24a, 'gfx');
+    });
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.renderer.lost = false;
+    });
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -913,46 +929,52 @@ export class App implements UiActions {
     const rawMs = now - this.lastTime;
     const dt = Math.min(0.05, Math.max(0, rawMs / 1000));
     this.lastTime = now;
-    this.refreshLayout();
+    try {
+      this.refreshLayout();
 
-    // Nothing moves while a run is paused, drafting or over (the title-screen demo keeps playing):
-    // those screens are redrawn at a low rate, so a phone is not heating up behind a dialog and
-    // has thermal headroom left for the play that follows.
-    const idle = this.inRun && (this.paused || this.session.phase === 'draft' || this.ui.screen === 'over');
-    if (!idle && dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
+      // Nothing moves while a run is paused, drafting or over (the title-screen demo keeps playing):
+      // those screens are redrawn at a low rate, so a phone is not heating up behind a dialog and
+      // has thermal headroom left for the play that follows.
+      const idle = this.inRun && (this.paused || this.session.phase === 'draft' || this.ui.screen === 'over');
+      if (!idle && dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
-    const resting =
-      !this.inRun ||
-      this.paused ||
-      this.session.phase === 'draft' ||
-      this.resultsTimer >= 0 ||
-      this.ui.screen === 'over';
-    // Every frame, including skipped ones: this keeps the score in step and the sequencer fed.
-    this.audio.update(resting ? (this.inRun ? 'quiet' : 'menu') : 'play', this.session.world, !this.inRun);
+      const resting =
+        !this.inRun ||
+        this.paused ||
+        this.session.phase === 'draft' ||
+        this.resultsTimer >= 0 ||
+        this.ui.screen === 'over';
+      // Every frame, including skipped ones: this keeps the score in step and the sequencer fed.
+      this.audio.update(resting ? (this.inRun ? 'quiet' : 'menu') : 'play', this.session.world, !this.inRun);
 
-    if (idle && now - this.lastRender < IDLE_FRAME_MS) {
+      if (idle && now - this.lastRender < IDLE_FRAME_MS) return;
+      this.lastRender = now;
+      // Only frames that did the full work say anything about what this device can sustain.
+      if (!idle) this.tickQuality(rawMs);
+
+      if (!this.paused && !this.frozen) {
+        const world = this.session.world;
+        const timeScale = this.fx.update(dt, world);
+        this.session.update(dt * timeScale);
+        this.tick(dt);
+        // Damage per second as a short exponential average: it should jump on a burst and settle quickly.
+        const dealt = Math.max(0, world.totalDamage - this.lastDamage);
+        this.lastDamage = world.totalDamage;
+        this.dps += (dealt / Math.max(dt, 1e-4) - this.dps) * (1 - Math.exp(-dt / 0.5));
+      }
+
+      if (this.inRun && (this.ui.inPlay || this.paused)) this.ui.frame(this.session, this.dps, now);
+
+      this.render(now / 1000);
+    } catch (error) {
+      // One throwing frame must never kill the loop (a resize during a lost context used to do
+      // exactly that): record the error and stop a live run, like a context loss does, and let
+      // the `finally` below keep the frames coming.
+      this.debug.errors.push(error);
+      if (this.canPause()) this.pause();
+    } finally {
       requestAnimationFrame(this.frame);
-      return;
     }
-    this.lastRender = now;
-    // Only frames that did the full work say anything about what this device can sustain.
-    if (!idle) this.tickQuality(rawMs);
-
-    if (!this.paused && !this.frozen) {
-      const world = this.session.world;
-      const timeScale = this.fx.update(dt, world);
-      this.session.update(dt * timeScale);
-      this.tick(dt);
-      // Damage per second as a short exponential average: it should jump on a burst and settle quickly.
-      const dealt = Math.max(0, world.totalDamage - this.lastDamage);
-      this.lastDamage = world.totalDamage;
-      this.dps += (dealt / Math.max(dt, 1e-4) - this.dps) * (1 - Math.exp(-dt / 0.5));
-    }
-
-    if (this.inRun && (this.ui.inPlay || this.paused)) this.ui.frame(this.session, this.dps, now);
-
-    this.render(now / 1000);
-    requestAnimationFrame(this.frame);
   };
 
   /** Works out where the arena sits at the current window size and render step, and tells CSS. */

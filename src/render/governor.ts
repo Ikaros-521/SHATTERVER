@@ -164,11 +164,16 @@ export class QualityGovernor {
         this.reference = mean;
         this.pending = true;
         stepped = true;
-      } else if (this.barren >= 2) {
-        // Nothing left to take away, and the last steps bought nothing.
-        this.tier = this.best;
-        this.locked = true;
-        gaveUp = true;
+      } else {
+        // Nothing left to take away. This window still counts against giving up — otherwise a
+        // device already on the lightest step could never reach the verdict at all.
+        this.barren++;
+        if (this.barren >= 2) {
+          // The last steps bought nothing.
+          this.tier = this.best;
+          this.locked = true;
+          gaveUp = true;
+        }
       }
     }
     if (!(stepped || relieved || gaveUp)) return null;

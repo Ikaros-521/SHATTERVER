@@ -203,4 +203,9 @@ export class GL {
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.syncPixel);
     if (bound) gl.bindFramebuffer(gl.FRAMEBUFFER, bound);
   }
+
+  /** True once the WebGL context has been lost: every handle is stale until the page reloads. */
+  isLost(): boolean {
+    return this.gl.isContextLost();
+  }
 }

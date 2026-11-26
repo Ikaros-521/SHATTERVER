@@ -251,6 +251,8 @@ export const ko: UiDict & { content: ContentOverrides } = {
     qualityGaveUpTitle: '가장 적합한 화질로 조정했습니다',
     qualityGaveUpBody:
       '화질을 낮춰도 프레임 레이트가 오르지 않았습니다. 원인은 다른 곳에 있습니다(흔히 절전 모드의 프레임 제한)',
+    contextLostTitle: '그래픽 드라이버 연결 끊김',
+    contextLostBody: 'WebGL 컨텍스트가 손실되어 실행이 일시 중지되었습니다. 페이지를 새로고침하여 계속하세요',
   },
   governor: {
     qualityHigh: '높음',

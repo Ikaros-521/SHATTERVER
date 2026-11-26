@@ -97,6 +97,25 @@ describe('quality governor', () => {
     expect(governor.gaveUp).toBe(true);
   });
 
+  it('gives up from the bottom full-resolution step: one step down, then the verdict', () => {
+    const governor = new QualityGovernor(LOW);
+    // One lighter step exists, so it is taken — and when its window buys nothing either, the
+    // second barren window gives up and returns to the step the run started on.
+    expect(tokens(play(governor, 33, 33))).toEqual([`↓${SCALED}`, '低 ✋']);
+    expect(governor.current).toEqual(LOW);
+    expect(governor.adjusted).toBe(false);
+    expect(governor.gaveUp).toBe(true);
+  });
+
+  it('gives up from the lowest step itself, which has nothing left to take away', () => {
+    const governor = new QualityGovernor(HIGH, LOWEST);
+    // Already at the lightest step, so stepping is impossible: two struggling windows count as
+    // barren on their own, and the second is the verdict with the tier never having moved.
+    expect(tokens(play(governor, 33, 33))).toEqual([`${SCALED} ✋`]);
+    expect(governor.current).toEqual(LOWEST);
+    expect(governor.gaveUp).toBe(true);
+  });
+
   it('stops judging once it has given up, until the player chooses', () => {
     const governor = new QualityGovernor(HIGH);
     play(governor, 33, 33, 33, 33);

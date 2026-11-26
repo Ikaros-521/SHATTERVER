@@ -95,8 +95,10 @@ export function resultsTree(
       [t('over.tileTime'), formatTime(record.time)],
     ];
     for (let i = 0; i < tiles.length; i += 2) {
+      const pair = [statTile(tiles[i] as [string, string])];
+      if (tiles[i + 1]) pair.push(statTile(tiles[i + 1] as [string, string]));
       children.push(
-        row([statTile(tiles[i] as [string, string]), statTile(tiles[i + 1] as [string, string])], {
+        row(pair, {
           gap: 8,
           align: 'start',
         }),
@@ -156,5 +158,6 @@ function statTile([caption, value]: [string, string]): Widget {
     gap: 2,
     bg: true,
     stroke: false,
+    stretch: true,
   });
 }

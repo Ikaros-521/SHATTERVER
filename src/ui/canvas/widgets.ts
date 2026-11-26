@@ -42,6 +42,11 @@ export interface PanelWidget extends Base {
   bg: boolean;
   /** Accent hairline stroke around the panel. */
   stroke: boolean;
+  /**
+   * True inside a row: share the leftover width instead of claiming the full offer. Outside a
+   * row the flag is meaningless — a top-level panel always spans its offered width anyway.
+   */
+  stretch: boolean;
 }
 
 export interface RowWidget extends Base {
@@ -125,7 +130,7 @@ export type Widget =
 /** Fresh widgets carry meaningless frame zeros; builders keep call sites short, not clever. */
 export function panel(
   children: Widget[],
-  opts: { padding?: number; gap?: number; bg?: boolean; stroke?: boolean } = {},
+  opts: { padding?: number; gap?: number; bg?: boolean; stroke?: boolean; stretch?: boolean } = {},
 ): PanelWidget {
   return {
     kind: 'panel',
@@ -134,6 +139,7 @@ export function panel(
     gap: opts.gap ?? 8,
     bg: opts.bg ?? true,
     stroke: opts.stroke ?? true,
+    stretch: opts.stretch ?? false,
     x: 0,
     y: 0,
     w: 0,
@@ -265,8 +271,13 @@ const LABEL_LINE = 1.35; // label height as a multiple of its size
 /** The width a widget claims inside a row: content width for auto widgets, the full offer otherwise. */
 function autoWidth(w: Widget, width: number, m: TextMeasurer): number {
   if (w.kind === 'label') return m.measure(w.text, w.size);
-  if (w.kind === 'button') return m.measure(w.text, w.size) + w.paddingH * 2;
+  if (w.kind === 'button') {
+    // A stretched button in a row shares the space instead of sizing to content.
+    if (w.stretch) return -1; // stretch marker: resolved in the second pass
+    return m.measure(w.text, w.size) + w.paddingH * 2;
+  }
   if (w.kind === 'spacer') return 0;
+  if (w.kind === 'panel' && w.stretch) return -1; // share the leftover, like a stretched button
   return width;
 }
 
@@ -295,6 +306,18 @@ export function layoutWidget(w: Widget, x: number, y: number, width: number, m: 
       // Auto-width widgets are measured first, then every child is laid out at its slot —
       // laying out at (0,0) and translating would leave nested panels' subtrees behind.
       const widths = w.children.map((child) => autoWidth(child, width, m));
+      // Stretched children (-1 markers) share whatever the fixed-width children leave over.
+      const stretchIdx: number[] = [];
+      let fixed = w.gap * Math.max(0, w.children.length - 1);
+      for (let i = 0; i < widths.length; i++) {
+        const cw = widths[i] as number;
+        if (cw === -1) stretchIdx.push(i);
+        else fixed += cw;
+      }
+      if (stretchIdx.length > 0) {
+        const share = Math.max(0, (width - fixed) / stretchIdx.length);
+        for (const i of stretchIdx) widths[i] = share;
+      }
       let height = 0;
       for (let i = 0; i < w.children.length; i++) {
         height = Math.max(height, layoutWidget(w.children[i] as Widget, x, y, widths[i] as number, m));

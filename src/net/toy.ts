@@ -15,9 +15,9 @@
  *   through {@link loadToySdk} rather than bundled — this project ships no runtime npm
  *   dependencies — and only inside a Toy, so no other host ever requests it.
  *
- * Scores are mapped onto the platform's ±16 777 215 integer range before leaving this file —
- * unchanged for every realistic run, log-compressed beyond that so deep endless runs keep
- * ranking against each other instead of piling up at the ceiling ({@link clampToyScore}).
+ * A score is fitted to the platform's 0..16 777 215 integer range before leaving this file
+ * ({@link clampToyScore}): stored as scored wherever the range allows, log-compressed above
+ * that so deep endless runs still rank against each other instead of tying at the ceiling.
  */
 import { t } from '../core/i18n';
 
@@ -101,32 +101,36 @@ export const TOY_BOARDS = {
 const TOY_SCORE_LIMIT = 16_777_215;
 
 /**
- * Board values pass through unchanged up to here — with {@link import('./game/config').SCORE_SCALE}
- * applied that covers everything a human can reach (the endless ceiling only binds around
- * level 50) — and are log-compressed above it so deeper runs keep ranking against each other.
+ * Board value up to which a score is stored exactly as the game awarded it. As close to the
+ * ceiling as leaves the log segment room to work: headless runs score a campaign win at
+ * 0.5–13M (abyss at the top of that) and standard endless passes 15M around level 21, all of it
+ * shown on the board exactly as it is in the HUD. The in-game score itself is never scaled —
+ * the fit is made here, at submission, and nowhere else.
  */
-const TOY_LINEAR_MAX = 10_000_000;
+const TOY_LINEAR_MAX = 16_000_000;
 
 /**
- * Score magnitude the log segment is sized for, after scaling. Roughly a level-400 raw score;
- * anything beyond clamps to the limit, and only there can scores still tie.
+ * Score the log segment is sized for: about an endless run of level 700. Boss parts compound
+ * two geometric growths (`hpUnit` × `bossScale`), so the score climbs tenfold every ~7.5 levels
+ * and a level-400 run is already near 1e60. At or beyond the sized-for score every run shares
+ * the ceiling — the one place two different scores can still tie.
  */
-const TOY_COMPRESSED_MAX = 1e30;
+const TOY_COMPRESSED_MAX = 1e100;
 
 /**
  * Maps a run score onto the platform's 0..16 777 215 integer range.
  *
- * Identity below {@link TOY_LINEAR_MAX} keeps the board number equal to the in-game score for
- * every realistic run; a strictly increasing log segment above it compresses arbitrarily deep
- * endless scores into the remaining headroom, so distinct runs still sort apart instead of all
- * clamping to one shared ceiling. Monotonic over the whole domain, constant time.
+ * Identity up to {@link TOY_LINEAR_MAX}; above it a strictly increasing log segment, because
+ * endless score grows geometrically with the level and only a log keeps pace. Runs more than
+ * about 0.03% apart always land on different board values, so deep runs sort apart instead of
+ * all clamping to one shared ceiling. Monotonic over the whole domain, constant time.
  */
 export function clampToyScore(score: number): number {
-  const s = Math.max(0, score);
-  if (s <= TOY_LINEAR_MAX) return Math.round(s);
-  if (s >= TOY_COMPRESSED_MAX) return TOY_SCORE_LIMIT;
+  if (!(score > 0)) return 0;
+  if (score <= TOY_LINEAR_MAX) return Math.round(score);
+  if (score >= TOY_COMPRESSED_MAX) return TOY_SCORE_LIMIT;
   const perNat = (TOY_SCORE_LIMIT - TOY_LINEAR_MAX) / Math.log(TOY_COMPRESSED_MAX / TOY_LINEAR_MAX);
-  return Math.min(TOY_SCORE_LIMIT, Math.round(TOY_LINEAR_MAX + perNat * Math.log(s / TOY_LINEAR_MAX)));
+  return Math.min(TOY_SCORE_LIMIT, Math.round(TOY_LINEAR_MAX + perNat * Math.log(score / TOY_LINEAR_MAX)));
 }
 
 export type ToyFailureKind = 'rate-limited' | 'not-logged-in' | 'unsupported' | 'invalid' | 'error';

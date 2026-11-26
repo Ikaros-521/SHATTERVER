@@ -1,6 +1,7 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isSupplyId } from '../game/economy/catalog';
+import { isBallSkinId, isBgSkinId, isSkinId } from '../render/skins';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
 import { APP_VERSION } from './version';
@@ -93,6 +94,12 @@ export interface EconomyState {
   protocols: string[];
   /** Owned supply ids. */
   supplies: string[];
+  /** Owned cosmetic skin ids (`render/skins`): ball looks and backdrop themes. */
+  skins: string[];
+  /** The equipped ball skin id, or null for the free stock look 「原色」. */
+  skinBall: string | null;
+  /** The equipped backdrop theme id, or null for the chapters' own palettes. */
+  skinBg: string | null;
   /** Supplies carried into the next run; bounded by the earned slot count. */
   loadout: string[];
   /** The one catalog item the menu and results screens nudge towards; null clears it. */
@@ -162,6 +169,9 @@ export const DEFAULT_ECONOMY: EconomyState = {
   lifetime: 0,
   protocols: [],
   supplies: [],
+  skins: [],
+  skinBall: null,
+  skinBg: null,
   loadout: [],
   wishlist: null,
   milestones: [],
@@ -181,6 +191,7 @@ export function defaultEconomy(): EconomyState {
     ...DEFAULT_ECONOMY,
     protocols: [],
     supplies: [],
+    skins: [],
     loadout: [],
     milestones: [],
     firstUsed: {},
@@ -239,6 +250,11 @@ function parseEconomy(raw: unknown): EconomyState | null {
     ? e.protocols.filter((id): id is string => typeof id === 'string').slice(0, 64)
     : [];
   economy.supplies = Array.isArray(e.supplies) ? e.supplies.filter(isSupplyId) : [];
+  // Skins: only real catalog ids survive, and an equip is kept only when it names an owned skin of
+  // its own kind — a hand-edited save cannot wear something the wallet never bought.
+  economy.skins = Array.isArray(e.skins) ? e.skins.filter(isSkinId) : [];
+  economy.skinBall = isBallSkinId(e.skinBall) && economy.skins.includes(e.skinBall) ? e.skinBall : null;
+  economy.skinBg = isBgSkinId(e.skinBg) && economy.skins.includes(e.skinBg) ? e.skinBg : null;
   economy.loadout = Array.isArray(e.loadout) ? e.loadout.filter(isSupplyId) : [];
   economy.wishlist = typeof e.wishlist === 'string' ? e.wishlist : null;
   economy.milestones = Array.isArray(e.milestones)

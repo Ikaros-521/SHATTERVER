@@ -51,7 +51,17 @@ import { Fx, particleCapacity, type FxSettings } from './render/fx';
 import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './render/governor';
 import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette } from './render/renderer';
-import { drawScene, type SceneInfo } from './render/scene';
+import { drawScene, type BallSkinOverride, type SceneInfo } from './render/scene';
+import {
+  applyBgSkin,
+  canBuySkin,
+  canEquipSkin,
+  isBallSkinId,
+  isBgSkinId,
+  SKIN_MAP,
+  type BgSkinDef,
+  type SkinKind,
+} from './render/skins';
 import { CheddaBoards } from './net/cheddaboards';
 import { Cloud } from './net/cloud';
 import { CLOUD_CONFIG, cloudEnabled } from './net/config';
@@ -739,6 +749,27 @@ export class App implements UiActions {
     return true;
   }
 
+  /** Spends 星尘 on a cosmetic skin. The verdict itself is a pure function (see `render/skins`). */
+  buySkin(id: string): boolean {
+    const econ = this.save.economy;
+    if (!canBuySkin(econ.stardust, econ.skins, id)) return false;
+    econ.stardust -= SKIN_MAP[id]!.price;
+    econ.skins.push(id);
+    if (econ.wishlist === id) econ.wishlist = null;
+    storeSave(this.save);
+    return true;
+  }
+
+  /** Equips an owned skin of the kind; null clears back to the stock look. */
+  equipSkin(id: string | null, kind: SkinKind): boolean {
+    const econ = this.save.economy;
+    if (!canEquipSkin(econ.skins, id, kind)) return false;
+    if (kind === 'ball') econ.skinBall = id;
+    else econ.skinBg = id;
+    storeSave(this.save);
+    return true;
+  }
+
   toggleWishlist(id: string): void {
     const econ = this.save.economy;
     if (!PROTOCOL_MAP[id] && !isSupplyId(id)) return;
@@ -1325,14 +1356,35 @@ export class App implements UiActions {
     }
   }
 
+  /** The equipped ball skin as a draw-time override, or null for the free stock look 「原色」. */
+  private ballSkin(): BallSkinOverride | null {
+    const id = this.save.economy.skinBall;
+    const def = isBallSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    return def && def.kind === 'ball'
+      ? { glow: def.colors.glow, trail: def.colors.trail, core: def.colors.core }
+      : null;
+  }
+
+  /** The equipped backdrop theme, or null for the chapters' own palettes. */
+  private bgSkin(): BgSkinDef | null {
+    const id = this.save.economy.skinBg;
+    const def = isBgSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    return def && def.kind === 'bg' ? def : null;
+  }
+
   private render(time: number): void {
     const world = this.session.world;
     const chapter = CHAPTERS[world.level.chapter] ?? CHAPTERS[0];
     const view = this.fx.camera.view(this.layout);
     this.fx.resolveView(view);
-    const palette: Palette = { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
+    // A backdrop theme runs the chapter palette through its fixed transform; no theme, no change.
+    const theme = this.bgSkin();
+    const skinned = theme ? applyBgSkin(chapter.bg, chapter.accent, theme) : null;
+    const palette: Palette = skinned
+      ? { a: skinned.bg[0], b: skinned.bg[1], c: skinned.bg[2], accent: skinned.accent }
+      : { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
     this.renderer.pen.reset();
-    drawScene(this.renderer.pen, world, this.fx, chapter, time, this.info);
+    drawScene(this.renderer.pen, world, this.fx, chapter, time, this.info, this.ballSkin());
     this.renderer.render({ layout: this.layout, time, palette, view, post: this.fx.post, info: this.info });
   }
 

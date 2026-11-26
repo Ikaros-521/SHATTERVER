@@ -1393,6 +1393,20 @@ export class World {
   }
 
   /**
+   * Ends every temporary buff on the spot — silently, without the take-back cues, because the run
+   * itself is what is ending. A finished run holds no buffs, so no later screen (the results, the
+   * HUD frozen behind them, the next run) can still quote the ones it died holding.
+   */
+  clearBuffs(): void {
+    if (this.buffs.length === 0) return;
+    // Split twins go when their buff does; give them the same half second to fade as expiry would.
+    if (this.buffs.some((buff) => buff.id === 'split'))
+      for (const ball of this.balls) if (ball.clone) ball.ttl = Math.min(ball.ttl, 0.5);
+    this.buffs = [];
+    this.refreshLive();
+  }
+
+  /**
    * Grants a buff now. `scale` shortens it — Twin Resonance echoes run at half length.
    * Returns false when there is nothing to grant: an unknown id, or a level that is already over.
    */

@@ -168,7 +168,7 @@ export const BUFFS: readonly BuffDef[] = [
     id: 'storm',
     name: '元素风暴',
     code: 'ELEMENTAL STORM',
-    desc: '命中同时附加灼烧、冻结、腐蚀与闪电，触发全部元素反应。',
+    desc: '命中附加灼烧、腐蚀与闪电，并有 35% 概率冻结，触发全部元素反应。',
     color: 0xf0f0ff,
     duration: 8,
     weight: 7,

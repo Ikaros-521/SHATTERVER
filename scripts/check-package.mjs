@@ -117,12 +117,37 @@ const LATIN_TERMS = [
   'xinjiangcamp',
   // Inflated claims (already rejected twice).
   '0mb',
+  // Third-party service branding — the platform package must carry none of it.
+  'cheddaboards',
 ];
 
 const TEXT_FILE = /\.(js|mjs|map|html|css|txt|svg|json|xml)$/i;
 
-/** Hosts that may appear in the page's own metadata (own site, repo, JSON-LD vocabulary). */
-const ALLOWED_HOSTS = new Set(['ikaros-521.github.io', 'github.com', 'schema.org']);
+/** Hosts the platform package is allowed to mention (the platform itself, and XML vocabularies). */
+const ALLOWED_HOSTS = new Set([
+  'www.bilibili.com',
+  'bilibili.com',
+  's1.hdslb.com',
+  'www.bilibilitoy.com',
+  'www.bebox.net',
+  'schema.org',
+  'www.w3.org',
+]);
+
+/**
+ * Hosts that must not appear in a submission: the game's own web deployment (off-platform
+ * promotion) and third-party services it talks to. `pnpm build:toy` removes them.
+ */
+const DENIED_HOSTS = new Set([
+  'ikaros-521.github.io',
+  'github.com',
+  'www.github.com',
+  'cheddaboards.com',
+  'api.cheddaboards.com',
+]);
+
+/** Files that only exist for the GitHub Pages deployment. */
+const WEB_ONLY_FILES = ['llms.txt', 'robots.txt', 'sitemap.xml', 'og-cover.png'];
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -134,12 +159,18 @@ function walk(dir, out = []) {
 }
 
 if (!fs.existsSync(DIST)) {
-  console.error('dist/ not found — run `pnpm build` first.');
+  console.error('dist/ not found — run `pnpm build:toy` first.');
   process.exit(2);
 }
 
 const files = walk(DIST);
 const problems = [];
+
+for (const name of WEB_ONLY_FILES) {
+  if (fs.existsSync(path.join(DIST, name))) {
+    problems.push({ rel: name, term: 'web-only artefact (off-platform)', count: 1 });
+  }
+}
 
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
@@ -154,9 +185,13 @@ for (const file of files) {
     const count = (text.match(pattern) ?? []).length;
     if (count > 0) problems.push({ rel, term, count });
   }
+  for (const match of text.matchAll(/https?:\/\/([^/"'\s)\]]+)/g)) {
+    const host = match[1].toLowerCase();
+    if (DENIED_HOSTS.has(host)) problems.push({ rel, term: `off-platform host ${host}`, count: 1 });
+  }
 }
 
-// Off-platform hosts in the page metadata: informational, because the own-site URLs are expected.
+// Informational: any host that is neither explicitly allowed nor denied still deserves a look.
 const html = path.join(DIST, 'index.html');
 const hosts = new Set();
 if (fs.existsSync(html)) {
@@ -167,14 +202,14 @@ if (fs.existsSync(html)) {
 
 console.log(`scanned ${files.length} files in dist/`);
 
-const unexpected = [...hosts].filter((host) => !ALLOWED_HOSTS.has(host));
+const unexpected = [...hosts].filter((host) => !ALLOWED_HOSTS.has(host) && !DENIED_HOSTS.has(host));
 if (unexpected.length > 0) {
-  console.log(`\nNOTE: page metadata references hosts outside the project: ${unexpected.join(', ')}`);
+  console.log(`\nNOTE: page metadata references unlisted hosts: ${unexpected.join(', ')}`);
   console.log('      confirm each is not an off-platform promotion (AGENTS.md §2.3).');
 }
 
 if (problems.length === 0) {
-  console.log('\nno prohibited vocabulary or inflated claims found');
+  console.log('\nno prohibited vocabulary, inflated claims or off-platform references found');
   console.log('remember: images are OCR-scanned too — eyeball any new or regenerated PNG/SVG.');
   process.exit(0);
 }

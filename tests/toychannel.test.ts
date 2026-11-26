@@ -164,6 +164,15 @@ describe('ToyChannel boards', () => {
 
   it('lists every tab the screen should show, in order', async () => {
     const ids = (await channel(new FakeSdk()).knownBoards()).map((board) => board.scoreboardId);
+    expect(ids).toEqual(['all-time', 'weekly', 'daily', 'mode-endless', 'mode-campaign', 'diff-abyss']);
+  });
+
+  it('lists the global mirror only when a Chedda client was handed in', async () => {
+    const view: BoardView = { scoreboardId: 'all-time', entries: [] };
+    const ids = (await channel(new FakeSdk(), { view }).knownBoards()).map(
+      (board) => board.scoreboardId,
+    );
+    // The platform package omits the client, so the tab simply does not exist there.
     expect(ids).toEqual([
       'all-time',
       'weekly',

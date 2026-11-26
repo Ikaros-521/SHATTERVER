@@ -129,7 +129,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     noteOk: '「{name}」は使用できます。',
     toyEyebrow: 'CLOUD · BILIBILI TOY',
     toySub:
-      'スコアはビリビリ Toy のランキングへ自動アップロード：総合 / 週間 / 今日のほか、エンドレス・キャンペーン・アビスのボードあり。「グローバル」は CheddaBoards 世界ランキングの閲覧専用ミラーです。',
+      'スコアはビリビリ Toy のランキングへ自動アップロード：総合 / 週間 / 今日のほか、エンドレス・キャンペーン・アビスのボードあり。',
     toyNote: 'クラウドの表示名はビリビリのニックネームです。設定は不要です。',
     toyNoteNamed: 'クラウドの表示名：ビリビリのニックネーム「{name}」',
     askEyebrow: 'CLOUD · NICKNAME',

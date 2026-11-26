@@ -1,22 +1,36 @@
 # AGENTS.md — 开发要求
 
-本项目《碎界 SHATTERVERSE》发布在 B 站 Toy（哔哩哔哩）平台。**已经因文案与图片内容被驳回三次**，
+本项目《碎界 SHATTERVERSE》发布在 B 站 Toy（哔哩哔哩）平台。**已经因文案与图片内容被驳回四次**，
 每次都要求整改后重新提审。下面是沉淀下来的硬性要求，请在任何改动前后都遵守。
 
-## 一、提审载体 = `dist/` 整包，不只是游戏画面
+## 一、提审包 = `pnpm build:toy` 的产物，不只是游戏画面
 
-`pnpm build` 之后，以下内容都会随包提交，**全部在审核扫描范围内**：
+提交的必须是 **Toy 合规构建**：
 
-| 载体                             | 来源                               | 说明                                               |
-| -------------------------------- | ---------------------------------- | -------------------------------------------------- |
-| `dist/assets/index-*.js`         | `src/` 构建产物                    | 自动扫描，最常被点名                               |
-| `dist/assets/index-*.js.map`     | sourcemap（`vite.config.ts` 开启） | 含全量源码文本，风险同 JS                          |
-| `dist/index.html`                | 根 `index.html`                    | title/description/og/twitter/JSON-LD 都算文案      |
-| `dist/*.png` / `*.svg` / `*.ico` | `public/`                          | og-cover、favicon、图标；**图内文字会被 OCR 识别** |
-| `dist/llms.txt`                  | `public/llms.txt`                  | 同上，纯文本                                       |
+```sh
+pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
+```
 
-因此：**只看游戏里显示了什么是不够的**。任何进入 bundle 的字符串、任何写进图片的像素文字、任何
-public/ 下的文本文件，都要按下面的红线检查。
+它和普通 `pnpm build` 的区别：
+
+- `__TOY__ = true`：只走平台排行榜通道，**Chedda 客户端被 tree-shake 掉**（包里没有第三方服务与品牌）
+- **无 sourcemap**（`.map` 会嵌入全量源码，是巨大的扫描面）
+- 删除 `llms.txt` / `robots.txt` / `sitemap.xml` / `og-cover.png`（它们只为站外网页版存在）
+- 清除 `index.html` 里的 canonical、og:url、og:image*、twitter:image、JSON-LD 的 url/image/codeRepository
+
+普通 `pnpm build` 仍用于网页版（GitHub Pages），**不要拿它的 dist 提审**。
+
+提审包里仍会被扫描的内容：
+
+| 载体                             | 来源                | 说明                                     |
+| -------------------------------- | ------------------- | ---------------------------------------- |
+| `dist/assets/index-*.js`         | `src/` 构建产物     | 自动扫描，最常被点名                     |
+| `dist/index.html`                | 根 `index.html`     | title/description/关键词都算文案         |
+| `dist/*.png` / `*.svg` / `*.ico` | `public/`           | favicon、图标；**图内文字会被 OCR 识别** |
+| `dist/assets/*.css`              | `src/ui/styles.css` | 同上，纯文本                             |
+
+因此：**只看游戏里显示了什么是不够的**。任何进入 bundle 的字符串、任何写进图片的像素文字，都要按
+下面的红线检查。
 
 ## 二、文案红线
 
@@ -36,8 +50,14 @@ public/ 下的文本文件，都要按下面的红线检查。
 ### 2.3 不引导站外
 
 - 文案里不写「网页版」「官网」「链接」「点此下载」之类指向站外的表述。
-- 引用的域名只保留项目自身（GitHub Pages / 仓库地址）。新增第三方域名（尤其播放/下载/商店页）
-  要先确认是否构成站外导流，并记录原因。
+- **提审包里不得出现任何站外域名**：既包括项目自己的 GitHub Pages 地址（那是在宣传站外网页版），
+  也包括第三方服务（CheddaBoards / `api.cheddaboards.com`）。`pnpm build:toy` 负责剥离前者，
+  `__TOY__` 分支负责后者。
+- 第三方品牌名（CheddaBoards）不得出现在平台包的任何位置，包括源码注释——sourcemap 已关闭，
+  但 JS 与 HTML 里的字符串仍会被扫。
+- `pnpm check:package` 会把 `ikaros-521.github.io`、`github.com`、`cheddaboards.com`、
+  `cheddaboards` 以及 web-only 文件（`llms.txt`/`robots.txt`/`sitemap.xml`/`og-cover.png`）
+  判为失败。
 
 ### 2.4 四语一起改
 
@@ -47,8 +67,8 @@ public/ 下的文本文件，都要按下面的红线检查。
 ## 三、图片红线
 
 - 图片里**不要出现文字**，除非确有必要；有必要时，文字同样遵守第二节全部规则（会被 OCR 扫描）。
-- `og-cover.png` 不要手改：用 `promo/scripts/make_og_cover.mjs` 从原图重生成
-  （原图备份在 `promo/.cover-tmp/`）。
+- `og-cover.png` 不进提审包（`build:toy` 会删）；网页版需要改它时用
+  `promo/scripts/make_og_cover.mjs` 重生成，不要手改 PNG。
 - 新增任何 `public/` 图片或 SVG：先自查是否有站外 logo、二维码、绝对化文案、军事/死亡意象。
 
 ## 四、数据表红线（最隐蔽的一类）
@@ -68,29 +88,34 @@ public/ 下的文本文件，都要按下面的红线检查。
 ## 五、提审前检查清单
 
 ```sh
-pnpm build                 # tsc + vite，产出 dist/
-pnpm check:package         # 扫描 dist/（JS、map、html、txt、svg）里的敏感词与夸大表达
-pnpm test                  # 全量测试，含文案词汇守门
+pnpm build:toy     # tsc + Toy 合规构建，产出可直接打包的 dist/
+pnpm check:package # 扫描 dist/：敏感词、夸大表达、站外域名、web-only 产物
+pnpm test          # 全量测试，含文案词汇守门
 ```
 
-三项全绿后，再人工过一遍本次改动涉及的图片（尤其新图）。`check:package` 是最近一次驳回后
-新增的，覆盖：
+三项全绿后，再人工过一遍本次改动涉及的图片（尤其新图），然后 **zip `dist/` 提交**。
+
+`check:package` 覆盖：
 
 - 政治敏感词（中文）
 - 色情 / 毒品 / 赌博 / 极端主义词（中英文）
 - 英文 slur
 - 夸大表达（0MB 等）
+- 站外域名（`ikaros-521.github.io` / `github.com` / `cheddaboards.com`）与第三方品牌 `cheddaboards`
+- web-only 文件（`llms.txt` / `robots.txt` / `sitemap.xml` / `og-cover.png`）
 
 ## 六、相关文件索引
 
 | 文件                              | 作用                                                                  |
 | --------------------------------- | --------------------------------------------------------------------- |
+| `vite.toy.config.ts`              | Toy 构建（`__TOY__ = true`、无 sourcemap）                            |
+| `scripts/build-toy.mjs`           | Toy 包构建 + 剥离站外产物                                             |
 | `tests/tutorial.test.ts`          | 教程文案的「平台审核词汇」正则守门（禁 死/杀/血/武器/弹药/军事/尸体） |
 | `tests/blocklist.test.ts`         | 词表编码与文档母本的一致性守门                                        |
 | `docs/nickname-blocklist.md`      | 屏蔽词表的可读母本（不进 dist）                                       |
 | `scripts/encode-blocklist.mjs`    | 重新生成编码词表                                                      |
-| `scripts/check-package.mjs`       | 发布包敏感词扫描                                                      |
-| `promo/scripts/make_og_cover.mjs` | og 封面重生成（勿手改 PNG）                                           |
+| `scripts/check-package.mjs`       | 发布包扫描（词表 + 站外 + 夸大表达）                                  |
+| `promo/scripts/make_og_cover.mjs` | 网页版 og 封面重生成（勿手改 PNG，不进提审包）                        |
 
 ## 七、改名的连锁点
 

@@ -86,6 +86,9 @@ const DEMO_LEVELS = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 /**
  * Builds the cloud service from the stored identity. The save callback is the only place the
  * identity is written, so a rename and the persisted copy can never disagree.
+ *
+ * A Toy build (`__TOY__`) never constructs this: the platform package must not talk to any
+ * third-party service, and dead-code elimination removes the Chedda client from the bundle.
  */
 function createCloud(): Cloud {
   const identity = loadIdentity();
@@ -107,17 +110,17 @@ function createCloud(): Cloud {
 /**
  * Builds the B站 Toy channel when the game runs as a Bilibili Toy (see `isToyEnvironment`). The
  * platform is the identity provider there (the player's B站 nickname, Chinese included), so the
- * Chedda identity flow does not apply; the Chedda client is handed over read-only, feeding the
- * 「全球榜」mirror tab on the leaderboard screen.
+ * Chedda identity flow does not apply.
+ *
+ * The channel deliberately gets no Chedda client: the「全球榜」mirror tab is a read of an external
+ * leaderboard, which the platform package must not advertise or call. The tab disappears with it.
  */
 function createToyChannel(): ToyChannel {
   // The SDK has to load and shake hands with the Toy shell before its first call. Start that now,
   // as a static SDK tag in `index.html` would, rather than at the click that opens the board or
   // the submit that ends a run.
   void loadToySdk();
-  return new ToyChannel({
-    chedda: new CheddaBoards({ gameId: CLOUD_CONFIG.gameId, apiKey: CLOUD_CONFIG.apiKey }),
-  });
+  return new ToyChannel();
 }
 
 /**
@@ -262,7 +265,9 @@ export class App implements UiActions {
     this.save = loadSave();
     this.canvas = canvas;
     const toy = isToyEnvironment();
-    this.cloud = toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
+    // `__TOY__` is a build-time constant for the platform package: it forces the Toy channel and
+    // lets the bundler drop the Chedda client (no third-party service in that package).
+    this.cloud = __TOY__ ? createToyChannel() : toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
     // Start where the player asked — unless this device has already proven that is too much.
     const wanted = tierOf(this.save.settings.quality);
     const learned = this.save.device;

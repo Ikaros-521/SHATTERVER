@@ -129,7 +129,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     noteOk: '「{name}」 works.',
     toyEyebrow: 'CLOUD · BILIBILI TOY',
     toySub:
-      'Scores upload to the Bilibili Toy boards automatically: all-time / weekly / daily, plus the endless, campaign and abyss boards. "Global" is a read-only mirror of the CheddaBoards global board.',
+      'Scores upload to the Bilibili Toy boards automatically: all-time / weekly / daily, plus the endless, campaign and abyss boards.',
     toyNote: 'The cloud board shows your Bilibili nickname — nothing to set up.',
     toyNoteNamed: 'The cloud board shows your Bilibili nickname: {name}',
     askEyebrow: 'CLOUD · NICKNAME',

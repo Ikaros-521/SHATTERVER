@@ -129,7 +129,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     noteOk: '「{name}」은 사용할 수 있습니다.',
     toyEyebrow: 'CLOUD · BILIBILI TOY',
     toySub:
-      '점수는 빌리빌리 Toy 랭킹에 자동 업로드됩니다: 종합 / 주간 / 오늘 외에 엔드리스·캠페인·심연 판이 있습니다. 「글로벌」은 CheddaBoards 세계 랭킹의 읽기 전용 미러입니다.',
+      '점수는 빌리빌리 Toy 랭킹에 자동 업로드됩니다: 종합 / 주간 / 오늘 외에 엔드리스·캠페인·심연 판이 있습니다.',
     toyNote: '클라우드에는 빌리빌리 닉네임이 표시됩니다. 설정이 필요 없습니다.',
     toyNoteNamed: '클라우드 표시명: 빌리빌리 닉네임 「{name}」',
     askEyebrow: 'CLOUD · NICKNAME',

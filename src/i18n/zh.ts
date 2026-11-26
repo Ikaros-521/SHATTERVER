@@ -153,8 +153,7 @@ export const zh = {
     noteRule: '云榜昵称需 {min}–{max} 位英文字母、数字或下划线。',
     noteOk: '可以使用「{name}」。',
     toyEyebrow: 'CLOUD · BILIBILI TOY',
-    toySub:
-      '成绩自动上传到B站排行榜：总榜 / 本周 / 今日，另有无尽、战役与深渊榜。 「全球榜」是 CheddaBoards 全球榜的只读镜像。',
+    toySub: '成绩自动上传到B站排行榜：总榜 / 本周 / 今日，另有无尽、战役与深渊榜。',
     toyNote: '云榜显示你的B站昵称（支持中文），无需另外设置。',
     toyNoteNamed: '云榜显示你的B站昵称：{name}',
     askEyebrow: 'CLOUD · NICKNAME',

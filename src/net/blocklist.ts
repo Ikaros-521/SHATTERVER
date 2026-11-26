@@ -51,7 +51,7 @@ export const BLOCKED_WHOLE: readonly string[] = decode(
  * Handles that would impersonate the game, the platform or its staff. Matched as a prefix, so
  * `Shatterver_Admin` is caught too.
  */
-export const RESERVED_PREFIXES: readonly string[] = [
+const BASE_PREFIXES: readonly string[] = [
   'admin',
   'administrator',
   'mod',
@@ -63,8 +63,6 @@ export const RESERVED_PREFIXES: readonly string[] = [
   'developer',
   'shatterverse',
   'shatterver',
-  'cheddaboards',
-  'chedda',
   'guest',
   'anonymous',
   'player_',
@@ -72,6 +70,14 @@ export const RESERVED_PREFIXES: readonly string[] = [
   'undefined',
   'root',
 ];
+
+/**
+ * The cloud service's own name is reserved only where that service exists. A Toy build has no
+ * Chedda client, so the name must not appear in that package at all (see `AGENTS.md` §2.3).
+ */
+export const RESERVED_PREFIXES: readonly string[] = __TOY__
+  ? BASE_PREFIXES
+  : [...BASE_PREFIXES, 'cheddaboards', 'chedda'];
 
 /**
  * Role words that must not appear as a `_`-separated segment, whatever comes before them. This is

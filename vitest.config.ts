@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // Matches the web build's constant so modules that branch on it load in tests.
+  define: { __TOY__: 'false' },
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',

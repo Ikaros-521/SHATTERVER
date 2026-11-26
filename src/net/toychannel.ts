@@ -205,7 +205,11 @@ export class ToyChannel implements Leaderboard {
 
   /** Every tab this channel can serve; the ids are the ones the shared screen already knows. */
   async knownBoards(): Promise<BoardInfo[]> {
-    return [...FANOUT_BOARDS, ...CATEGORY_TABS];
+    // The Chedda mirror only exists when a client was handed in; the platform package omits it.
+    const categories = this.chedda
+      ? CATEGORY_TABS
+      : CATEGORY_TABS.filter((tab) => tab.scoreboardId !== 'cb-global');
+    return [...FANOUT_BOARDS, ...categories];
   }
 
   /** A tab's entries, from a 30-second cache. Null when unreadable — never an exception. */

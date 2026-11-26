@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   TOY_SDK_SRC,
   ToyBoards,
@@ -171,6 +171,20 @@ describe('ToyBoards', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe('not-logged-in');
   });
+  it('gives up on a call the SDK never answers', async () => {
+    const sdk = new FakeSdk();
+    // The host's request layer takes null = no timeout, so the call budget is applied here.
+    sdk.submitScore = () => new Promise<{ score: number }>(() => {});
+    vi.useFakeTimers();
+    try {
+      const pending = new ToyBoards(sdk).submit(1, 10);
+      const settled = expect(pending).resolves.toEqual({ ok: false, kind: 'error', error: 'timeout' });
+      await vi.advanceTimersByTimeAsync(8_000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('reads a rank list verbatim', async () => {
     const result = await new ToyBoards(new FakeSdk()).rankList(1, 'week', 20);
     expect(result.ok).toBe(true);
@@ -194,6 +208,30 @@ describe('ToyBoards', () => {
 });
 
 describe('loadToySdk', () => {
+  /** A document whose injected tags can be removed again, recording what was detached. */
+  function removableDoc(toy?: ToyLike): {
+    doc: Document;
+    head: HTMLScriptElement[];
+    removed: HTMLScriptElement[];
+  } {
+    const head: HTMLScriptElement[] = [];
+    const removed: HTMLScriptElement[] = [];
+    const doc = {
+      defaultView: { toy },
+      createElement: () =>
+        ({
+          parentNode: {
+            removeChild: (node: HTMLScriptElement): HTMLScriptElement => {
+              removed.push(node);
+              return node;
+            },
+          },
+        }) as HTMLScriptElement,
+      head: { appendChild: (node: HTMLScriptElement) => head.push(node) },
+    } as unknown as Document;
+    return { doc, head, removed };
+  }
+
   /** A document with a scriptable head, so no real injection ever happens in tests. */
   function fakeDoc(toy?: ToyLike): { doc: Document; head: HTMLScriptElement[] } {
     const head: HTMLScriptElement[] = [];
@@ -242,5 +280,37 @@ describe('loadToySdk', () => {
     head[0].onerror?.(new Event('error'));
     await expect(a).resolves.toBeNull();
     await expect(b).resolves.toBeNull();
+  });
+
+  it('gives up on a silent load, removes the dead tag, and lets a later call retry', async () => {
+    const { doc, head, removed } = removableDoc();
+    vi.useFakeTimers();
+    try {
+      const pending = loadToySdk(doc);
+      expect(head).toHaveLength(1);
+      // Neither onload nor onerror ever fires: the load must still end within its budget.
+      const settled = expect(pending).resolves.toBeNull();
+      await vi.advanceTimersByTimeAsync(10_000);
+      await settled;
+      expect(removed).toHaveLength(1);
+
+      // The failed injection reset itself: the next call injects fresh instead of piling tags up.
+      const retry = loadToySdk(doc);
+      expect(head).toHaveLength(2);
+      const sdk = new FakeSdk();
+      (doc.defaultView as { toy?: ToyLike }).toy = sdk;
+      head[1].onload?.(new Event('load'));
+      await expect(retry).resolves.toBe(sdk);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('removes the tag on a load error too', async () => {
+    const { doc, head, removed } = removableDoc();
+    const pending = loadToySdk(doc);
+    head[0].onerror?.(new Event('error'));
+    await expect(pending).resolves.toBeNull();
+    expect(removed).toHaveLength(1);
   });
 });

@@ -139,6 +139,42 @@ function service(api: FakeApi, extra: Partial<ConstructorParameters<typeof Cloud
   });
 }
 
+/** One turn of the event loop, so detached promise chains settle before assertions. */
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Holds board reads gate by gate until a test releases them. */
+class GatedBoardApi extends FakeApi {
+  /** When set, reads answer immediately again instead of waiting for a gate. */
+  open = false;
+  gates: Array<(view: BoardView) => void> = [];
+
+  override getBoard(scoreboardId: string): Promise<CbResult<BoardView>> {
+    if (this.open) return super.getBoard(scoreboardId);
+    this.boardReads++;
+    return new Promise((resolve) => {
+      this.gates.push((view) => resolve({ ok: true as const, data: view }));
+    });
+  }
+}
+
+/** Hands out play-session starts and holds submits, so races can be resolved by hand. */
+class GatedRunApi extends FakeApi {
+  heldStarts: Array<(token: string) => void> = [];
+  /** Set to a promise to hold every submit until it resolves. */
+  submitGate: Promise<void> | null = null;
+
+  override startPlaySession(): Promise<CbResult<{ ok: string }>> {
+    return new Promise((resolve) => {
+      this.heldStarts.push((token) => resolve({ ok: true as const, data: { ok: token } }));
+    });
+  }
+
+  override submitScore(input: SubmitInput): Promise<CbResult<{ message?: string }>> {
+    if (this.submitGate) return this.submitGate.then(() => super.submitScore(input));
+    return super.submitScore(input);
+  }
+}
+
 describe('submitting a run', () => {
   it('sends one fan-out submit, and never a nickname with it', async () => {
     const api = new FakeApi();
@@ -240,6 +276,41 @@ describe('play sessions', () => {
     expect(api.submits).toHaveLength(0);
     expect(api.ended).toEqual(['token-1']);
   });
+
+  it('ignores a start from the previous run that settles after a restart', async () => {
+    const api = new GatedRunApi();
+    const cloud = service(api);
+    cloud.beginRun(); // run 1: start still on the wire
+    cloud.abandonRun(); // walked away before it settled
+    cloud.beginRun(); // run 2 begins while run 1's start is in flight
+    api.heldStarts[0]!('token-old'); // run 1's start settles late
+    api.heldStarts[1]!('token-new');
+    await settle();
+
+    // The old token must never be stored or closed; the run on screen keeps its own.
+    await cloud.finishRun(record());
+    expect(api.submits[0]!.playSessionToken).toBe('token-new');
+    expect(api.ended).toEqual(['token-new']);
+  });
+
+  it('does not let a finished earlier run close the newer run session', async () => {
+    const api = new GatedRunApi();
+    const cloud = service(api);
+    cloud.beginRun();
+    api.heldStarts[0]!('token-1');
+    await settle(); // run 1's token is stored
+    const first = cloud.finishRun(record()); // stuck on a slow submit
+
+    cloud.beginRun(); // restart while run 1's submit is on the wire; this closes run 1's token
+    api.heldStarts[1]!('token-2');
+    await settle(); // run 2's token is stored
+    api.submitGate = Promise.resolve();
+    await first; // run 1's finish resumes — its endSession must stand down
+
+    expect(api.ended).toEqual(['token-1']);
+    await cloud.finishRun(record()); // run 2's own submit closes its own token
+    expect(api.ended).toEqual(['token-1', 'token-2']);
+  });
 });
 
 describe('nicknames', () => {
@@ -306,6 +377,46 @@ describe('reads', () => {
     clock += 31_000;
     await cloud.board('all-time');
     expect(api.boardReads).toBe(2);
+  });
+
+  it('joins an in-flight read instead of hitting the network twice', async () => {
+    const api = new GatedBoardApi();
+    const cloud = service(api, { now: () => 0 });
+
+    const first = cloud.board('all-time');
+    const second = cloud.board('all-time');
+    api.gates[0]?.({
+      scoreboardId: 'all-time',
+      entries: [{ rank: 1, nickname: 'Ace', score: 9, streak: 0 }],
+    });
+    expect(await first).not.toBeNull();
+    expect(await second).toEqual(await first);
+    expect(api.boardReads).toBe(1);
+  });
+
+  it('keeps a late old response from poisoning the cache after an invalidate', async () => {
+    const api = new GatedBoardApi();
+    let clock = 0;
+    const cloud = service(api, { now: () => clock });
+
+    const stale = cloud.board('all-time'); // run 1's read, still on the wire
+    // A submit lands (invalidate bumps the generation) and a fresh read completes first.
+    cloud.invalidate();
+    api.open = true;
+    const fresh = await cloud.board('all-time');
+    expect(fresh?.entries[0]?.nickname).toBe('Ace');
+
+    api.gates[0]?.({
+      scoreboardId: 'all-time',
+      entries: [{ rank: 2, nickname: 'Old', score: 1, streak: 0 }],
+    });
+    // The stale read still returns to its own caller…
+    const staleView = await stale;
+    expect(staleView?.entries[0]?.nickname).toBe('Old');
+    // …but the cache keeps the fresh read even after the TTL has passed.
+    clock += 31_000;
+    const next = await cloud.board('all-time');
+    expect(next?.entries[0]?.nickname).toBe('Ace');
   });
 
   it('asks for no rank before a score has ever been accepted', async () => {

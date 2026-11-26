@@ -425,11 +425,12 @@ export const en: UiDict & { content: ContentOverrides } = {
     uploadedRank: 'Uploaded · global #{rank} / {total}',
     uploaded: 'Uploaded to the cloud board',
     scoreRejected: 'The score failed validation; it is saved locally.',
-    scoreRateLimited: 'Too many submissions — this run uploads next time.',
+    scoreRateLimited: 'Too many submissions — this run was not uploaded.',
     scoreOffline: 'The cloud board is unreachable; the score is saved locally.',
     scoreFailed: 'The score was not uploaded; it is saved locally.',
     toyNotLoggedIn: 'Not signed in to Bilibili; the score is saved locally.',
     toyFailed: 'The score was not uploaded to Bilibili; it is saved locally.',
+    toyUnavailable: 'The Bilibili component is unavailable; the score was kept locally.',
     nickEmpty: 'The nickname cannot be empty',
     nickLength: 'Nicknames take {min}–{max} characters',
     nickCharset:

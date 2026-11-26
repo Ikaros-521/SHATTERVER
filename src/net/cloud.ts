@@ -64,6 +64,12 @@ export interface NicknameOutcome {
   error?: string;
 }
 
+/** One board read still on the wire, tagged with the cache generation it belongs to. */
+interface InflightBoard {
+  generation: number;
+  promise: Promise<BoardView | null>;
+}
+
 export interface CloudOutcome {
   ok: boolean;
   /** One line for the results screen. */
@@ -111,11 +117,21 @@ export class Cloud {
   private game: GameInfo | null = null;
   private gameAt = 0;
   private readonly boardCache = new Map<string, { at: number; view: BoardView }>();
+  /** Board reads still on the wire; concurrent readers of one board share them. */
+  private readonly boardInflight = new Map<string, InflightBoard>();
+  /** Bumped by {@link invalidate}: a read that started earlier must not write into the new cache. */
+  private boardGeneration = 0;
   /** Boards the server has told us do not exist. Never asked twice in one session. */
   private readonly missing = new Set<string>();
   /** The in-flight play session for the run that is on screen. */
   private session: Promise<string | null> | null = null;
   private sessionToken: string | null = null;
+  /**
+   * Bumped every time a session is closed: a play-session start from an earlier run can still be
+   * on the wire when the next run begins, and only the current generation may write the token or
+   * close it.
+   */
+  private sessionGeneration = 0;
 
   constructor(deps: CloudDeps) {
     this.client = deps.client;
@@ -175,11 +191,16 @@ export class Cloud {
    * runs in the background so it can never delay the first frame.
    */
   beginRun(): void {
-    this.endSession(); // a previous run that was abandoned must not be reused
+    this.endSession(); // a previous run that was abandoned must not be reused (bumps the generation)
+    const generation = this.sessionGeneration;
     this.session = this.client
       .startPlaySession(this.playerId)
       .then((result) => {
-        this.sessionToken = result.ok ? result.data.ok : null;
+        // A start from an earlier run can settle after this one began (abandon → restart); only
+        // the current generation may write the token.
+        if (generation === this.sessionGeneration) {
+          this.sessionToken = result.ok ? result.data.ok : null;
+        }
         return this.sessionToken;
       })
       .catch(() => null);
@@ -190,7 +211,10 @@ export class Cloud {
     this.endSession();
   }
 
-  private endSession(): void {
+  /** Only ends the session this generation owns: a run superseded by a newer one stands down. */
+  private endSession(generation = this.sessionGeneration): void {
+    if (generation !== this.sessionGeneration) return;
+    this.sessionGeneration++;
     const token = this.sessionToken;
     this.sessionToken = null;
     this.session = null;
@@ -208,6 +232,9 @@ export class Cloud {
     const score = Math.max(0, Math.round(record.score));
     if (score <= 0) return { ok: false, message: t('net.scoreZero'), boards: [] };
 
+    // Captured so the closing endSession below stands down if a newer run began while the submits
+    // of this one were still on the wire.
+    const generation = this.sessionGeneration;
     const token = await this.sessionTokenForSubmit();
     const game = await this.gameInfo();
     const boards = await this.existingBoards(game);
@@ -238,7 +265,7 @@ export class Cloud {
       else if (result.kind === 'missing-board') this.missing.add(boardId);
     }
 
-    this.endSession();
+    this.endSession(generation);
 
     if (fanout.ok) {
       this.scored = true;
@@ -357,18 +384,42 @@ export class Cloud {
     return game?.timeValidationEnabled === true;
   }
 
-  /** A board's entries, served from a 30-second cache. Null when unreadable. */
+  /**
+   * A board's entries, served from a 30-second cache. Concurrent reads of one board share a single
+   * request, and a read that started before {@link invalidate} can still return to its own caller
+   * but never writes over the cache a newer read has filled. Null when unreadable.
+   */
   async board(scoreboardId: string, limit = 100): Promise<BoardView | null> {
     if (this.missing.has(scoreboardId)) return null;
     const cached = this.boardCache.get(scoreboardId);
     if (cached && this.now() - cached.at < BOARD_TTL_MS) return cached.view;
-    const result = await this.client.getBoard(scoreboardId, limit);
-    if (!result.ok) {
-      if (result.kind === 'missing-board') this.missing.add(scoreboardId);
-      return cached?.view ?? null;
+    const inflight = this.boardInflight.get(scoreboardId);
+    if (inflight) return inflight.promise;
+
+    const entry: InflightBoard = { generation: this.boardGeneration, promise: Promise.resolve(null) };
+    entry.promise = this.readBoard(scoreboardId, limit, entry);
+    this.boardInflight.set(scoreboardId, entry);
+    return entry.promise;
+  }
+
+  private async readBoard(
+    scoreboardId: string,
+    limit: number,
+    entry: InflightBoard,
+  ): Promise<BoardView | null> {
+    try {
+      const result = await this.client.getBoard(scoreboardId, limit);
+      // Only the current generation may fill the cache: a slow earlier response that lands after
+      // a newer one must not serve stale entries for the next 30 seconds.
+      if (entry.generation === this.boardGeneration) {
+        if (!result.ok && result.kind === 'missing-board') this.missing.add(scoreboardId);
+        else if (result.ok) this.boardCache.set(scoreboardId, { at: this.now(), view: result.data });
+      }
+      return result.ok ? result.data : (this.boardCache.get(scoreboardId)?.view ?? null);
+    } finally {
+      // Stand down if invalidate() cleared the map and a newer request took the slot.
+      if (this.boardInflight.get(scoreboardId) === entry) this.boardInflight.delete(scoreboardId);
     }
-    this.boardCache.set(scoreboardId, { at: this.now(), view: result.data });
-    return result.data;
   }
 
   /** This player's position on the game-wide board. Null until a score has created the profile. */
@@ -387,6 +438,10 @@ export class Cloud {
   /** Forgets cached board reads, so opening the leaderboard always shows the latest submit. */
   invalidate(): void {
     this.boardCache.clear();
+    // In-flight reads of the previous generation are dropped from the map too: the next read joins
+    // nothing stale, and the generation bump keeps their late results out of the cache.
+    this.boardInflight.clear();
+    this.boardGeneration++;
     this.gameAt = 0;
   }
 }

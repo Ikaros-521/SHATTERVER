@@ -423,11 +423,12 @@ export const ko: UiDict & { content: ContentOverrides } = {
     uploadedRank: '업로드됨 · 세계 {rank}위 / {total}',
     uploaded: '클라우드에 업로드되었습니다',
     scoreRejected: '점수가 검증을 통과하지 못해 로컬에 저장했습니다.',
-    scoreRateLimited: '제출이 너무 잦습니다. 이 판의 점수는 다음에 업로드됩니다.',
+    scoreRateLimited: '제출이 너무 잦아 이 판의 점수가 업로드되지 않았습니다.',
     scoreOffline: '클라우드에 연결할 수 없어 점수는 로컬에 저장했습니다.',
     scoreFailed: '점수가 업로드되지 않고 로컬에 저장되었습니다.',
     toyNotLoggedIn: '빌리빌리에 로그인하지 않아 점수는 로컬에 저장했습니다.',
     toyFailed: '점수가 빌리빌리에 업로드되지 않고 로컬에 저장되었습니다.',
+    toyUnavailable: '빌리빌리 구성 요소를 사용할 수 없어 점수는 로컬에 저장했습니다.',
     nickEmpty: '닉네임을 입력해 주세요',
     nickLength: '닉네임은 {min}~{max}자여야 합니다',
     nickCharset:

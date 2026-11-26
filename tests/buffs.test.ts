@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RNG } from '../src/core/rng';
 import { ARENA_H, ARENA_W, BASE_DMG, DANGER_Y, PADDLE_Y, WALL } from '../src/game/config';
 import { applyDamage, fireLasers, type DamageCtx } from '../src/game/combat';
-import { BUFFS, BUFF_MAP, COVER, OFFENCE, type BuffId } from '../src/game/buffs/defs';
+import { BUFFS, BUFF_MAP, COVER, OFFENCE, isBuffId, type BuffId } from '../src/game/buffs/defs';
 import { withBuffs } from '../src/game/buffs/live';
 import { buildLevel } from '../src/game/levels/generator';
 import { createRun } from '../src/game/run';
@@ -1015,5 +1015,15 @@ describe('upgrades: everything else that is new', () => {
     expect(computeStats({ trampoline: 2 }, 0).floorBounces).toBe(2);
     expect(computeStats({ thunderhead: 2 }, 0).shockChains).toBe(4);
     expect(computeStats({}, 0).crystalChance).toBe(0.2);
+  });
+});
+
+describe('isBuffId', () => {
+  it('rejects Object.prototype members, which a hand-edited save can hold', () => {
+    for (const id of ['constructor', 'toString', 'hasOwnProperty']) {
+      expect(isBuffId(id)).toBe(false);
+    }
+    expect(isBuffId('aegis')).toBe(true);
+    expect(isBuffId(42)).toBe(false);
   });
 });

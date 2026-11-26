@@ -16,12 +16,12 @@ export interface ContentOverrides {
   upgrades: Record<string, { name: string; flavor: string; describe: (lv: number) => string }>;
   /** By buff id, e.g. `split`. `short` is the banner line of an instant buff. */
   buffs: Record<BuffId, { name: string; desc: string; short?: string }>;
-  /** By difficulty id. */
-  difficulty: Record<DifficultyId, { name: string; desc: string; detail: string[] }>;
+  /** By difficulty id. The selector's bullet points live in `detail`; the name is the heading. */
+  difficulty: Record<DifficultyId, { name: string; detail: string[] }>;
   /** By starter id. */
   starters: Record<string, { name: string; desc: string }>;
   /** By chapter index (0-based, matches `CHAPTERS`). */
-  chapters: { name: string; places: string[] }[];
+  chapters: { places: string[] }[];
   /** By mutator id. */
   mutators: Record<ModifierId, { name: string; desc: string }>;
   /** By boss id. */

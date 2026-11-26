@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  TOY_COMPRESSED_MIN,
   TOY_SDK_SRC,
   ToyBoards,
   clampToyScore,
   classifyToyError,
+  decompressToyScore,
   isToyEnvironment,
   loadToySdk,
   type ToyLike,
@@ -80,21 +82,50 @@ describe('clampToyScore', () => {
     expect(clampToyScore(NaN)).toBe(0);
   });
   it('keeps deep runs in strict order instead of clamping them into one tie', () => {
-    // Roughly the score of an endless run at levels 22, 25, 30, 50, 100, 200 and 400.
-    const ladder = [1.7e7, 6e7, 3e8, 4e11, 6e18, 4e32, 6e59];
+    // Synthetic deep-run samples spanning the compressed segment; capped endless reaches only
+    // about 1e10, so the top of this ladder is far beyond any real run.
+    const ladder = [1.7e7, 6e7, 3e8, 4e11, 6e18, 4e24, 6e29];
     const mapped = ladder.map((score) => clampToyScore(score));
     for (let i = 1; i < mapped.length; i++) expect(mapped[i]!).toBeGreaterThan(mapped[i - 1]!);
     expect(mapped[0]).toBeGreaterThan(AS_SCORED_UP_TO);
     expect(mapped[mapped.length - 1]).toBeLessThan(16_777_215);
   });
   it('tells apart two deep runs a tenth of a percent apart, all the way up', () => {
-    for (const score of [2e7, 1e9, 1e20, 1e40, 1e60, 1e90]) {
+    for (const score of [2e7, 1e9, 1e15, 1e20, 1e25, 1e29]) {
       expect(clampToyScore(score * 1.001)).toBeGreaterThan(clampToyScore(score));
     }
   });
+  it('keeps compressed values out of the range real scores occupy', () => {
+    // The reserved band is what lets the board show the true score again.
+    expect(clampToyScore(16_000_000)).toBe(16_000_000);
+    expect(clampToyScore(1.7e7)).toBeGreaterThanOrEqual(TOY_COMPRESSED_MIN);
+  });
   it('shares the ceiling only beyond the depth the log segment is sized for', () => {
-    expect(clampToyScore(1e100)).toBe(16_777_215);
+    expect(clampToyScore(1e30)).toBe(16_777_215);
     expect(clampToyScore(1e300)).toBe(16_777_215);
+  });
+});
+
+describe('decompressToyScore', () => {
+  it('reads linear-segment values back exactly', () => {
+    expect(decompressToyScore(0)).toBe(0);
+    expect(decompressToyScore(1235)).toBe(1235);
+    expect(decompressToyScore(13_300_000)).toBe(13_300_000);
+    expect(decompressToyScore(TOY_COMPRESSED_MIN)).toBe(TOY_COMPRESSED_MIN);
+    expect(decompressToyScore(NaN)).toBe(0);
+  });
+  it('recovers a compressed score to within the segment resolution', () => {
+    for (const score of [1.7e7, 1e9, 1e12, 1e18, 1e24, 1e29]) {
+      const back = decompressToyScore(clampToyScore(score));
+      expect(Math.abs(back - score) / score).toBeLessThan(0.001);
+    }
+  });
+  it('maps the ceiling to the sized-for score, not to a sixteens-of-millions look-alike', () => {
+    expect(decompressToyScore(16_777_215)).toBe(1e30);
+  });
+  it('does not mistake the mid-band for a compressed value', () => {
+    // A real 16.05M run stores and shows 16,050,000; only band values get inverted.
+    expect(decompressToyScore(16_050_000)).toBe(16_050_000);
   });
 });
 
@@ -157,8 +188,9 @@ describe('ToyBoards', () => {
     const client = new ToyBoards(sdk);
     // A score that fits goes up exactly as it was scored.
     expect((await client.submit(2, 12_345.6)).ok).toBe(true);
-    // A deep endless run lands inside the platform range, not on its ceiling.
-    expect((await client.submit(1, 6e59)).ok).toBe(true);
+    // A deep endless run lands inside the platform range, not on its ceiling. (The log segment
+    // is sized to 1e30 — beyond any run the capped scoring can produce — and 6e29 sits below it.)
+    expect((await client.submit(1, 6e29)).ok).toBe(true);
     const deep = sdk.submits[1]!.score;
     expect(deep).toBeGreaterThan(16_000_000);
     expect(deep).toBeLessThan(16_777_215);

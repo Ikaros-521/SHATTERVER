@@ -41,6 +41,7 @@ class FakeApi implements CloudApi {
   ended: string[] = [];
   starts = 0;
   boardReads = 0;
+  rankReads = 0;
 
   boards: BoardInfo[] = [
     { scoreboardId: 'all-time', name: 'All Time' },
@@ -86,6 +87,7 @@ class FakeApi implements CloudApi {
   }
 
   myRank(): Promise<CbResult<PlayerRank>> {
+    this.rankReads++;
     return Promise.resolve(
       this.rank
         ? { ok: true, data: this.rank }
@@ -423,5 +425,37 @@ describe('reads', () => {
     const api = new FakeApi();
     const cloud = service(api, { scored: false });
     expect(await cloud.myRank()).toBeNull();
+  });
+
+  it('reuses a rank read for 30 seconds and joins concurrent ones', async () => {
+    const api = new FakeApi();
+    let clock = 0;
+    const cloud = service(api, { now: () => clock, scored: true });
+
+    const [first, second] = await Promise.all([cloud.myRank(), cloud.myRank()]);
+    expect(api.rankReads).toBe(1);
+    expect(second).toEqual(first);
+
+    await cloud.myRank();
+    expect(api.rankReads).toBe(1);
+
+    clock += 31_000;
+    await cloud.myRank();
+    expect(api.rankReads).toBe(2);
+  });
+
+  it('reads past the rank cache after a submit, then invalidates with the board cache', async () => {
+    const api = new FakeApi();
+    const cloud = service(api, { scored: true });
+
+    await cloud.myRank();
+    expect(api.rankReads).toBe(1);
+    const outcome = await cloud.finishRun(record());
+    expect(api.rankReads).toBe(2); // force: the line must reflect the score that just landed
+    expect(outcome.rank).toEqual({ rank: 4, total: 10 });
+
+    cloud.invalidate();
+    await cloud.myRank();
+    expect(api.rankReads).toBe(3);
   });
 });

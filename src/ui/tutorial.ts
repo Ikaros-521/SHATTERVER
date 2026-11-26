@@ -6,6 +6,7 @@ import { UPGRADES } from '../game/upgrades/defs';
 import { mutatorDesc, mutatorName } from '../i18n/content';
 import type { TutorialPage } from '../i18n/zh';
 import { byId, el, hexCss } from './dom';
+import { makeModal, type ModalHandle } from './modal';
 import { TUTORIAL_ART } from './tutorialArt';
 
 /**
@@ -64,6 +65,8 @@ export class Tutorial {
   private readonly next: HTMLButtonElement;
   private page = 0;
   private open = false;
+  /** Tab stays inside the deck and the menu behind it cannot be triggered while it is up. */
+  private modal!: ModalHandle;
   /** Removes this overlay's own key handling when it closes. */
   private readonly onKey = (event: KeyboardEvent): void => {
     if (event.code === 'Escape') {
@@ -132,6 +135,7 @@ export class Tutorial {
       }
     });
     byId('ui').append(this.root);
+    this.modal = makeModal(this.root);
   }
 
   openTutorial(): void {
@@ -139,6 +143,7 @@ export class Tutorial {
     this.open = true;
     this.goto(0);
     this.root.hidden = false;
+    this.modal.activate();
     document.addEventListener('keydown', this.onKey);
   }
 
@@ -151,6 +156,7 @@ export class Tutorial {
     if (!this.open) return;
     this.open = false;
     this.root.hidden = true;
+    this.modal.deactivate();
     document.removeEventListener('keydown', this.onKey);
     this.audio.ui('uiClick');
     this.onClose();

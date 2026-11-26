@@ -25,7 +25,7 @@ import type { BoardInfo, BoardView, CloudApi, PlayerRank } from './cheddaboards'
 import type { CloudOutcome, NicknameOutcome } from './cloud';
 import { FANOUT_BOARDS } from './cloud';
 import type { Leaderboard } from './leaderboard';
-import { TOY_BOARDS, ToyBoards, loadToySdk, type ToyFailure, type ToyLike } from './toy';
+import { TOY_BOARDS, ToyBoards, decompressToyScore, loadToySdk, type ToyFailure, type ToyLike } from './toy';
 
 /** How long one board read is reused. Matches the Chedda edge cache; Toy reads cost quota. */
 const BOARD_TTL_MS = 30_000;
@@ -93,6 +93,10 @@ export class ToyChannel implements Leaderboard {
   private readonly now: () => number;
   private client: ToyBoards | null = null;
   private readonly cache = new Map<string, { at: number; view: BoardView }>();
+  /** This player's last rank read and when it landed; one SDK call per 30 s instead of per open. */
+  private rankCache: { at: number; value: PlayerRank | null } | null = null;
+  /** A rank read still on the wire; concurrent readers join it instead of doubling the quota. */
+  private rankInflight: Promise<PlayerRank | null> | null = null;
 
   constructor(deps: ToyChannelDeps = {}) {
     this.sdkLoader = deps.sdk ?? loadToySdk;
@@ -240,7 +244,9 @@ export class ToyChannel implements Leaderboard {
             entries: result.data.map((item) => ({
               rank: item.rank,
               nickname: item.nickname,
-              score: item.score,
+              // Submit-side compression is inverted here, at the only place that knows about it,
+              // so the screen shows the score that was actually played.
+              score: decompressToyScore(item.score),
               streak: 0, // The platform does not carry our streak metadata; the row shows none.
             })),
           };
@@ -251,8 +257,21 @@ export class ToyChannel implements Leaderboard {
     return view ?? cached?.view ?? null;
   }
 
-  /** This player's position on the fan-out board. The platform gives no total, so none is shown. */
+  /**
+   * This player's position on the fan-out board, from a 30-second cache. The platform gives no
+   * total, so none is shown.
+   */
   async myRank(): Promise<PlayerRank | null> {
+    const cached = this.rankCache;
+    if (cached && this.now() - cached.at < BOARD_TTL_MS) return cached.value;
+    if (this.rankInflight) return this.rankInflight;
+    this.rankInflight = this.readMyRank().finally(() => {
+      this.rankInflight = null;
+    });
+    return this.rankInflight;
+  }
+
+  private async readMyRank(): Promise<PlayerRank | null> {
     const client = await this.boards();
     if (!client) return null;
     const result = await client.myRank(TOY_BOARDS.overall, 'all');
@@ -261,11 +280,21 @@ export class ToyChannel implements Leaderboard {
     // Host shape: an unplaced, malformed or mis-typed answer is no rank rather than a crash.
     if (!data || typeof data.ranked !== 'boolean' || !Number.isFinite(data.rank)) return null;
     if (!data.ranked) return null;
-    return { rank: data.rank, score: data.score, streak: 0, totalPlayers: 0 };
+    const value: PlayerRank = {
+      rank: data.rank,
+      score: decompressToyScore(data.score),
+      streak: 0,
+      totalPlayers: 0,
+    };
+    this.rankCache = { at: this.now(), value };
+    return value;
   }
 
   invalidate(): void {
     this.cache.clear();
+    // A submit just rewrote this player's best: the cached rank must not outlive it.
+    this.rankCache = null;
+    this.rankInflight = null;
   }
 
   private async cheddaBoard(limit: number): Promise<BoardView | null> {

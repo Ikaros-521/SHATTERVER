@@ -20,7 +20,7 @@
 import type { AudioDirector } from '../audio/director';
 import { t } from '../core/i18n';
 import { formatNumber, formatScore } from '../core/math';
-import type { BoardInfo } from '../net/cheddaboards';
+import type { BoardInfo, BoardView, PlayerRank } from '../net/cheddaboards';
 import type { Leaderboard } from '../net/leaderboard';
 import { NICKNAME_MAX, NICKNAME_MIN, checkNickname } from '../net/nickname';
 import { byId, el, scoreEl, setText } from './dom';
@@ -51,6 +51,12 @@ export class CloudPanel {
   private busy = false;
   /** True on the B站 Toy channel, where the nickname UI is hidden and the platform names you. */
   private readonly toy: boolean;
+  /**
+   * The last body this panel rendered. When the nickname arrives after the board did, the「你」
+   * chip is added by re-rendering this — the Toy platform's read quota is shared, so a late
+   * nickname must not cost a second board read.
+   */
+  private lastBody: { boardId: string; view: BoardView; rank: PlayerRank | null } | null = null;
 
   private readonly input = byId<HTMLInputElement>('cloud-nickname');
   private readonly saveButton = byId<HTMLButtonElement>('cloud-save-name');
@@ -142,14 +148,21 @@ export class CloudPanel {
   /**
    * Asks the platform for the B站 nickname, so the player's own row can be highlighted. Runs
    * inside the click that opened this screen — the user gesture the platform's first-use consent
-   * dialog requires. After it resolves the board is re-read so the「你」chip appears; before it
-   * does, the list simply shows no highlight, which is the whole cost of a refusal.
+   * dialog requires. After it resolves the already-rendered board is re-drawn so the「你」chip
+   * appears without a second read; if the board has not landed yet, this generation's read is
+   * joined instead of restarted (both layers dedupe it), and before anything arrives the list
+   * simply shows no highlight, which is the whole cost of a refusal.
    */
   private async primeNickname(): Promise<void> {
     const name = (await this.cloud.loadNickname?.()) ?? null;
     if (!name) return;
     this.setNote(t('cloud.toyNoteNamed', { name }), 'ok');
-    void this.refreshBody(++this.generation);
+    const cached = this.lastBody;
+    if (cached && cached.boardId === this.boardId) {
+      this.renderBody(cached.boardId, cached.view, cached.rank);
+    } else {
+      void this.refreshBody(this.generation);
+    }
   }
 
   // ───────────────────────────── nickname ─────────────────────────────
@@ -223,6 +236,12 @@ export class CloudPanel {
       boardId === 'all-time' ? this.cloud.myRank() : Promise.resolve(null),
     ]);
     if (generation !== this.generation || boardId !== this.boardId) return;
+    this.renderBody(boardId, view, rank);
+  }
+
+  /** Draws one fetched board read. Also the re-render path when only the nickname has arrived. */
+  private renderBody(boardId: string, view: BoardView | null, rank: PlayerRank | null): void {
+    this.lastBody = view ? { boardId, view, rank } : null;
 
     this.foot.replaceChildren();
     if (!view) {
@@ -235,9 +254,14 @@ export class CloudPanel {
       this.body.replaceChildren(el('p', { class: 'cloud-empty', text: t('cloud.emptyBoard') }));
     } else {
       const mine = this.cloud.nickname;
+      // Name equality is the only key the boards return — Chedda suffixes duplicate handles and
+      // B站 nicknames are unique, but no id rides the entries to prove it. Highlighting at most
+      // the best-ranked match keeps a same-named stranger from stacking a second「你」chip.
+      let mineMatched = false;
       this.body.replaceChildren(
         ...entries.map((entry, index) => {
-          const isMine = mine !== '' && entry.nickname === mine;
+          const isMine = mine !== '' && !mineMatched && entry.nickname === mine;
+          if (isMine) mineMatched = true;
           const row = el(
             'div',
             { class: `rank-row cloud-row${index < 3 ? ` top${index + 1}` : ''}${isMine ? ' mine' : ''}` },

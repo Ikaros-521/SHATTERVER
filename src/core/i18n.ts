@@ -36,7 +36,9 @@ const DICTS: Record<Lang, Locale> = { zh, en, ja, ko };
 export const DEFAULT_LANG: Lang = 'zh';
 
 export function isLang(value: unknown): value is Lang {
-  return typeof value === 'string' && DICTS[value as Lang] !== undefined;
+  // `Object.hasOwn`, not a map read or `in`: a hand-edited save storing `"constructor"` or
+  // `"toString"` would otherwise pass and hand `dict()` a function instead of a dictionary.
+  return typeof value === 'string' && Object.hasOwn(DICTS, value);
 }
 
 let current: Lang = DEFAULT_LANG;
@@ -57,7 +59,9 @@ export function dict(): Locale {
 function lookup(dict: unknown, key: string): string | undefined {
   let node: unknown = dict;
   for (const part of key.split('.')) {
-    if (typeof node !== 'object' || node === null || !(part in node)) return undefined;
+    // `Object.hasOwn` keeps `Object.prototype` members (`constructor`, `toString`) from posing
+    // as dot-path segments in a hand-written key.
+    if (typeof node !== 'object' || node === null || !Object.hasOwn(node, part)) return undefined;
     node = (node as Record<string, unknown>)[part];
   }
   return typeof node === 'string' ? node : undefined;

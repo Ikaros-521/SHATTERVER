@@ -114,9 +114,10 @@ export const MAX_HP_BASE = 4;
  * one is scaled down so the whole brick is worth what a brick at the line is. Score then grows
  * about linearly with the level and stays near 1e10 at level 400.
  *
- * Every campaign brick on every difficulty sits under the line — the toughest is an abyss
- * level-15 boss part at 240 — and standard endless only crosses it at level 18, so every
- * campaign score is exactly what it was before the cap existed.
+ * Every campaign brick on every difficulty sits under the line — the toughest, an abyss
+ * level-15 boss core, has 1919 hit points against its weight-scaled line of 8 × 300 = 2400 —
+ * and standard endless only crosses it at level 18, so every campaign score is exactly what it
+ * was before the cap existed.
  */
 export const SCORE_BRICK_CAP = 300;
 

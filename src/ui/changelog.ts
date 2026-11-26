@@ -3,6 +3,7 @@ import { dict, t } from '../core/i18n';
 import { APP_VERSION } from '../core/version';
 import type { ChangelogEntry } from '../i18n/zh';
 import { byId, el } from './dom';
+import { makeModal, type ModalHandle } from './modal';
 
 /** True until the release notes of the running version have been shown on this device. */
 export function changelogUnseen(settings: { changelogSeen: string }): boolean {
@@ -43,6 +44,8 @@ export class Changelog {
   private readonly list: HTMLElement;
   private readonly button: HTMLButtonElement;
   private shown = false;
+  /** Tab stays inside the notes and the menu behind them cannot be triggered while they are up. */
+  private modal!: ModalHandle;
   /** Runs once when the notes are dismissed: whatever was waiting behind them. */
   private after: (() => void) | null = null;
   /** Removes this overlay's own key handling when it closes. */
@@ -76,6 +79,7 @@ export class Changelog {
       ),
     );
     byId('ui').append(this.root);
+    this.modal = makeModal(this.root);
   }
 
   /**
@@ -89,6 +93,8 @@ export class Changelog {
     this.after = after ?? null;
     this.root.hidden = false;
     this.render();
+    // Focus goes to the close button only after `render` has written its label.
+    this.modal.activate();
     document.addEventListener('keydown', this.onKey);
   }
 
@@ -104,6 +110,7 @@ export class Changelog {
     if (!this.shown) return;
     this.shown = false;
     this.root.hidden = true;
+    this.modal.deactivate();
     document.removeEventListener('keydown', this.onKey);
     this.audio.ui('uiClick');
     this.onClose();

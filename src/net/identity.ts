@@ -60,9 +60,22 @@ export function loadIdentity(): CloudIdentity {
   }
   if (typeof data.nickname === 'string') {
     // A name that fails the local policy is dropped: the server would reject it anyway, and a
-    // stale blocked name must not be displayed as if it were in use.
-    const check = checkNickname(data.nickname);
-    identity.nickname = check.ok ? check.value : '';
+    // stale blocked name must not be displayed as if it were in use. One exception, re-checked
+    // in full below: the server applies a numeric suffix to a full-length name (`SixteenChars`
+    // → `SixteenChars_1` is 17), handing out a name our own 16-character rule refuses — the
+    // server is the authority on names it applied, and clearing one would make the next rename
+    // fight what the board still shows. The relaxed shape is exactly a locally-valid stem plus
+    // the server's `_<digits>` suffix; any other locally-invalid name clears as before.
+    const value = cleanNickname(data.nickname);
+    const check = checkNickname(value);
+    if (check.ok) {
+      identity.nickname = check.value;
+    } else {
+      const suffixed = /^([A-Za-z0-9_]+)_(\d+)$/.exec(value);
+      if (suffixed && value.length <= 64 && checkNickname(suffixed[1]!).ok) {
+        identity.nickname = value;
+      }
+    }
   }
   identity.pending = identity.nickname !== '' && data.pending === true;
   identity.scored = data.scored === true;

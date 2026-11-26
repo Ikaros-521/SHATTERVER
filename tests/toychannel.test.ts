@@ -32,6 +32,8 @@ class FakeSdk implements ToyLike {
   profiles = 0;
   submitError: unknown = null;
   rankListError: unknown = null;
+  /** Overrides the rank list the SDK hands back; null keeps the default one-entry list. */
+  rankList: { rank: number; score: number; nickname: string }[] | null = null;
   rank: { ranked: boolean; rank: number; score: number } = { ranked: true, rank: 3, score: 1234 };
   profile: ToyProfile | null = { nickname: '阿碎' };
 
@@ -46,7 +48,7 @@ class FakeSdk implements ToyLike {
   async getRankList(req?: { board?: number; period?: 'all' | 'week' | 'day'; limit?: number }) {
     if (this.rankListError) throw this.rankListError;
     this.lists.push(req ?? {});
-    return [{ rank: 1, score: 99, nickname: '上分选手' }];
+    return this.rankList ?? [{ rank: 1, score: 99, nickname: '上分选手' }];
   }
   async getMyRank() {
     return this.rank;
@@ -170,6 +172,18 @@ describe('ToyChannel boards', () => {
     board.invalidate();
     await board.board('daily');
     expect(sdk.lists).toHaveLength(2);
+  });
+
+  it('shows compressed submit values as the scores that were played', async () => {
+    const sdk = new FakeSdk();
+    // 16,777,215 on the wire is a log-compressed deep run; 16,050,000 is a real score.
+    sdk.rankList = [
+      { rank: 1, score: 16_777_215, nickname: '深渊旅行者' },
+      { rank: 2, score: 16_050_000, nickname: '中坚选手' },
+      { rank: 3, score: 99, nickname: '上分选手' },
+    ];
+    const board = await channel(sdk).board('all-time');
+    expect(board?.entries.map((entry) => entry.score)).toEqual([1e30, 16_050_000, 99]);
   });
 
   it('mirrors the Chedda global board read-only', async () => {

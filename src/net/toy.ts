@@ -24,6 +24,11 @@ import { t } from '../core/i18n';
 /** Where the platform says the SDK lives. Loaded only inside the Toy environment. */
 export const TOY_SDK_SRC = 'https://s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js';
 
+/** How long the SDK script may take to arrive before the load is given up on. */
+const TOY_SDK_LOAD_TIMEOUT_MS = 10_000;
+/** How long one SDK call may take before it is given up on as an ordinary failure. */
+const TOY_CALL_TIMEOUT_MS = 8_000;
+
 /**
  * Hosts the Toy platform serves an uploaded package from. The Toy page on bilibili.com is only a
  * shell: it frames the package from one of these, so they are the `location` the game itself runs
@@ -170,14 +175,38 @@ export function classifyToyError(error: unknown): ToyFailure {
   return { ok: false, kind: 'error', error: message };
 }
 
+/**
+ * Races one SDK call against a short application-level timer. The host's request layer takes
+ * `null` for "no timeout", which a stalled call would leave a screen sitting on forever, so every
+ * call here gets a budget: the race resolves to the module's ordinary failure shape
+ * ({@link classifyToyError} of a plain timeout) and callers keep working unchanged. Never rejects.
+ */
+async function raceToyCall<T>(run: () => Promise<T>): Promise<ToyResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    const data = await Promise.race([
+      run(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), TOY_CALL_TIMEOUT_MS);
+      }),
+    ]);
+    return { ok: true, data };
+  } catch (error) {
+    return classifyToyError(error);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
 type ToyWindow = { toy?: ToyLike };
 
 /**
  * Loads the Toy SDK by script tag and resolves to `window.toy`. Idempotent: concurrent callers
  * share one injection, and a load that fails resets itself so a later call (the next run, the
  * next panel open) can retry — a transient network failure must not kill the channel forever.
- * Resolves `null` when the script fails to load or defines nothing; it is only ever requested
- * inside a Toy, see {@link isToyEnvironment}.
+ * Resolves `null` when the script fails to load, never arrives (a silent load is given up on
+ * after ~10 s) or defines nothing; the dead tag is removed so retries do not pile nodes up.
+ * It is only ever requested inside a Toy, see {@link isToyEnvironment}.
  */
 export function loadToySdk(doc: Document = document): Promise<ToyLike | null> {
   const win = doc.defaultView as (Window & ToyWindow) | null;
@@ -189,13 +218,20 @@ export function loadToySdk(doc: Document = document): Promise<ToyLike | null> {
       const script = doc.createElement('script');
       script.src = TOY_SDK_SRC;
       script.async = true;
-      script.onload = () => {
+      const finish = (sdk: ToyLike | null, keepTag: boolean): void => {
         loadToySdkState.pending = null;
-        resolve((doc.defaultView as (Window & ToyWindow) | null)?.toy ?? null);
+        // A tag that died or was abandoned must not accumulate across retries.
+        if (!keepTag && script.parentNode) script.parentNode.removeChild(script);
+        resolve(sdk);
+      };
+      const timer = setTimeout(() => finish(null, false), TOY_SDK_LOAD_TIMEOUT_MS);
+      script.onload = () => {
+        clearTimeout(timer);
+        finish((doc.defaultView as (Window & ToyWindow) | null)?.toy ?? null, true);
       };
       script.onerror = () => {
-        loadToySdkState.pending = null;
-        resolve(null);
+        clearTimeout(timer);
+        finish(null, false);
       };
       doc.head.appendChild(script);
     });
@@ -219,11 +255,7 @@ export class ToyBoards {
    * because every call spends the Toy's shared rate budget.
    */
   async submit(board: number, score: number): Promise<ToyResult<{ score: number }>> {
-    try {
-      return { ok: true, data: await this.sdk.submitScore({ board, score: clampToyScore(score) }) };
-    } catch (error) {
-      return classifyToyError(error);
-    }
+    return raceToyCall(() => this.sdk.submitScore({ board, score: clampToyScore(score) }));
   }
 
   async rankList(
@@ -231,22 +263,14 @@ export class ToyBoards {
     period: 'all' | 'month' | 'week' | 'day',
     limit: number,
   ): Promise<ToyResult<ToyRankItem[]>> {
-    try {
-      return { ok: true, data: await this.sdk.getRankList({ board, period, limit }) };
-    } catch (error) {
-      return classifyToyError(error);
-    }
+    return raceToyCall(() => this.sdk.getRankList({ board, period, limit }));
   }
 
   async myRank(
     board: number,
     period: 'all' | 'month' | 'week' | 'day',
   ): Promise<ToyResult<{ ranked: boolean; rank: number; score: number }>> {
-    try {
-      return { ok: true, data: await this.sdk.getMyRank({ board, period }) };
-    } catch (error) {
-      return classifyToyError(error);
-    }
+    return raceToyCall(() => this.sdk.getMyRank({ board, period }));
   }
 
   /**
@@ -256,12 +280,11 @@ export class ToyBoards {
    * "you" highlight rather than blocking the screen.
    */
   async profile(): Promise<ToyResult<ToyProfile | null>> {
-    try {
-      if (typeof this.sdk.getUserProfile !== 'function') return { ok: true, data: null };
-      if (!(await this.sdk.isSupport('getUserProfile'))) return { ok: true, data: null };
-      return { ok: true, data: await this.sdk.getUserProfile() };
-    } catch (error) {
-      return classifyToyError(error);
-    }
+    const getUserProfile = this.sdk.getUserProfile;
+    if (typeof getUserProfile !== 'function') return { ok: true, data: null };
+    const supported = await raceToyCall(() => this.sdk.isSupport('getUserProfile'));
+    if (!supported.ok) return supported;
+    if (!supported.data) return { ok: true, data: null };
+    return raceToyCall(() => getUserProfile.call(this.sdk));
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CheddaBoards, type SubmitInput } from '../src/net/cheddaboards';
 
 const CONFIG = { gameId: 'shatterver', apiKey: 'cb_test_key', base: 'https://api.test' };
@@ -128,5 +128,40 @@ describe('failures', () => {
     expect(result.ok).toBe(false);
     // A gateway error page is still a server failure, not a parse accident.
     if (!result.ok) expect(result.kind).toBe('server');
+  });
+
+  it('times out when the body hangs after the headers arrive', async () => {
+    // TIMEOUT_MS lives unexported in the module; this is its documented budget.
+    const TIMEOUT_MS = 8_000;
+    // Headers arrive at once; the body stream stalls exactly as a hung proxy does. The timer's
+    // abort must still end the call, so the fake body honours the request's signal like fetch does.
+    const hung = (async (_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      return {
+        status: 200,
+        headers: new Headers(),
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            const abort = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            if (signal.aborted) abort();
+            else signal.addEventListener('abort', abort);
+          }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    vi.useFakeTimers();
+    try {
+      const pending = new CheddaBoards(CONFIG, hung).getGame();
+      const settled = expect(pending).resolves.toEqual({
+        ok: false,
+        error: 'timeout',
+        status: 0,
+        kind: 'timeout',
+      });
+      await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -140,7 +140,7 @@ export class ToyChannel implements Leaderboard {
       ok: false,
       nickname: this.nickname,
       pending: false,
-      message: 'B站端使用你的B站昵称（支持中文），无需设置。',
+      message: t('cloud.toyNote'),
     };
   }
 
@@ -157,10 +157,10 @@ export class ToyChannel implements Leaderboard {
    */
   async finishRun(record: RunRecord): Promise<CloudOutcome> {
     const score = Math.max(0, Math.round(record.score));
-    if (score <= 0) return { ok: false, message: '本局没有得分，未上传。', boards: [] };
+    if (score <= 0) return { ok: false, message: t('net.scoreZero'), boards: [] };
 
     const client = await this.boards();
-    if (!client) return { ok: false, message: 'B站组件不可用，成绩已保存在本地。', boards: [] };
+    if (!client) return { ok: false, message: t('net.toyUnavailable'), boards: [] };
 
     const landed: string[] = [];
     const fanout = await client.submit(TOY_BOARDS.overall, score);
@@ -192,10 +192,16 @@ export class ToyChannel implements Leaderboard {
       return { ok: false, message: submitFailure(fanout), boards: landed };
     }
     const rank = await client.myRank(TOY_BOARDS.overall, 'all');
-    const placed = rank.ok && rank.data.ranked ? rank.data.rank : null;
+    const data = rank.ok ? rank.data : null;
+    // The SDK's payload is host data passed through raw; only a well-shaped placed answer counts.
+    const placed =
+      data && typeof data.ranked === 'boolean' && data.ranked && Number.isFinite(data.rank)
+        ? data.rank
+        : null;
     return {
       ok: true,
-      message: placed !== null ? `已上传B站云榜 · 第 ${placed} 名` : '已上传B站云榜',
+      message:
+        placed !== null ? `${t('net.uploaded')} · ${t('cloud.myRank', { rank: placed })}` : t('net.uploaded'),
       boards: landed,
       ...(placed !== null ? { rank: { rank: placed, total: 0 } } : {}),
     };
@@ -226,7 +232,9 @@ export class ToyChannel implements Leaderboard {
       if (client && slot !== null) {
         const period = PERIOD_BY_TAB[scoreboardId] ?? 'all';
         const result = await client.rankList(slot, period, limit);
-        if (result.ok) {
+        // Host data passes through raw by design, so the shape is checked here at the consumption
+        // point: anything but an array leaves the view unset and the cached/null fallback stands.
+        if (result.ok && Array.isArray(result.data)) {
           view = {
             scoreboardId,
             entries: result.data.map((item) => ({
@@ -248,8 +256,12 @@ export class ToyChannel implements Leaderboard {
     const client = await this.boards();
     if (!client) return null;
     const result = await client.myRank(TOY_BOARDS.overall, 'all');
-    if (!result.ok || !result.data.ranked) return null;
-    return { rank: result.data.rank, score: result.data.score, streak: 0, totalPlayers: 0 };
+    if (!result.ok) return null;
+    const data = result.data;
+    // Host shape: an unplaced, malformed or mis-typed answer is no rank rather than a crash.
+    if (!data || typeof data.ranked !== 'boolean' || !Number.isFinite(data.rank)) return null;
+    if (!data.ranked) return null;
+    return { rank: data.rank, score: data.score, streak: 0, totalPlayers: 0 };
   }
 
   invalidate(): void {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getLang, setLang, t } from '../src/core/i18n';
 import type { RunRecord } from '../src/core/storage';
 import type { BoardView, CbResult } from '../src/net/cheddaboards';
 import { ToyChannel } from '../src/net/toychannel';
@@ -96,8 +97,36 @@ describe('ToyChannel.finishRun', () => {
 
   it('reports the Toy rank when the player is placed', async () => {
     const outcome = await channel(new FakeSdk()).finishRun(record());
-    expect(outcome.message).toContain('第 3 名');
+    expect(outcome.message).toContain(t('cloud.myRank', { rank: 3 }));
+    expect(outcome.message).toContain(t('net.uploaded'));
     expect(outcome.rank).toEqual({ rank: 3, total: 0 });
+  });
+
+  it('uploads calmly when the rank answer is a broken shape', async () => {
+    const sdk = new FakeSdk();
+    // Host data passes through raw by design, so the channel may receive anything.
+    const broken = sdk as unknown as { getMyRank(): Promise<unknown> };
+    broken.getMyRank = () => Promise.resolve({ ranked: 'yes', rank: '3' });
+    const outcome = await channel(sdk).finishRun(record());
+    expect(outcome.ok).toBe(true);
+    expect(outcome.rank).toBeUndefined();
+    expect(outcome.message).toBe(t('net.uploaded'));
+    const nullShape = new FakeSdk() as unknown as { getMyRank(): Promise<unknown> };
+    nullShape.getMyRank = () => Promise.resolve(null);
+    const mine = await channel(nullShape as FakeSdk).myRank();
+    expect(mine).toBeNull();
+  });
+
+  it('speaks the active language when the platform is unavailable', async () => {
+    const previous = getLang();
+    setLang('en');
+    try {
+      const outcome = await new ToyChannel({ sdk: () => Promise.resolve(null) }).finishRun(record());
+      expect(outcome.message).toBe(t('net.toyUnavailable'));
+      expect(outcome.message).toContain('Bilibili component is unavailable');
+    } finally {
+      setLang(previous);
+    }
   });
 
   it('skips a scoreless run without touching the SDK', async () => {
@@ -162,6 +191,14 @@ describe('ToyChannel boards', () => {
     expect(await channel(sdk).board('all-time')).toBeNull();
   });
 
+  it('treats a rank list that is not an array as unreadable, not as a crash', async () => {
+    const sdk = new FakeSdk() as unknown as { getRankList(): Promise<unknown> };
+    sdk.getRankList = () => Promise.resolve(null);
+    expect(await channel(sdk as FakeSdk).board('weekly')).toBeNull();
+    sdk.getRankList = () => Promise.resolve({ entries: [] });
+    expect(await channel(sdk as FakeSdk).board('daily')).toBeNull();
+  });
+
   it('lists every tab the screen should show, in order', async () => {
     const ids = (await channel(new FakeSdk()).knownBoards()).map((board) => board.scoreboardId);
     expect(ids).toEqual(['all-time', 'weekly', 'daily', 'mode-endless', 'mode-campaign', 'diff-abyss']);
@@ -169,9 +206,7 @@ describe('ToyChannel boards', () => {
 
   it('lists the global mirror only when a Chedda client was handed in', async () => {
     const view: BoardView = { scoreboardId: 'all-time', entries: [] };
-    const ids = (await channel(new FakeSdk(), { view }).knownBoards()).map(
-      (board) => board.scoreboardId,
-    );
+    const ids = (await channel(new FakeSdk(), { view }).knownBoards()).map((board) => board.scoreboardId);
     // The platform package omits the client, so the tab simply does not exist there.
     expect(ids).toEqual([
       'all-time',

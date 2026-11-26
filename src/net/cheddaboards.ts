@@ -246,6 +246,7 @@ export class CheddaBoards implements CloudApi {
         signal: controller.signal,
       });
     } catch (error) {
+      clearTimeout(timer);
       const aborted = controller.signal.aborted || (error as Error | null)?.name === 'AbortError';
       return {
         ok: false,
@@ -253,12 +254,22 @@ export class CheddaBoards implements CloudApi {
         status: 0,
         kind: aborted ? 'timeout' : 'network',
       };
+    }
+
+    // The timer stays armed through the body read: headers can arrive while the body never does,
+    // and a response that hangs there must end as a timeout like any other phase. Cleared exactly
+    // once per path — here or in the catch above.
+    let envelope: CbResult<T>;
+    try {
+      envelope = await readEnvelope<T>(response);
     } finally {
       clearTimeout(timer);
     }
+    if (controller.signal.aborted) {
+      return { ok: false, error: 'timeout', status: 0, kind: 'timeout' };
+    }
 
     const retryAfter = Number(response.headers.get('Retry-After'));
-    const envelope = await readEnvelope<T>(response);
     if (envelope.ok) return envelope;
     const message = envelope.error;
     return {

@@ -423,11 +423,12 @@ export const ja: UiDict & { content: ContentOverrides } = {
     uploadedRank: 'アップロード済み · 世界第{rank}位 / {total}',
     uploaded: 'クラウドにアップロードしました',
     scoreRejected: 'スコアが検証を通過せず、ローカルに保存しました。',
-    scoreRateLimited: '送信が集中しています。この局のスコアは次回アップロードされます。',
+    scoreRateLimited: '送信が集中しているため、この局のスコアはアップロードされませんでした。',
     scoreOffline: 'クラウドに接続できず、スコアはローカルに保存しました。',
     scoreFailed: 'スコアはアップロードされず、ローカルに保存しました。',
     toyNotLoggedIn: 'ビリビリに未ログインのため、スコアはローカルに保存しました。',
     toyFailed: 'スコアはビリビリにアップロードされず、ローカルに保存しました。',
+    toyUnavailable: 'ビリビリのコンポーネントが利用できないため、スコアはローカルに保存しました。',
     nickEmpty: 'ニックネームを入力してください',
     nickLength: 'ニックネームは{min}〜{max}文字です',
     nickCharset:

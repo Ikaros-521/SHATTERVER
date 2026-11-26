@@ -1,6 +1,7 @@
 import { Emitter } from '../core/emitter';
 import { hashCombine, RNG } from '../core/rng';
 import { MAX_HP_BASE } from './config';
+import { isSupplyId, PRECHARGE_ENERGY, SUPPLY_CRYSTALS } from './economy/catalog';
 import { difficultyOf, type Difficulty } from './difficulty';
 import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
@@ -16,7 +17,8 @@ export type SessionPhase = 'playing' | 'draft' | 'over' | 'won';
 export interface SessionEvents {
   phase: { phase: SessionPhase; previous: SessionPhase };
   level: { plan: LevelPlan; first: boolean };
-  draft: { options: UpgradeDef[]; rerollCost: number; skipReward: number };
+  /** `intro` marks the head-start draft shown before sector one opens. */
+  draft: { options: UpgradeDef[]; rerollCost: number; skipReward: number; intro: boolean };
   pick: { def: UpgradeDef; level: number };
   skip: Record<string, never>;
 }
@@ -29,6 +31,8 @@ export interface SessionOptions {
   level?: number;
   /** Difficulty tier for the whole run. Defaults to standard. */
   difficulty?: Difficulty;
+  /** Owned supplies carried into this run (ids from `economy/catalog`). Unknown ids are dropped. */
+  supplies?: readonly string[];
 }
 
 /**
@@ -36,6 +40,10 @@ export interface SessionOptions {
  *
  * Like the world, a session touches no DOM. `update` drives the current level and reports
  * transitions through events; the UI reacts by showing the draft, the game-over screen, and so on.
+ *
+ * Carried supplies (see `economy/catalog`) apply here: crystal cache and spare shield touch the
+ * run at construction, free reroll and pre-charge and second wind ride along into each level,
+ * and the head start holds the run in a first draft until the player picks or skips.
  */
 export class Session {
   readonly events = new Emitter<SessionEvents>();
@@ -47,6 +55,9 @@ export class Session {
   draft: UpgradeDef[] = [];
   rerolls = 0;
   private readonly rng: RNG;
+  private readonly supplies: ReadonlySet<string>;
+  /** True while the head-start draft is up and sector one has not opened yet. */
+  private introPending = false;
 
   constructor(mode: RunMode, seed: number, options: SessionOptions = {}) {
     this.bot = options.bot ?? false;
@@ -55,17 +66,26 @@ export class Session {
     this.run = createRun(mode, seed);
     this.run.difficulty = this.difficulty.id;
     if (options.level) this.run.level = Math.max(1, Math.floor(options.level));
+    this.supplies = new Set((options.supplies ?? []).filter(isSupplyId));
     const starter = options.starter;
     if (starter) {
       Object.assign(this.run.upgrades, starter.grants);
       this.run.crystals = starter.crystals;
     }
+    if (this.supplies.has('cache')) this.run.crystals += SUPPLY_CRYSTALS;
+    if (this.supplies.has('spare')) this.run.bonusHp = 1;
+    if (this.supplies.has('headstart')) this.introPending = true;
     this.refreshStats();
     this.world = this.openLevel();
   }
 
-  /** Announces the first level. Call after subscribing to `events`. */
+  /** Announces the first level — or, with a head start carried, the pre-sector draft. */
   start(): void {
+    if (this.introPending) {
+      this.setPhase('draft');
+      this.rollNewDraft();
+      return;
+    }
     this.events.emit('level', { plan: this.world.level, first: true });
   }
 
@@ -89,7 +109,9 @@ export class Session {
   }
 
   get rerollCost(): number {
-    return 15 + this.run.level * 6 + this.rerolls * 12;
+    const base = 15 + this.run.level * 6 + this.rerolls * 12;
+    // 「保底刷新」: the first reroll of every draft is on the house; the second pays full price.
+    return this.supplies.has('reroll') && this.rerolls === 0 ? 0 : base;
   }
 
   get skipReward(): number {
@@ -104,6 +126,7 @@ export class Session {
     this.run.upgrades[id] = level;
     this.refreshStats();
     this.events.emit('pick', { def, level });
+    if (this.introPending) return this.beginLevel();
     return this.advance();
   }
 
@@ -117,11 +140,12 @@ export class Session {
     return true;
   }
 
-  /** Trade the pick for crystals. */
+  /** Trade the pick for crystals — or, on the head-start draft, forfeit the gift and just start. */
   skip(): boolean {
     if (this.phase !== 'draft') return false;
-    this.run.crystals += this.skipReward;
     this.events.emit('skip', {});
+    if (this.introPending) return this.beginLevel();
+    this.run.crystals += this.skipReward;
     return this.advance();
   }
 
@@ -136,7 +160,7 @@ export class Session {
   private refreshStats(): void {
     const run = this.run;
     run.stats = computeStats(run.upgrades, run.levelsCleared);
-    const maxHp = MAX_HP_BASE + run.stats.maxHpBonus;
+    const maxHp = MAX_HP_BASE + run.stats.maxHpBonus + run.bonusHp;
     if (maxHp > run.maxHp) run.hp += maxHp - run.maxHp;
     run.maxHp = maxHp;
     run.hp = Math.min(run.hp, maxHp);
@@ -147,7 +171,22 @@ export class Session {
     // Levels get their own stream so build choices never change the layout of a given seed.
     const rng = new RNG(hashCombine(run.seed, run.level, 0x1e5e1));
     const plan = buildLevel(run.level, rng, this.difficulty);
-    return new World(run, plan, rng.fork(), { bot: this.bot, difficulty: this.difficulty });
+    return new World(run, plan, rng.fork(), {
+      bot: this.bot,
+      difficulty: this.difficulty,
+      startEnergy: this.supplies.has('precharge') ? PRECHARGE_ENERGY : 0,
+      secondWind: this.supplies.has('secondwind'),
+    });
+  }
+
+  /** Closes the head-start draft and opens sector one for real. */
+  private beginLevel(): boolean {
+    this.introPending = false;
+    // The pick may have changed the build; rebuild so ball count and the like start right.
+    this.world = this.openLevel();
+    this.setPhase('playing');
+    this.events.emit('level', { plan: this.world.level, first: true });
+    return true;
   }
 
   /** Folds the level in progress into the run totals. Called exactly once per level, when it ends. */
@@ -159,6 +198,11 @@ export class Session {
     run.maxCombo = Math.max(run.maxCombo, world.maxCombo);
     run.damageTaken += world.damageTaken;
     run.hp = world.hp;
+    run.perfects += world.perfects;
+    run.capsules += world.capsules;
+    run.overdrives += world.overdrives;
+    run.reactionTriggers += world.reactions;
+    run.bosses += world.bosses;
   }
 
   private finishLevel(): void {
@@ -194,6 +238,7 @@ export class Session {
       options: this.draft,
       rerollCost: this.rerollCost,
       skipReward: this.skipReward,
+      intro: this.introPending,
     });
   }
 

@@ -28,6 +28,10 @@ export interface Run {
   stats: BuildStats;
   hp: number;
   maxHp: number;
+  /** Extra shield capacity from a carried supply, on top of upgrades. 0 without one. */
+  bonusHp: number;
+  /** 「续战核心」 is single-use per run; the flag lives here because worlds are per level. */
+  secondWindUsed: boolean;
   crystals: number;
   score: number;
   time: number;
@@ -38,6 +42,12 @@ export interface Run {
   history: LevelRecord[];
   /** Elemental reactions discovered this run. */
   reactions: ReactionId[];
+  /** Run-wide play counters, folded from each level at its end. Milestone food. */
+  perfects: number;
+  capsules: number;
+  overdrives: number;
+  reactionTriggers: number;
+  bosses: number;
 }
 
 export function createRun(mode: RunMode, seed: number): Run {
@@ -51,6 +61,8 @@ export function createRun(mode: RunMode, seed: number): Run {
     stats: defaultStats(),
     hp: MAX_HP_BASE,
     maxHp: MAX_HP_BASE,
+    bonusHp: 0,
+    secondWindUsed: false,
     crystals: 0,
     score: 0,
     time: 0,
@@ -60,5 +72,10 @@ export function createRun(mode: RunMode, seed: number): Run {
     damageTaken: 0,
     history: [],
     reactions: [],
+    perfects: 0,
+    capsules: 0,
+    overdrives: 0,
+    reactionTriggers: 0,
+    bosses: 0,
   };
 }

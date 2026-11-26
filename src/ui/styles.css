@@ -3055,3 +3055,299 @@ button.sigil-tile:hover {
     justify-content: center;
   }
 }
+
+/* ───────────── 星尘商店 · stardust shop ───────────── */
+
+/* Menu meta: the wallet line and the wishlist nudge stack under the records line. */
+.menu-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.menu-stardust {
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.menu-wish {
+  color: var(--ink-dim);
+  font-size: 12.5px;
+}
+
+.menu-item {
+  position: relative;
+}
+
+.menu-badge {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 2px 9px;
+  pointer-events: none;
+}
+
+.shop-balance {
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.shop-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  border-radius: 10px;
+  background: rgba(10, 14, 24, 0.55);
+}
+
+.shop-item.owned {
+  opacity: 0.82;
+}
+
+.shop-glyph {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-glyph svg,
+.shop-glyph img {
+  width: 40px;
+  height: 40px;
+}
+
+.shop-name {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.shop-code {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+}
+
+.shop-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.shop-side {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.shop-buy .cost {
+  color: var(--gold);
+  margin-left: 8px;
+}
+
+.shop-buy.locked {
+  opacity: 0.55;
+}
+
+.shop-owned {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.shop-wish,
+.shop-carry {
+  background: none;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  padding: 0;
+}
+
+.shop-wish.on,
+.shop-carry.on {
+  color: var(--gold);
+}
+
+.shop-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.shop-gate {
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11.5px;
+}
+
+.shop-gate.met {
+  border-style: solid;
+  color: var(--ink);
+}
+
+.shop-progress-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.shop-progress-note {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.shop-ms {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(10, 14, 24, 0.5);
+}
+
+.shop-ms.done {
+  border-color: var(--gold);
+}
+
+.shop-ms-mark {
+  flex: 0 0 18px;
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.shop-ms-body h4 {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.shop-ms-body p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.shop-ms-reward {
+  margin-left: auto;
+  color: var(--gold);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* Carried supplies on the starter screen. */
+.loadout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 4px;
+}
+
+.loadout-title {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-right: 4px;
+}
+
+.loadout-chip {
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ink-dim);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.loadout-chip.on {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.loadout-slots {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+
+/* The payout line on the results screen. */
+.over-stardust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  color: var(--gold);
+  margin: 10px 0 0;
+}
+
+.over-stardust .dust-total {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.over-stardust .dust-parts {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.over-stardust .dust-halved {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.over-stardust .dust-wish {
+  font-size: 12.5px;
+}
+
+@media (max-width: 560px) {
+  .shop-item {
+    flex-wrap: wrap;
+  }
+
+  .shop-side {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .menu-badge {
+    right: 12px;
+  }
+}

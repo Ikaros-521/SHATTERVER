@@ -1,5 +1,6 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
+import { isSupplyId } from '../game/economy/catalog';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
 import { APP_VERSION } from './version';
@@ -65,10 +66,60 @@ export interface RunRecord {
   build: Record<string, number>;
 }
 
+/** Per-pattern play counters the milestone conditions read. All accumulate forever. */
+export interface EconomyCounters {
+  perfects: number;
+  capsules: number;
+  overdrives: number;
+  reactions: number;
+  bosses: number;
+  /** Sectors cleared without taking a hit. */
+  flawless: number;
+  /** Sectors cleared inside the swift-clear window. */
+  swift: number;
+}
+
+/**
+ * Everything the 星尘商店 owns: the wallet, what has been bought and carried, milestone progress
+ * and the aggregate counters the milestones read. Earned only by playing — nothing here can be
+ * bought with money (see `game/economy/coins.ts` for the earning rules).
+ */
+export interface EconomyState {
+  /** Spendable balance. */
+  stardust: number;
+  /** Everything ever earned; the progress tab shows it so spending never reads as loss. */
+  lifetime: number;
+  /** Purchased protocol ids (`game/economy/catalog`). */
+  protocols: string[];
+  /** Owned supply ids. */
+  supplies: string[];
+  /** Supplies carried into the next run; bounded by the earned slot count. */
+  loadout: string[];
+  /** The one catalog item the menu and results screens nudge towards; null clears it. */
+  wishlist: string | null;
+  /** Earned milestone ids; they settle automatically, there is no claim step. */
+  milestones: string[];
+  /** Upgrade kinds whose first-use bonus has already been paid. */
+  firstUsed: Record<string, boolean>;
+  firstGift: boolean;
+  /** Local day key of `dailyRunCoins` (`YYYY-MM-DD`), for the daily soft cap. */
+  dailyDate: string;
+  /** Run earnings counted against today's soft cap; one-time rewards bypass it. */
+  dailyRunCoins: number;
+  /** Best combo ever, so combo milestones survive the 50-run history cap. */
+  bestCombo: number;
+  /** Campaign wins per difficulty tier; first-clear milestones read this. */
+  winsByDifficulty: Partial<Record<DifficultyId, number>>;
+  /** Campaign wins per opening protocol; the styles milestone reads the free four. */
+  winsByStarter: Record<string, number>;
+  counters: EconomyCounters;
+}
+
 export interface SaveData {
-  version: 1;
+  version: 2;
   settings: Settings;
   records: Records;
+  economy: EconomyState;
   /**
    * What this device has learned about its own speed: the render step the quality governor last
    * settled on, when that is below the player's choice. Null until the governor steps down, and
@@ -106,14 +157,111 @@ export const DEFAULT_RECORDS: Records = {
   history: [],
 };
 
+export const DEFAULT_ECONOMY: EconomyState = {
+  stardust: 0,
+  lifetime: 0,
+  protocols: [],
+  supplies: [],
+  loadout: [],
+  wishlist: null,
+  milestones: [],
+  firstUsed: {},
+  firstGift: false,
+  dailyDate: '',
+  dailyRunCoins: 0,
+  bestCombo: 0,
+  winsByDifficulty: {},
+  winsByStarter: {},
+  counters: { perfects: 0, capsules: 0, overdrives: 0, reactions: 0, bosses: 0, flawless: 0, swift: 0 },
+};
+
+/** A fresh economy state, with every collection re-created so saves never share arrays. */
+export function defaultEconomy(): EconomyState {
+  return {
+    ...DEFAULT_ECONOMY,
+    protocols: [],
+    supplies: [],
+    loadout: [],
+    milestones: [],
+    firstUsed: {},
+    winsByDifficulty: {},
+    winsByStarter: {},
+    counters: { ...DEFAULT_ECONOMY.counters },
+  };
+}
+
 export function defaultSave(): SaveData {
   // The array fields are re-created: spreading DEFAULT_RECORDS would share one array between saves.
   return {
-    version: 1,
+    version: 2,
     settings: { ...DEFAULT_SETTINGS },
     records: { ...DEFAULT_RECORDS, discovered: [], history: [] },
+    economy: defaultEconomy(),
     device: null,
   };
+}
+
+/**
+ * Best-effort retro credits for a save from before the shop existed, from whatever the history
+ * still holds: the best combo and the campaign wins per difficulty. The history is capped at
+ * fifty runs, so this recovers progress approximately — close enough for milestone credit.
+ */
+function migrateEconomy(records: Records): EconomyState {
+  const economy = defaultEconomy();
+  for (const record of records.history) {
+    economy.bestCombo = Math.max(economy.bestCombo, record.combo);
+    if (record.mode === 'campaign' && record.won) {
+      economy.winsByDifficulty[record.difficulty] =
+        (economy.winsByDifficulty[record.difficulty] ?? 0) + 1;
+    }
+  }
+  return economy;
+}
+
+/** Coerces one stored economy state, keeping every well-formed field and dropping the rest. */
+function parseEconomy(raw: unknown): EconomyState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const e = raw as Partial<EconomyState>;
+  const economy = defaultEconomy();
+  const num = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  const count = (value: unknown, target: Record<string, number>): void => {
+    if (!value || typeof value !== 'object') return;
+    for (const [id, n] of Object.entries(value as Record<string, unknown>)) {
+      const parsed = num(n);
+      if (parsed > 0) target[id] = parsed;
+    }
+  };
+
+  economy.stardust = num(e.stardust);
+  economy.lifetime = Math.max(economy.stardust, num(e.lifetime));
+  economy.protocols = Array.isArray(e.protocols)
+    ? e.protocols.filter((id): id is string => typeof id === 'string').slice(0, 64)
+    : [];
+  economy.supplies = Array.isArray(e.supplies) ? e.supplies.filter(isSupplyId) : [];
+  economy.loadout = Array.isArray(e.loadout) ? e.loadout.filter(isSupplyId) : [];
+  economy.wishlist = typeof e.wishlist === 'string' ? e.wishlist : null;
+  economy.milestones = Array.isArray(e.milestones)
+    ? e.milestones.filter((id): id is string => typeof id === 'string').slice(0, 128)
+    : [];
+  economy.firstUsed = {};
+  if (e.firstUsed && typeof e.firstUsed === 'object') {
+    for (const [id, flag] of Object.entries(e.firstUsed as Record<string, unknown>)) {
+      if (flag === true) economy.firstUsed[id] = true;
+    }
+  }
+  economy.firstGift = e.firstGift === true;
+  economy.dailyDate = typeof e.dailyDate === 'string' ? e.dailyDate.slice(0, 10) : '';
+  economy.dailyRunCoins = num(e.dailyRunCoins);
+  economy.bestCombo = num(e.bestCombo);
+  count(e.winsByDifficulty, economy.winsByDifficulty as Record<string, number>);
+  count(e.winsByStarter, economy.winsByStarter);
+  if (e.counters && typeof e.counters === 'object') {
+    for (const key of Object.keys(economy.counters) as (keyof EconomyCounters)[]) {
+      economy.counters[key] = num((e.counters as unknown as Record<string, unknown>)[key]);
+    }
+  }
+  return economy;
 }
 
 /** Loads the save, repairing anything missing or malformed so a corrupted entry can never brick the game. */
@@ -169,6 +317,9 @@ export function loadSave(): SaveData {
           .sort((a, b) => b.date - a.date)
       : [],
   };
+  // A stored economy state is kept field by field; anything else (a v1 save, a corrupted one)
+  // migrates from the records, so old progress still counts towards the milestones.
+  save.economy = parseEconomy(data.economy) ?? migrateEconomy(save.records);
   // Only the two known fields are kept, and only when they name a real step.
   save.device = isTier(data.device) ? { quality: data.device.quality, scale: data.device.scale } : null;
   return save;

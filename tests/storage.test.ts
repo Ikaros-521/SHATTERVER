@@ -5,6 +5,7 @@ import {
   HISTORY_CAP,
   loadSave,
   runRank,
+  storeSave,
   type RunRecord,
 } from '../src/core/storage';
 import { APP_VERSION } from '../src/core/version';
@@ -117,6 +118,88 @@ describe('learned render step', () => {
       // The rest of the save is untouched by the bad field.
       expect(save.settings.music).toBe(0.4);
     }
+  });
+});
+
+describe('economy state (save v2)', () => {
+  it('a fresh save starts with an empty wallet and a clean loadout', () => {
+    const save = defaultSave();
+    expect(save.version).toBe(2);
+    expect(save.economy.stardust).toBe(0);
+    expect(save.economy.protocols).toEqual([]);
+    expect(save.economy.loadout).toEqual([]);
+    expect(save.economy.wishlist).toBeNull();
+  });
+
+  it('migrates a v1 save: retro combo and difficulty clears from the history, empty wallet', () => {
+    store.set(
+      KEY,
+      JSON.stringify({
+        version: 1,
+        settings: {},
+        records: {
+          bestScore: 5,
+          history: [
+            record({ mode: 'campaign', difficulty: 'hard', won: true, combo: 250 }),
+            record({ mode: 'endless', difficulty: 'abyss', won: true, combo: 90 }),
+          ],
+        },
+      }),
+    );
+    const save = loadSave();
+    expect(save.version).toBe(2);
+    expect(save.economy.bestCombo).toBe(250);
+    // Only campaign wins count as clears; endless runs do not.
+    expect(save.economy.winsByDifficulty).toEqual({ hard: 1 });
+    expect(save.economy.stardust).toBe(0);
+  });
+
+  it('repairs a malformed economy instead of trusting it', () => {
+    store.set(
+      KEY,
+      JSON.stringify({
+        version: 2,
+        settings: {},
+        records: {},
+        economy: {
+          stardust: 'lots',
+          supplies: ['cache', 'bogus'],
+          loadout: ['nope'],
+          wishlist: 5,
+          milestones: 'all',
+          counters: { perfects: 'many' },
+        },
+      }),
+    );
+    const save = loadSave();
+    expect(save.economy.stardust).toBe(0);
+    expect(save.economy.supplies).toEqual(['cache']);
+    expect(save.economy.loadout).toEqual([]);
+    expect(save.economy.wishlist).toBeNull();
+    expect(save.economy.milestones).toEqual([]);
+    expect(save.economy.counters.perfects).toBe(0);
+  });
+
+  it('round-trips a lived-in economy', () => {
+    const save = defaultSave();
+    save.economy.stardust = 4321;
+    save.economy.lifetime = 12_345;
+    save.economy.protocols = ['bulwark', 'venom'];
+    save.economy.supplies = ['spare', 'secondwind'];
+    save.economy.loadout = ['spare'];
+    save.economy.wishlist = 'chrono';
+    save.economy.milestones = ['perfect', 'win1'];
+    save.economy.firstUsed = { fire: true };
+    save.economy.bestCombo = 412;
+    storeSave(save);
+    const again = loadSave();
+    expect(again.economy.stardust).toBe(4321);
+    expect(again.economy.protocols).toEqual(['bulwark', 'venom']);
+    expect(again.economy.loadout).toEqual(['spare']);
+    expect(again.economy.wishlist).toBe('chrono');
+    expect(again.economy.milestones).toEqual(['perfect', 'win1']);
+    expect(again.economy.firstUsed).toEqual({ fire: true });
+    expect(again.economy.bestCombo).toBe(412);
   });
 });
 

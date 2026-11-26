@@ -32,6 +32,17 @@ import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
 import type { RunMode } from '../game/run';
 import type { Session, SessionEvents } from '../game/session';
 import { STARTERS, type Starter } from '../game/starters';
+import {
+  PROTOCOLS,
+  PROTOCOL_MAP,
+  SLOT_GATES,
+  SUPPLIES,
+  SUPPLY_MAP,
+  isSupplyId,
+  slotLimit,
+  supplyCost,
+} from '../game/economy/catalog';
+import { MILESTONES } from '../game/economy/milestones';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
 import { RARITY_INFO, RARITY_ORDER, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
@@ -58,6 +69,14 @@ export interface UiActions {
   /** Fires overdrive if the meter is full. */
   overdrive(): void;
   updateSettings(patch: Partial<Settings>): void;
+  /** Spends 星尘 on an opening protocol. False when unknown, owned, or unaffordable. */
+  buyProtocol(id: string): boolean;
+  /** Spends 星尘 on a supply. False when unknown, owned, or unaffordable. */
+  buySupply(id: string): boolean;
+  /** Points the menu/results nudge at a catalog item, or clears the nudge when it is the same one. */
+  toggleWishlist(id: string): void;
+  /** Toggles a supply in the carried loadout. False when unowned or the earned slots are full. */
+  toggleLoadout(id: string): boolean;
   /** Composes and downloads the run's score-card PNG. Resolves false when it could not be made. */
   downloadScorecard(): Promise<boolean>;
   /** Frame-rate figures for the performance readout in settings. */
@@ -91,7 +110,7 @@ export interface PerfInfo {
 }
 
 export type ScreenId =
-  'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history' | 'cloud';
+  'menu' | 'starter' | 'draft' | 'pause' | 'over' | 'codex' | 'settings' | 'history' | 'cloud' | 'shop';
 
 const SCREENS: ScreenId[] = [
   'menu',
@@ -103,7 +122,24 @@ const SCREENS: ScreenId[] = [
   'settings',
   'history',
   'cloud',
+  'shop',
 ];
+
+/** One run's 星尘 payout, quoted on the results screen. */
+export interface EconomyPayout {
+  /** The raw run share, before the daily soft cap. */
+  earned: number;
+  /** The run share actually paid. */
+  runPaid: number;
+  /** True when the daily cap halved part of the run share. */
+  halved: boolean;
+  gift: number;
+  firstUse: number;
+  milestones: number;
+  /** How many milestones settled with this run (they may be zero even when the reward is not). */
+  milestoneCount: number;
+  total: number;
+}
 
 export interface BannerOptions {
   title: string;
@@ -135,6 +171,7 @@ export class UI implements HudHost {
   private difficulty: DifficultyId;
   private codexTab = 'upgrades';
   private historyTab: 'campaign' | 'endless' = 'campaign';
+  private shopTab: 'protocols' | 'supplies' | 'progress' = 'protocols';
   private accent = DEFAULT_ACCENT;
   /** Levels of the run currently on screen, for tooltips. */
   private levels: Record<string, number> = {};
@@ -204,6 +241,7 @@ export class UI implements HudHost {
     };
     on('campaign', () => this.showStarter('campaign'));
     on('endless', () => this.showStarter('endless'));
+    on('shop', () => this.showShop());
     on('codex', () => this.showCodex());
     on('history', () => this.showHistory());
     on('cloud', () => this.showCloud());
@@ -240,6 +278,15 @@ export class UI implements HudHost {
       this.audio.ui('uiClick');
       this.historyTab = tab.dataset.tab === 'endless' ? 'endless' : 'campaign';
       this.renderHistory();
+    });
+
+    byId('shop-tabs').addEventListener('click', (event) => {
+      const tab = (event.target as HTMLElement).closest<HTMLButtonElement>('.tab');
+      if (!tab?.dataset.tab) return;
+      this.audio.ui('uiClick');
+      this.shopTab =
+        tab.dataset.tab === 'supplies' ? 'supplies' : tab.dataset.tab === 'progress' ? 'progress' : 'protocols';
+      this.renderShop();
     });
 
     const patch = (change: Partial<Settings>): void => this.actions.updateSettings(change);
@@ -311,7 +358,8 @@ export class UI implements HudHost {
       this.current === 'codex' ||
       this.current === 'settings' ||
       this.current === 'history' ||
-      this.current === 'cloud'
+      this.current === 'cloud' ||
+      this.current === 'shop'
     ) {
       if (this.returnTo === 'pause' || this.returnTo === 'over') this.show(this.returnTo);
       else this.showMenu();
@@ -391,6 +439,7 @@ export class UI implements HudHost {
     byId('menu-records').textContent = parts.length > 0 ? parts.join(' · ') : t('menu.recordsEmpty');
     // A build without credentials simply has no cloud section: no dead menu entry.
     byId('menu-cloud').hidden = this.cloudPanel === null;
+    this.syncMenuMeta();
     // First launch of a fresh save opens the deck on top of the menu; veterans keep their menu.
     // After an update the release notes come first, and a deck that is due waits behind them: the
     // notes dismiss into it, as long as the menu is still what is on screen. The nickname ask
@@ -435,13 +484,16 @@ export class UI implements HudHost {
       mode === 'campaign' ? t('starter.campaignEyebrow') : t('starter.endlessEyebrow');
     this.renderDifficulty();
     const grid = byId('starter-grid');
+    // The four free protocols first, then whatever the shop has unlocked, in price order.
+    const unlocked = [...STARTERS, ...PROTOCOLS.filter((p) => this.save.economy.protocols.includes(p.id))];
     grid.replaceChildren(
-      ...STARTERS.map((starter, i) => {
+      ...unlocked.map((starter, i) => {
         const card = this.starterCard(starter, i);
         card.style.animationDelay = `${i * 80}ms`;
         return card;
       }),
     );
+    this.renderLoadout();
     this.show('starter');
   }
 
@@ -492,7 +544,10 @@ export class UI implements HudHost {
       card.style.animationDelay = `${i * 90}ms`;
       cards.append(card);
     });
-    setText(byId('draft-eyebrow'), t('draft.eyebrow', { code: session.world.level.code }));
+    setText(
+      byId('draft-eyebrow'),
+      info.intro ? t('shop.headstartEyebrow') : t('draft.eyebrow', { code: session.world.level.code }),
+    );
     setText(byId('draft-crystals'), formatNumber(session.run.crystals));
     setText(byId('reroll-cost'), `◆ ${info.rerollCost}`);
     setText(byId('skip-reward'), `+◆ ${info.skipReward}`);
@@ -510,8 +565,9 @@ export class UI implements HudHost {
     won: boolean,
     newRecords: string[],
     rank: { rank: number; total: number } | null,
+    payout: EconomyPayout | null = null,
   ): void {
-    this.lastResults = [session, won, newRecords, rank];
+    this.lastResults = [session, won, newRecords, rank, payout];
     const run = session.run;
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
@@ -556,6 +612,25 @@ export class UI implements HudHost {
         ),
       ),
     );
+
+    // The 星尘 payout: one gold line, its parts joined after it, the wishlist nudge last.
+    const dust = byId('over-stardust');
+    if (payout && payout.total > 0) {
+      const parts: string[] = [t('shop.earnedRun', { n: payout.runPaid })];
+      if (payout.gift > 0) parts.push(t('shop.earnedGift', { n: payout.gift }));
+      if (payout.firstUse > 0) parts.push(t('shop.earnedFirstUse', { n: payout.firstUse }));
+      if (payout.milestones > 0) parts.push(t('shop.earnedMilestone', { n: payout.milestones }));
+      const wish = this.wishlistLine();
+      dust.hidden = false;
+      dust.replaceChildren(
+        el('span', { class: 'dust-total', text: t('shop.earnedLine', { n: payout.total }) }),
+        el('span', { class: 'dust-parts', text: parts.join(' · ') }),
+        ...(payout.halved ? [el('span', { class: 'dust-halved', text: t('shop.earnedHalved') })] : []),
+        ...(wish ? [el('span', { class: 'dust-wish', text: wish })] : []),
+      );
+    } else {
+      dust.hidden = true;
+    }
 
     const owned = this.hud.ownedUpgrades(run.upgrades);
     byId('over-build').replaceChildren(...owned.map(({ def, level: lv }) => this.hud.tile(def, lv, true)));
@@ -616,6 +691,281 @@ export class UI implements HudHost {
     line.hidden = false;
     line.dataset.tone = tone;
     setText(line, text);
+  }
+
+  // ───────────────────────────── 星尘商店 ─────────────────────────────
+
+  showShop(): void {
+    if (this.current === 'menu') this.returnTo = 'menu';
+    this.renderShop();
+    this.show('shop');
+  }
+
+  private renderShop(): void {
+    document.querySelectorAll<HTMLButtonElement>('#shop-tabs .tab').forEach((tab) => {
+      tab.setAttribute('aria-selected', String(tab.dataset.tab === this.shopTab));
+    });
+    const econ = this.save.economy;
+    setText(byId('shop-balance'), t('shop.stardustLine', { n: formatNumber(econ.stardust) }));
+    const body = byId('shop-body');
+    body.replaceChildren();
+    body.scrollTop = 0;
+    if (this.shopTab === 'protocols') body.append(...this.protocolCards());
+    else if (this.shopTab === 'supplies') body.append(...this.supplyCards());
+    else body.append(...this.progressRows());
+  }
+
+  private protocolCards(): HTMLElement[] {
+    const econ = this.save.economy;
+    return PROTOCOLS.map((protocol) =>
+      this.shopItem({
+        id: protocol.id,
+        color: protocol.color,
+        glyph: `starter:${protocol.id}`,
+        name: starterName(protocol),
+        en: protocol.en,
+        desc: starterDesc(protocol),
+        price: protocol.price,
+        owned: econ.protocols.includes(protocol.id),
+        ownedLabel: t('shop.owned'),
+        onBuy: () => this.actions.buyProtocol(protocol.id),
+      }),
+    );
+  }
+
+  private supplyCards(): HTMLElement[] {
+    const econ = this.save.economy;
+    const clears = this.campaignClears();
+    const limit = slotLimit(this.save.records.runs, clears);
+    const used = supplyCost(econ.loadout);
+    const header = el(
+      'div',
+      { class: 'shop-slots' },
+      el('span', { text: t('shop.slots', { used, limit }) }),
+      ...SLOT_GATES.map((gate) => {
+        const value = gate.kind === 'runs' ? this.save.records.runs : clears;
+        return el('span', {
+          class: `shop-gate${value >= gate.count ? ' met' : ''}`,
+          text: gate.kind === 'runs' ? t('shop.gateRuns', { n: gate.count }) : t('shop.gateClear'),
+        });
+      }),
+    );
+    const cards = SUPPLIES.map((supply) => {
+      const owned = econ.supplies.includes(supply.id);
+      const carried = econ.loadout.includes(supply.id);
+      return this.shopItem({
+        id: supply.id,
+        color: 0xffd24a,
+        glyph: `supply:${supply.id}`,
+        name: t(`shop.supply.${supply.id}.name`),
+        en: supply.en,
+        desc: t(`shop.supply.${supply.id}.desc`),
+        price: supply.price,
+        owned,
+        ownedLabel: carried ? t('shop.carried') : t('shop.owned'),
+        onBuy: () => this.actions.buySupply(supply.id),
+        onCarry: owned
+          ? () => {
+              if (!this.actions.toggleLoadout(supply.id)) {
+                this.audio.ui('deny');
+                return false;
+              }
+              this.audio.ui('uiClick');
+              return true;
+            }
+          : undefined,
+        carried,
+      });
+    });
+    return [header, ...cards];
+  }
+
+  private progressRows(): HTMLElement[] {
+    const econ = this.save.economy;
+    const head = el(
+      'div',
+      { class: 'shop-progress-head' },
+      el('span', {
+        text: t('shop.progressLine', { n: econ.milestones.length, total: MILESTONES.length }),
+      }),
+      el('span', { class: 'shop-progress-note', text: t('shop.progressNote') }),
+    );
+    const rows = MILESTONES.map((milestone) => {
+      const done = econ.milestones.includes(milestone.id);
+      const [name, desc] = t(`shop.ms.${milestone.id}`).split('｜');
+      return el(
+        'div',
+        { class: `shop-ms${done ? ' done' : ''}` },
+        el('span', { class: 'shop-ms-mark', text: done ? '✓' : '' }),
+        el(
+          'div',
+          { class: 'shop-ms-body' },
+          el('h4', { text: name ?? milestone.id }),
+          el('p', { text: desc ?? '' }),
+        ),
+        el('span', { class: 'shop-ms-reward', text: t('shop.stardustLine', { n: milestone.reward }) }),
+      );
+    });
+    return [head, ...rows];
+  }
+
+  /** One catalog row: glyph, copy, and a buy button — or the owned mark, or a carry toggle. */
+  private shopItem(opts: {
+    id: string;
+    color: number;
+    glyph: string;
+    name: string;
+    en: string;
+    desc: string;
+    price: number;
+    owned: boolean;
+    ownedLabel: string;
+    onBuy: () => boolean;
+    onCarry?: () => boolean;
+    carried?: boolean;
+  }): HTMLElement {
+    const econ = this.save.economy;
+    const affordable = econ.stardust >= opts.price;
+    const wished = econ.wishlist === opts.id;
+    const card = el(
+      'article',
+      { class: `shop-item${opts.owned ? ' owned' : ''}`, style: `--c:${hexCss(opts.color)}` },
+      el(
+        'div',
+        { class: 'shop-glyph' },
+        el('img', { src: sigil(opts.glyph, opts.color), alt: '', draggable: 'false' }),
+      ),
+      el(
+        'div',
+        { class: 'shop-body' },
+        el('h3', { class: 'shop-name', text: opts.name }),
+        el('div', { class: 'shop-code', text: opts.en }),
+        el('p', { class: 'shop-desc', text: opts.desc }),
+      ),
+      el(
+        'div',
+        { class: 'shop-side' },
+        opts.owned
+          ? el('span', { class: 'shop-owned', text: opts.ownedLabel })
+          : el(
+              'button',
+              {
+                class: `btn shop-buy${affordable ? '' : ' locked'}`,
+                type: 'button',
+                disabled: !affordable,
+              },
+              el('span', { text: t('shop.buy') }),
+              el('span', { class: 'cost', text: t('shop.stardustLine', { n: formatNumber(opts.price) }) }),
+            ),
+        opts.owned
+          ? null
+          : el(
+              'button',
+              { class: `shop-wish${wished ? ' on' : ''}`, type: 'button' },
+              el('span', { text: t(wished ? 'shop.wished' : 'shop.wish') }),
+            ),
+        opts.onCarry
+          ? el(
+              'button',
+              {
+                class: `shop-carry${opts.carried ? ' on' : ''}`,
+                type: 'button',
+              },
+              el('span', { text: t(opts.carried ? 'shop.carried' : 'shop.carry') }),
+            )
+          : null,
+      ),
+    );
+    const buy = card.querySelector<HTMLButtonElement>('.shop-buy');
+    buy?.addEventListener('click', () => {
+      if (opts.onBuy()) this.audio.ui('pick');
+      else this.audio.ui('deny');
+      this.renderShop();
+    });
+    const wish = card.querySelector<HTMLButtonElement>('.shop-wish');
+    wish?.addEventListener('click', () => {
+      this.actions.toggleWishlist(opts.id);
+      this.audio.ui('uiClick');
+      this.renderShop();
+    });
+    const carry = card.querySelector<HTMLButtonElement>('.shop-carry');
+    carry?.addEventListener('click', () => {
+      opts.onCarry?.();
+      this.renderShop();
+    });
+    return card;
+  }
+
+  /** The carried-supplies row on the starter screen: owned supplies toggle into the loadout. */
+  private renderLoadout(): void {
+    const row = byId('loadout-row');
+    const econ = this.save.economy;
+    const owned = SUPPLIES.filter((supply) => econ.supplies.includes(supply.id));
+    row.hidden = owned.length === 0;
+    if (row.hidden) return;
+    const used = supplyCost(econ.loadout);
+    const limit = slotLimit(this.save.records.runs, this.campaignClears());
+    const chips = owned.map((supply) => {
+      const carried = econ.loadout.includes(supply.id);
+      const chip = el(
+        'button',
+        {
+          class: `loadout-chip${carried ? ' on' : ''}`,
+          type: 'button',
+          title: t(`shop.supply.${supply.id}.desc`),
+        },
+        el('span', { text: t(`shop.supply.${supply.id}.name`) }),
+      );
+      chip.addEventListener('click', () => {
+        if (!this.actions.toggleLoadout(supply.id)) this.audio.ui('deny');
+        else this.audio.ui('uiClick');
+        this.renderLoadout();
+      });
+      return chip;
+    });
+    row.replaceChildren(
+      el('span', { class: 'loadout-title', text: t('shop.loadoutTitle') }),
+      ...chips,
+      el('span', {
+        class: 'loadout-slots',
+        text: t('shop.slots', { used, limit }),
+      }),
+    );
+  }
+
+  /** Menu extras that follow the wallet: the 星尘 line, the wishlist nudge and the shop badge. */
+  private syncMenuMeta(): void {
+    const econ = this.save.economy;
+    const started = econ.lifetime > 0 || econ.stardust > 0 || this.save.records.runs > 0;
+    setText(byId('menu-stardust'), started ? t('shop.stardustLine', { n: formatNumber(econ.stardust) }) : '');
+    const wishLine = byId('menu-wish');
+    const wish = this.wishlistLine();
+    wishLine.hidden = wish === null;
+    if (wish) setText(wishLine, wish);
+    // The badge marks something new to spend on: the unpaid first gift, or any affordable item.
+    const affordable =
+      PROTOCOLS.some((p) => !econ.protocols.includes(p.id) && econ.stardust >= p.price) ||
+      SUPPLIES.some((s) => !econ.supplies.includes(s.id) && econ.stardust >= s.price);
+    const badge = byId('shop-badge');
+    badge.hidden = !(affordable || !econ.firstGift);
+    if (!badge.hidden) setText(badge, econ.firstGift ? t('shop.menuBadge') : t('shop.giftBadge'));
+  }
+
+  /** The wishlist nudge for the menu and the results screen, or null when there is nothing to nudge. */
+  private wishlistLine(): string | null {
+    const econ = this.save.economy;
+    const wish = econ.wishlist;
+    if (!wish) return null;
+    const protocol = PROTOCOL_MAP[wish];
+    const price = protocol?.price ?? (isSupplyId(wish) ? SUPPLY_MAP[wish].price : 0);
+    if (!price || econ.protocols.includes(wish) || econ.supplies.includes(wish)) return null;
+    const name = protocol ? starterName(protocol) : t(`shop.supply.${wish}.name`);
+    return t('shop.wishLine', { name, n: Math.max(0, price - econ.stardust) });
+  }
+
+  /** Campaign clears ever recorded, as far as the economy's counters know. */
+  private campaignClears(): number {
+    return Object.values(this.save.economy.winsByDifficulty).some((n) => (n ?? 0) > 0) ? 1 : 0;
   }
 
   private renderHistory(): void {
@@ -1226,6 +1576,9 @@ export class UI implements HudHost {
         break;
       case 'cloud':
         this.cloudPanel?.applyLanguage();
+        break;
+      case 'shop':
+        this.renderShop();
         break;
       case 'settings':
         this.syncSettingsControls();

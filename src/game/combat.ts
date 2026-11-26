@@ -226,6 +226,7 @@ function applyOnHit(world: World, brick: Brick, power: number): void {
 function react(world: World, brick: Brick, id: ReactionId): void {
   brick.reactCd = REACT_CD;
   const first = world.discoverReaction(id);
+  world.reactions++;
   world.events.emit('reaction', { id, x: brick.x, y: brick.y, first });
 }
 

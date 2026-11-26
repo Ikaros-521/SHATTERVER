@@ -18,9 +18,24 @@ import { BUFF_MAP, isBuffId } from './game/buffs/defs';
 import { buffColor } from './game/buffs/present';
 import { UPGRADE_MAP } from './game/upgrades/defs';
 import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
-import type { RunMode } from './game/run';
+import type { Run, RunMode } from './game/run';
 import { Session } from './game/session';
 import { STARTERS, type Starter } from './game/starters';
+import {
+  PROTOCOL_MAP,
+  SUPPLY_MAP,
+  isSupplyId,
+  slotLimit,
+  supplyCost,
+} from './game/economy/catalog';
+import {
+  FIRST_GIFT,
+  FIRST_USE_REWARD,
+  applyDailyHalving,
+  dayKey,
+  runCoins,
+} from './game/economy/coins';
+import { SWIFT_SECONDS, settleMilestones } from './game/economy/milestones';
 import {
   buffName,
   buffShort,
@@ -45,7 +60,7 @@ import type { Leaderboard } from './net/leaderboard';
 import { isToyEnvironment, loadToySdk } from './net/toy';
 import { ToyChannel } from './net/toychannel';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
-import { UI, type PerfInfo, type UiActions } from './ui/ui';
+import { UI, type EconomyPayout, type PerfInfo, type UiActions } from './ui/ui';
 
 /** Minimum spacing between redraws of a screen where nothing moves (paused, drafting, over). */
 const IDLE_FRAME_MS = 66;
@@ -287,10 +302,20 @@ export class App implements UiActions {
             pending: this.cloud.nicknamePending,
           }
         : null,
+    /** The 星尘 wallet, purchases, loadout and milestone progress. For tests and tuning. */
+    economy: (): Record<string, unknown> => ({ ...this.save.economy }),
   };
 
   constructor(canvas: HTMLCanvasElement) {
     this.save = loadSave();
+    // A save from before the shop existed settles its milestones on first launch: progress
+    // already sitting on the records pays out once, and never again (earned ids are remembered).
+    const retro = settleMilestones(this.save.records, this.save.economy);
+    if (retro.reward > 0) {
+      this.save.economy.stardust += retro.reward;
+      this.save.economy.lifetime += retro.reward;
+      storeSave(this.save);
+    }
     this.canvas = canvas;
     const toy = isToyEnvironment();
     // `__TOY__` is a build-time constant for the platform package: it forces the Toy channel and
@@ -356,7 +381,7 @@ export class App implements UiActions {
   }
 
   private starterById(id: string): Starter | null {
-    return STARTERS.find((starter) => starter.id === id) ?? null;
+    return STARTERS.find((starter) => starter.id === id) ?? PROTOCOL_MAP[id] ?? null;
   }
 
   /** A bot-driven run with a flashy random build, started a few sectors in so the screen is full from the first second. */
@@ -555,6 +580,18 @@ export class App implements UiActions {
           }),
         ),
       ),
+      world.events.on('secondWind', () =>
+        whenPlaying(() =>
+          this.ui.banner({
+            title: 'SECOND WIND',
+            sub: t('shop.secondWindSub'),
+            color: 0x7dffe0,
+            small: true,
+            duration: 1.4,
+            key: 'secondwind',
+          }),
+        ),
+      ),
       world.events.on('clear', () =>
         whenPlaying(() =>
           this.ui.banner({ title: 'SECTOR CLEAR', sub: t('callouts.sectorClearSub'), duration: 1.5 }),
@@ -587,6 +624,7 @@ export class App implements UiActions {
       starter,
       level,
       difficulty: difficultyOf(difficulty),
+      supplies: this.save.economy.loadout,
     });
     this.ui.clearCallouts();
     this.adopt(session, false);
@@ -676,6 +714,56 @@ export class App implements UiActions {
     this.fx.applySettings(this.fxSettings());
   }
 
+  // ───────────────────────────── 星尘商店 (called by the UI) ─────────────────────────────
+
+  buyProtocol(id: string): boolean {
+    const def = PROTOCOL_MAP[id];
+    const econ = this.save.economy;
+    if (!def || econ.protocols.includes(id) || econ.stardust < def.price) return false;
+    econ.stardust -= def.price;
+    econ.protocols.push(id);
+    if (econ.wishlist === id) econ.wishlist = null;
+    storeSave(this.save);
+    return true;
+  }
+
+  buySupply(id: string): boolean {
+    if (!isSupplyId(id)) return false;
+    const def = SUPPLY_MAP[id];
+    const econ = this.save.economy;
+    if (econ.supplies.includes(id) || econ.stardust < def.price) return false;
+    econ.stardust -= def.price;
+    econ.supplies.push(id);
+    if (econ.wishlist === id) econ.wishlist = null;
+    storeSave(this.save);
+    return true;
+  }
+
+  toggleWishlist(id: string): void {
+    const econ = this.save.economy;
+    if (!PROTOCOL_MAP[id] && !isSupplyId(id)) return;
+    econ.wishlist = econ.wishlist === id ? null : id;
+    storeSave(this.save);
+  }
+
+  toggleLoadout(id: string): boolean {
+    if (!isSupplyId(id)) return false;
+    const econ = this.save.economy;
+    if (!econ.supplies.includes(id)) return false;
+    const index = econ.loadout.indexOf(id);
+    if (index >= 0) econ.loadout.splice(index, 1);
+    else {
+      // Slot gates read the record, so carrying more is always earned by playing, never bought.
+      const clears = Object.values(econ.winsByDifficulty).some((n) => (n ?? 0) > 0) ? 1 : 0;
+      if (supplyCost(econ.loadout) + SUPPLY_MAP[id].slots > slotLimit(this.save.records.runs, clears)) {
+        return false;
+      }
+      econ.loadout.push(id);
+    }
+    storeSave(this.save);
+    return true;
+  }
+
   perf(): PerfInfo {
     return {
       fps: +this.frameTimes.fps.toFixed(1),
@@ -746,7 +834,7 @@ export class App implements UiActions {
     if (!this.scoring) {
       this.lastFresh = [];
       this.audio.setMusicDuck(0.5, 0.8);
-      this.ui.showResults(this.session, won, fresh, null);
+      this.ui.showResults(this.session, won, fresh, null, null);
       return;
     }
     // A loss on level N "reached" N; a win cleared the last level.
@@ -763,6 +851,9 @@ export class App implements UiActions {
     }
     if (won) records.wins++;
     records.bricks += run.kills;
+    // The run's 星尘 settles here, after the records absorbed this run: a milestone this run
+    // just earned has to pay on this very results screen.
+    const payout = this.settleEconomy(run, won);
     // Local leaderboard: every scoring run lands in the history, and its rank is what the
     // results screen and share card quote.
     const world = this.session.world;
@@ -787,9 +878,83 @@ export class App implements UiActions {
     this.lastFresh = fresh;
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);
-    this.ui.showResults(this.session, won, fresh, { rank: runRank(sameMode, score), total: sameMode.length });
+    this.ui.showResults(
+      this.session,
+      won,
+      fresh,
+      { rank: runRank(sameMode, score), total: sameMode.length },
+      payout,
+    );
     this.lastCloudRecord = record;
     void this.submitRun(record);
+  }
+
+  /**
+   * Settles the finished run's 星尘 payout: the run share through the daily soft cap, then the
+   * one-time rewards — the first-run gift, first uses of upgrade kinds, newly reached milestones.
+   * Run aggregates fold in before the milestones settle, so a difficulty first-cleared on this
+   * very run pays on this very run. The balance and the lifetime total move together at the end.
+   * Debug runs and fixed-seed runs pay nothing.
+   */
+  private settleEconomy(run: Run, won: boolean): EconomyPayout | null {
+    if (!this.scoring) return null;
+    const econ = this.save.economy;
+    // A fixed seed replays the same good run forever: it earns no stardust (the weekly seeded
+    // challenge, when it comes, will carry its own exemption).
+    if (this.save.settings.seed.trim()) return null;
+    const score = Math.round(run.score);
+    const campaignWon = won && run.mode === 'campaign';
+    const earned = runCoins(run.time, score, campaignWon);
+    const date = dayKey();
+    if (econ.dailyDate !== date) {
+      econ.dailyDate = date;
+      econ.dailyRunCoins = 0;
+    }
+    const runPaid = applyDailyHalving(earned.total, econ.dailyRunCoins);
+    econ.dailyRunCoins += runPaid;
+
+    econ.bestCombo = Math.max(econ.bestCombo, run.maxCombo);
+    if (campaignWon) {
+      const tier = run.difficulty;
+      econ.winsByDifficulty[tier] = (econ.winsByDifficulty[tier] ?? 0) + 1;
+      const starterId = this.lastRun?.starter.id;
+      if (starterId) econ.winsByStarter[starterId] = (econ.winsByStarter[starterId] ?? 0) + 1;
+    }
+    econ.counters.perfects += run.perfects;
+    econ.counters.capsules += run.capsules;
+    econ.counters.overdrives += run.overdrives;
+    econ.counters.reactions += run.reactionTriggers;
+    econ.counters.bosses += run.bosses;
+    for (const level of run.history) {
+      if (level.damageTaken <= 0) econ.counters.flawless++;
+      if (level.time > 0 && level.time < SWIFT_SECONDS) econ.counters.swift++;
+    }
+    let firstUse = 0;
+    for (const [id, level] of Object.entries(run.upgrades)) {
+      if (level > 0 && !econ.firstUsed[id]) {
+        econ.firstUsed[id] = true;
+        firstUse += FIRST_USE_REWARD;
+      }
+    }
+    let gift = 0;
+    if (!econ.firstGift) {
+      econ.firstGift = true;
+      gift = FIRST_GIFT;
+    }
+    const settled = settleMilestones(this.save.records, econ);
+    const total = runPaid + gift + firstUse + settled.reward;
+    econ.stardust += total;
+    econ.lifetime += total;
+    return {
+      earned: earned.total,
+      runPaid,
+      halved: runPaid < earned.total,
+      gift,
+      firstUse,
+      milestones: settled.reward,
+      milestoneCount: settled.earned.length,
+      total,
+    };
   }
 
   /**

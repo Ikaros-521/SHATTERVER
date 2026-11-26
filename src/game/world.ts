@@ -49,6 +49,7 @@ import {
   WALL,
 } from './config';
 import { botTarget } from './bot';
+import { SECOND_WIND_HP } from './economy/catalog';
 import { difficultyOf, type Difficulty } from './difficulty';
 import { isGuided } from './guidance';
 import { stepBall } from './physics';
@@ -193,6 +194,8 @@ export interface WorldEvents {
   aegis: { x: number };
   /** A hit that would have cost shield was dodged outright. */
   dodge: { x: number };
+  /** 「续战核心」caught the run's first lethal hit: shield restored, the run goes on. */
+  secondWind: Record<string, never>;
   /** The automatic thunder strike came down on a brick. */
   strike: { x: number; y: number };
   /** A ball bounced off the floor instead of being lost. */
@@ -273,6 +276,12 @@ export class World {
   killed = 0;
   /** Bricks this level started with, plus everything summoned since. Denominator of the level progress bar. */
   brickTotal = 0;
+  /** Run-wide play counters, folded into the run when the level ends. Milestone food. */
+  perfects = 0;
+  capsules = 0;
+  overdrives = 0;
+  reactions = 0;
+  bosses = 0;
   /** Whether this level has anything that fires at the paddle. A shield against nothing is not offered. */
   readonly hasGunners: boolean;
 
@@ -285,6 +294,8 @@ export class World {
   private orbitalCd = 2.5;
   private hitAcc = 0;
   private hpsT = 0;
+  /** 「续战核心」 carried: the run's first lethal hit restores shield instead of ending it. */
+  private readonly secondWind: boolean;
   private deathQueue: { brick: Brick; ctx: DamageCtx }[] = [];
   private flushing = false;
   private scheduler: { t: number; fn: () => void }[] = [];
@@ -307,7 +318,7 @@ export class World {
     readonly run: Run,
     readonly level: LevelPlan,
     readonly rng: RNG,
-    opts: { bot?: boolean; difficulty?: Difficulty } = {},
+    opts: { bot?: boolean; difficulty?: Difficulty; startEnergy?: number; secondWind?: boolean } = {},
   ) {
     this.stats = run.stats;
     this.liveStats = run.stats;
@@ -316,6 +327,8 @@ export class World {
     this.hasGunners = level.boss !== null || level.cells.some((cell) => cell.type === 'turret');
     this.diff = opts.difficulty ?? difficultyOf('standard');
     this.bot = opts.bot ?? false;
+    this.energy = opts.startEnergy ?? 0;
+    this.secondWind = opts.secondWind ?? false;
     this.maxHp = run.maxHp;
     this.hp = Math.min(run.hp, run.maxHp);
     if (this.stats.timeStopInterval > 0) this.timeStopCd = Math.max(5, this.stats.timeStopInterval - 8);
@@ -527,6 +540,7 @@ export class World {
     this.odKills = this.killed;
     this.odBonus = 0;
     this.energy = 0;
+    this.overdrives++;
     this.events.emit('overdrive', 'start');
     return true;
   }
@@ -714,10 +728,18 @@ export class World {
     this.energy = Math.max(0, this.energy - 25);
     this.events.emit('hurt', { amount });
     if (this.hp <= 0) {
-      this.hp = 0;
-      this.state = 'dying';
-      this.deathT = 1.5;
-      if (this.odActive) this.endOverdrive();
+      // 「续战核心」: the run's first breach restores shield instead of ending it. The hit still
+      // costs what a hit costs — combo, meter, the grace window — it just does not end the run.
+      if (this.secondWind && !this.run.secondWindUsed) {
+        this.run.secondWindUsed = true;
+        this.hp = SECOND_WIND_HP;
+        this.events.emit('secondWind', {});
+      } else {
+        this.hp = 0;
+        this.state = 'dying';
+        this.deathT = 1.5;
+        if (this.odActive) this.endOverdrive();
+      }
     }
   }
 
@@ -900,6 +922,7 @@ export class World {
     const boss = this.boss;
     if (!boss || boss.dead) return;
     boss.dead = true;
+    this.bosses++;
     this.events.emit('boss', { phase: 'die' });
     let i = 0;
     for (const brick of this.bricks) {
@@ -1172,6 +1195,7 @@ export class World {
     // Judged on where the ball landed, before the anti-stall nudge bent its return angle.
     const perfect = Math.abs(landed) < PERFECT_WINDOW + s.perfectWindow;
     this.gainEnergy(perfect ? PERFECT_ENERGY * (1 + s.perfectEnergy) : CATCH_ENERGY);
+    if (perfect) this.perfects++;
     this.events.emit('paddle', { x: ball.x, off, perfect });
   }
 
@@ -1415,6 +1439,7 @@ export class World {
         if (pickup.kind === 'crystal') {
           this.run.crystals += pickup.value;
         } else if (pickup.kind === 'buff') {
+          this.capsules++;
           if (pickup.buff) this.activateBuff(pickup.buff);
         } else if (this.hp < this.maxHp) {
           this.hp++;

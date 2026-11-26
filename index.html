@@ -169,31 +169,42 @@
               <span class="menu-index">02</span>
               <span class="menu-label"><span data-i18n="menu.endless">无尽模式</span><em>ENDLESS</em></span>
             </button>
-            <button class="menu-item" type="button" data-action="tutorial">
+            <button id="menu-shop" class="menu-item" type="button" data-action="shop">
               <span class="menu-index">03</span>
+              <span class="menu-label"
+                ><span data-i18n="shop.menuEntry">星尘商店</span><em>STARDUST SHOP</em></span
+              >
+              <span id="shop-badge" class="menu-badge" hidden></span>
+            </button>
+            <button class="menu-item" type="button" data-action="tutorial">
+              <span class="menu-index">04</span>
               <span class="menu-label"><span data-i18n="menu.tutorial">新手说明</span><em>TUTORIAL</em></span>
             </button>
             <button class="menu-item" type="button" data-action="codex">
-              <span class="menu-index">04</span>
+              <span class="menu-index">05</span>
               <span class="menu-label"><span data-i18n="menu.codex">强化图鉴</span><em>CODEX</em></span>
             </button>
             <button class="menu-item" type="button" data-action="history">
-              <span class="menu-index">05</span>
+              <span class="menu-index">06</span>
               <span class="menu-label"><span data-i18n="menu.history">战绩排行</span><em>RECORDS</em></span>
             </button>
             <button id="menu-cloud" class="menu-item" type="button" data-action="cloud">
-              <span class="menu-index">06</span>
+              <span class="menu-index">07</span>
               <span class="menu-label"
                 ><span data-i18n="menu.cloud">云端排行榜</span><em>CLOUD BOARD</em></span
               >
             </button>
             <button class="menu-item" type="button" data-action="settings">
-              <span class="menu-index">07</span>
+              <span class="menu-index">08</span>
               <span class="menu-label"><span data-i18n="menu.settings">设置</span><em>SETTINGS</em></span>
             </button>
           </nav>
           <footer class="menu-foot">
             <span id="menu-records" class="menu-records"></span>
+            <span class="menu-meta">
+              <span id="menu-wish" class="menu-wish" hidden></span>
+              <span id="menu-stardust" class="menu-stardust"></span>
+            </span>
             <span class="menu-help" data-i18n-html="menu.help"
               >移动鼠标 控制挡板 · <kbd>空格</kbd>/点击 超载 · <kbd>P</kbd> 暂停</span
             >
@@ -212,6 +223,7 @@
           </header>
           <div id="diff-row" class="diff-row" role="group" aria-label="难度" data-i18n-aria="starter.diffRowLabel"></div>
           <p id="diff-detail" class="diff-detail"></p>
+          <div id="loadout-row" class="loadout-row" hidden></div>
           <div id="starter-grid" class="cards cards-starter"></div>
           <footer class="dialog-foot">
             <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
@@ -275,6 +287,7 @@
             <p id="over-sub" class="dialog-sub"></p>
           </header>
           <div id="over-stats" class="tiles"></div>
+          <p id="over-stardust" class="over-stardust" hidden></p>
           <p id="over-cloud" class="over-cloud" hidden></p>
           <div class="results-build">
             <div class="eyebrow">FINAL BUILD</div>
@@ -296,6 +309,36 @@
             </button>
             <button class="btn btn-ghost" type="button" data-action="quit" data-i18n="over.backToMenu">
               返回主菜单
+            </button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="screen-shop" class="screen" hidden>
+        <div class="dialog dialog-wide dialog-tall">
+          <header class="dialog-head">
+            <div class="eyebrow">STARDUST SHOP</div>
+            <h2 data-i18n="shop.title">星尘商店</h2>
+            <p class="dialog-sub" data-i18n="shop.sub">
+              星尘只通过对局获得。兑换协议与补给，让下一局的起点不一样。
+            </p>
+            <span id="shop-balance" class="shop-balance"></span>
+          </header>
+          <div class="tabs" id="shop-tabs">
+            <button class="tab" type="button" data-tab="protocols" data-i18n="shop.tabProtocols">
+              协议
+            </button>
+            <button class="tab" type="button" data-tab="supplies" data-i18n="shop.tabSupplies">
+              补给
+            </button>
+            <button class="tab" type="button" data-tab="progress" data-i18n="shop.tabProgress">
+              进度
+            </button>
+          </div>
+          <div id="shop-body" class="history-body shop-body"></div>
+          <footer class="dialog-foot">
+            <button class="btn btn-ghost" type="button" data-action="back" data-i18n="common.back">
+              返回
             </button>
           </footer>
         </div>

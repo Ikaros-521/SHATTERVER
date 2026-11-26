@@ -155,7 +155,9 @@ void main() {
       float w = 1.0 - t * 0.6;
       col += vec3(texture(uScene, z + ca).r, texture(uScene, z).g, texture(uScene, z - ca).b) * w;
     }
-    col /= 3.4;
+    // The six weights above sum to 4.2: renormalize by that, or the branch reads brighter than
+    // the single-tap path and the effect pops dark as it fades out.
+    col /= 4.2;
   } else {
     col = vec3(texture(uScene, suv + ca).r, texture(uScene, suv).g, texture(uScene, suv - ca).b);
   }

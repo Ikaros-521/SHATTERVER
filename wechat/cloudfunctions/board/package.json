@@ -1,0 +1,9 @@
+{
+  "name": "board",
+  "version": "1.0.0",
+  "description": "碎界全服榜云函数(见 docs/wechat-cloud-leaderboard.md)",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

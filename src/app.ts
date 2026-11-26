@@ -21,20 +21,8 @@ import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
 import type { Run, RunMode } from './game/run';
 import { Session } from './game/session';
 import { STARTERS, type Starter } from './game/starters';
-import {
-  PROTOCOL_MAP,
-  SUPPLY_MAP,
-  isSupplyId,
-  slotLimit,
-  supplyCost,
-} from './game/economy/catalog';
-import {
-  FIRST_GIFT,
-  FIRST_USE_REWARD,
-  applyDailyHalving,
-  dayKey,
-  runCoins,
-} from './game/economy/coins';
+import { PROTOCOL_MAP, SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from './game/economy/catalog';
+import { FIRST_GIFT, FIRST_USE_REWARD, applyDailyHalving, dayKey, runCoins } from './game/economy/coins';
 import { SWIFT_SECONDS, settleMilestones } from './game/economy/milestones';
 import {
   buffName,
@@ -58,6 +46,7 @@ import { CLOUD_CONFIG, cloudEnabled } from './net/config';
 import { loadIdentity, storeIdentity } from './net/identity';
 import type { Leaderboard } from './net/leaderboard';
 import { isToyEnvironment, loadToySdk } from './net/toy';
+import { WeChatChannel } from './net/wechatchannel';
 import { ToyChannel } from './net/toychannel';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
 import { UI, type EconomyPayout, type PerfInfo, type UiActions } from './ui/ui';
@@ -144,6 +133,16 @@ function createToyChannel(): ToyChannel {
   // the submit that ends a run.
   void loadToySdk();
   return new ToyChannel();
+}
+
+/**
+ * Builds the WeChat channel when the game runs as a 微信小游戏 (`isWeChatRuntime`). The backend is
+ * the project's own 微信云开发 function (see `docs/wechat-cloud-leaderboard.md`), reached through
+ * `wx.cloud` with no request domain. Identity is a silent server-side openid and the nickname is
+ * the player's own input, so this channel owns the rename flow on that platform.
+ */
+function createWeChatChannel(): WeChatChannel {
+  return new WeChatChannel();
 }
 
 /**
@@ -317,10 +316,26 @@ export class App implements UiActions {
       storeSave(this.save);
     }
     this.canvas = canvas;
-    const toy = isToyEnvironment();
-    // `__TOY__` is a build-time constant for the platform package: it forces the Toy channel and
-    // lets the bundler drop the Chedda client (no third-party service in that package).
-    this.cloud = __TOY__ ? createToyChannel() : toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
+    // `__WECHAT__` and `__TOY__` are build-time constants: each platform package keeps exactly one
+    // channel, and the bundler drops the other clients from that package entirely. The branches
+    // run on real flags at runtime only in the web build — the WeChat runtime has no `location`,
+    // so `isToyEnvironment()` must never be called there (and is dead code in that package).
+    let cloud: Leaderboard | null;
+    if (__WECHAT__) {
+      cloud = createWeChatChannel();
+    } else {
+      const toy = isToyEnvironment();
+      // `__TOY__` forces the Toy channel and lets the bundler drop the Chedda client (no
+      // third-party service in that package).
+      cloud = __TOY__
+        ? createToyChannel()
+        : toy || cloudEnabled()
+          ? toy
+            ? createToyChannel()
+            : createCloud()
+          : null;
+    }
+    this.cloud = cloud;
     // Start where the player asked — unless this device has already proven that is too much.
     const wanted = tierOf(this.save.settings.quality);
     const learned = this.save.device;

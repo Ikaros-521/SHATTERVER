@@ -1,4 +1,5 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
+import { wxStorageRead, wxStorageWrite } from './wxstorage';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isSupplyId } from '../game/economy/catalog';
 import { isTier, type Tier } from '../render/governor';
@@ -211,8 +212,7 @@ function migrateEconomy(records: Records): EconomyState {
   for (const record of records.history) {
     economy.bestCombo = Math.max(economy.bestCombo, record.combo);
     if (record.mode === 'campaign' && record.won) {
-      economy.winsByDifficulty[record.difficulty] =
-        (economy.winsByDifficulty[record.difficulty] ?? 0) + 1;
+      economy.winsByDifficulty[record.difficulty] = (economy.winsByDifficulty[record.difficulty] ?? 0) + 1;
     }
   }
   return economy;
@@ -269,7 +269,9 @@ export function loadSave(): SaveData {
   const save = defaultSave();
   let raw: unknown;
   try {
-    raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    // WeChat's minigame runtime has no localStorage; `wxstorage.ts` is that platform's adapter
+    // (tree-shaken away in every other build, since this is the only reference under `__WECHAT__`).
+    raw = JSON.parse((__WECHAT__ ? wxStorageRead(KEY) : localStorage.getItem(KEY)) ?? 'null');
   } catch {
     return save;
   }
@@ -373,7 +375,9 @@ export function runRank(history: RunRecord[], score: number): number {
 
 export function storeSave(save: SaveData): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(save));
+    const text = JSON.stringify(save);
+    if (__WECHAT__) wxStorageWrite(KEY, text);
+    else localStorage.setItem(KEY, text);
   } catch {
     // Storage can be unavailable (private mode, quota). The game works fine without persistence.
   }

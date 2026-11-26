@@ -10,7 +10,7 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   base: './',
-  define: { __TOY__: 'true' },
+  define: { __TOY__: 'true', __WECHAT__: 'false' },
   server: { host: '127.0.0.1', port: 5173 },
   // No source map: the map embeds every module's original text, which is both a large scanning
   // surface for the review and of no use inside a platform package.

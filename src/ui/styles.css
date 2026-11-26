@@ -564,7 +564,8 @@ button.sigil-tile:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A pill under the paddle. It is a button so touch players can fire overdrive with it. */
+/* A pill under the paddle. It is a button so touch players can fire overdrive with it — though on
+   touch screens it moves to the arena's top-left corner (see the pointer: coarse block at the end). */
 .od-hint {
   position: fixed;
   left: calc(var(--ax) + var(--aw) / 2);
@@ -2256,6 +2257,32 @@ button.sigil-tile:hover {
 
   .menu-help kbd {
     display: none; /* 键位提示对触屏没有意义 */
+  }
+}
+
+/* ─────────────────────────  touch screens: overdrive leaves the paddle zone  ─────────────────────────
+   Under the paddle is where the steering finger lives, so there the pill is both hard to hit and one
+   tap from dragging the paddle across the arena (the pointer guard for that lives in app.ts). Touch
+   instead takes the arena's empty top-left corner — the mirror image of the combo readout on the
+   right — with a taller pill so the tap target survives a moving thumb. Mouse players keep the
+   desktop spot: their pointer never occludes the arena. */
+@media (pointer: coarse) {
+  .od-hint {
+    top: calc(var(--ay) + 10px);
+    bottom: auto;
+    left: calc(var(--ax) + 10px);
+    transform: none;
+    padding: 11px 18px;
+    touch-action: manipulation;
+  }
+
+  .od-hint kbd {
+    display: none; /* 没有空格键可按 */
+  }
+
+  /* The pill has left the strip under the paddle, so the buff pills keep the whole width there. */
+  .buff-bar.overlay.shared {
+    width: calc(var(--aw) - 16px);
   }
 }
 

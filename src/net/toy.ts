@@ -103,9 +103,9 @@ const TOY_SCORE_LIMIT = 16_777_215;
 /**
  * Board value up to which a score is stored exactly as the game awarded it. As close to the
  * ceiling as leaves the log segment room to work: headless runs score a campaign win at
- * 0.5–13M (abyss at the top of that) and standard endless passes 15M around level 21, all of it
- * shown on the board exactly as it is in the HUD. The in-game score itself is never scaled —
- * the fit is made here, at submission, and nowhere else.
+ * 0.5–13M (abyss at the top of that), and with the per-brick cap (`SCORE_BRICK_CAP`) standard
+ * endless reaches 9M by level 22 and passes this line around level 28. Everything under the
+ * line is shown on the board exactly as it is in the HUD.
  */
 const TOY_LINEAR_MAX = 16_000_000;
 

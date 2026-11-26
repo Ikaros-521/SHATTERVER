@@ -82,7 +82,7 @@ describe('difficulty: in the world', () => {
     expect(scaled.run.difficulty).toBe('hard');
   });
 
-  it('awards score unscaled: fitting the B站 ceiling happens at submission, not in play', () => {
+  it('awards an ordinary brick exactly damage × combo × level × difficulty, with no score-wide scale', () => {
     const session = new Session('campaign', 1, { difficulty: difficultyOf('standard') });
     const world = session.world;
     let dealt = -1;

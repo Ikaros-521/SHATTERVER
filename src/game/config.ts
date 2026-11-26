@@ -105,6 +105,21 @@ export const HURT_REPAIR = 1.5;
 export const BASE_DMG = 10;
 export const MAX_HP_BASE = 4;
 
+/**
+ * Base score one brick is worth at most, before combo, level and difficulty.
+ *
+ * Brick HP grows 16% a level and boss parts compound a second geometric growth on top, so a
+ * score paid per point of damage reached 1e18 by endless level 100. A brick whose HP is at most
+ * this times its weight (`BRICK_HP` / `BOSS_HP`) still scores exactly the damage dealt; a bigger
+ * one is scaled down so the whole brick is worth what a brick at the line is. Score then grows
+ * about linearly with the level and stays near 1e10 at level 400.
+ *
+ * Every campaign brick on every difficulty sits under the line — the toughest is an abyss
+ * level-15 boss part at 240 — and standard endless only crosses it at level 18, so every
+ * campaign score is exactly what it was before the cap existed.
+ */
+export const SCORE_BRICK_CAP = 300;
+
 export const OVERDRIVE_DURATION = 6;
 /** Seconds of typical play needed to fill the overdrive meter, whatever the hit rate is. */
 export const OVERDRIVE_FILL_SECONDS = 11;

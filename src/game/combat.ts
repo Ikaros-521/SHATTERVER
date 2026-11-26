@@ -9,9 +9,10 @@ import {
   PLAGUE_RADIUS,
   PRISM_DAMAGE,
   PRISM_RANGE,
+  SCORE_BRICK_CAP,
   WILDFIRE_RADIUS,
 } from './config';
-import { makeBall, MIN_FREE_BALLS, type Ball, type Brick, type Hole } from './entities';
+import { BOSS_HP, BRICK_HP, makeBall, MIN_FREE_BALLS, type Ball, type Brick, type Hole } from './entities';
 import { REACTIONS, type ReactionDef, type ReactionId } from './levels/definitions';
 import type { World } from './world';
 
@@ -122,7 +123,12 @@ export function applyDamage(world: World, brick: Brick, amount: number, ctx: Dam
   brick.scale = Math.min(1.35, brick.scale + 0.16);
 
   world.totalDamage += dealt;
-  world.run.score += dealt * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25) * world.diff.scoreMult;
+  // Score counts the damage a brick is worth and shrinks the rest, so it grows with what was
+  // cleared rather than with the raw HP numbers of deep levels (`SCORE_BRICK_CAP`).
+  const worth = SCORE_BRICK_CAP * (brick.bossRole ? BOSS_HP[brick.bossRole] : BRICK_HP[brick.type]);
+  const points = brick.maxHp > worth ? (dealt * worth) / brick.maxHp : dealt;
+  world.run.score +=
+    points * (1 + world.combo * 0.01) * (1 + world.level.index * 0.25) * world.diff.scoreMult;
   if (ctx.source === 'ball' || ctx.source === 'secondary') world.addCombo();
 
   world.events.emit('hit', {

@@ -75,7 +75,16 @@ export interface ParagraphWidget extends Base {
 export interface ButtonWidget extends Base {
   kind: 'button';
   text: string;
+  /** Second line under the label (a menu entry's caption); omit for a single-line button. */
+  sub?: string;
+  /** Small right-aligned note (an index, a count), vertically centred; omit when unneeded. */
+  trailing?: string;
+  /** True claims the full offered width (menu lists); false sizes to the content. */
+  stretch: boolean;
   size: number;
+  /** Font sizes of {@link sub} and {@link trailing}; derived by the builder, data here. */
+  subSize: number;
+  trailingSize: number;
   variant: 'primary' | 'ghost' | 'danger';
   disabled: boolean;
   /** Horizontal padding around the label; height comes from the touch-target floor. */
@@ -195,12 +204,21 @@ export function button(
     disabled?: boolean;
     size?: number;
     paddingH?: number;
+    sub?: string;
+    trailing?: string;
+    stretch?: boolean;
   } = {},
 ): ButtonWidget {
+  const size = opts.size ?? 16;
   return {
     kind: 'button',
     text,
-    size: opts.size ?? 16,
+    sub: opts.sub,
+    trailing: opts.trailing,
+    stretch: opts.stretch ?? false,
+    size,
+    subSize: Math.max(10, Math.round(size * 0.62)),
+    trailingSize: Math.max(10, Math.round(size * 0.72)),
     variant: opts.variant ?? 'ghost',
     disabled: opts.disabled ?? false,
     paddingH: opts.paddingH ?? 18,
@@ -290,8 +308,12 @@ export function layoutWidget(w: Widget, x: number, y: number, width: number, m: 
     }
     case 'button': {
       const textW = m.measure(w.text, w.size);
-      w.w = textW + w.paddingH * 2;
-      w.h = Math.max(BUTTON_MIN_H, w.size * 2.2);
+      const subW = w.sub !== undefined ? m.measure(w.sub, w.subSize) : 0;
+      const trailingW =
+        w.trailing !== undefined ? m.measure(w.trailing, w.trailingSize) + w.paddingH * 0.7 : 0;
+      if (!w.stretch) w.w = Math.max(textW, subW) + w.paddingH * 2 + trailingW;
+      const contentH = w.size * 2.2 + (w.sub !== undefined ? w.subSize * 1.9 : 0);
+      w.h = Math.max(BUTTON_MIN_H, contentH);
       return w.h;
     }
     case 'spacer':
@@ -414,13 +436,40 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
         strokeW: 1,
         radius: theme.radius,
       });
-      s.text(w.text, w.x + w.w / 2, w.y + (w.h - w.size) / 2, {
-        size: w.size,
-        color: colors.text,
-        align: 'center',
-        alpha,
-        weight: '600',
-      });
+      if (w.sub !== undefined) {
+        // Two-line button: the label sits above centre, the caption below it.
+        const top = w.y + (w.h - (w.size * 1.15 + w.subSize * 1.35)) / 2;
+        s.text(w.text, w.x + w.paddingH, top, {
+          size: w.size,
+          color: colors.text,
+          align: 'left',
+          alpha,
+          weight: '600',
+        });
+        s.text(w.sub, w.x + w.paddingH, top + w.size * 1.15 + w.size * 0.15, {
+          size: w.subSize,
+          color: colors.text,
+          align: 'left',
+          alpha: alpha * 0.62,
+        });
+      } else {
+        s.text(w.text, w.x + w.w / 2, w.y + (w.h - w.size) / 2, {
+          size: w.size,
+          color: colors.text,
+          align: 'center',
+          alpha,
+          weight: '600',
+        });
+      }
+      if (w.trailing !== undefined) {
+        s.text(w.trailing, w.x + w.w - w.paddingH, w.y + (w.h - w.trailingSize) / 2, {
+          size: w.trailingSize,
+          color: colors.text,
+          align: 'right',
+          alpha: alpha * 0.55,
+          weight: '600',
+        });
+      }
       return;
     }
     case 'spacer':

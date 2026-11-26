@@ -250,6 +250,9 @@ export const ja: UiDict & { content: ContentOverrides } = {
     qualityGaveUpTitle: '選択した画質に戻しました',
     qualityGaveUpBody:
       '画質を下げてもフレームレートは改善しませんでした。遅延の原因は別にあります（多くは省電力モードのフレームレート制限）',
+    contextLostTitle: 'グラフィックドライバーが切断されました',
+    contextLostBody:
+      'WebGLコンテキストが失われ、ランを一時停止しました。ページを再読み込みして続行してください',
   },
   governor: {
     qualityHigh: '高',

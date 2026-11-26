@@ -5,10 +5,14 @@ import type { GL } from './gl';
  *
  * All other text in the game is DOM. Only damage numbers need to live inside the world —
  * hundreds per frame, moving and scaling — and uploading a texture per number would be ruinous,
- * so the sixteen glyphs are baked once into a single strip and drawn as tinted quads.
+ * so the twenty-five glyphs are baked once into a single strip and drawn as tinted quads.
+ *
+ * The strip covers exactly what `formatNumber` (core/math) and the crit suffix can emit:
+ * digits, the unit letters K M B T Q S a i x p, the decimal point, the sign characters
+ * "+"/"-", the crit mark "!", and "∞" for non-finite values.
  */
 
-const CHARS = '0123456789KMB+x!';
+export const CHARS = '0123456789KMBTQSapix.-+∞!';
 const FONT_SIZE = 96;
 const PAD = 16;
 

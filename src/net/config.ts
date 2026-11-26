@@ -15,8 +15,8 @@
 const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {};
 
 export const CLOUD_CONFIG = {
-  gameId: env.VITE_CB_GAME_ID || 'shatterver',
-  apiKey: env.VITE_CB_API_KEY || 'cb_shatterver_915f7bc029691dc360ed342597680fa2',
+  gameId: env.VITE_CB_GAME_ID ?? 'shatterver',
+  apiKey: env.VITE_CB_API_KEY ?? 'cb_shatterver_915f7bc029691dc360ed342597680fa2',
 } as const;
 
 /** False when the build has no key: the UI hides the cloud screens and no request is made. */

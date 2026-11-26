@@ -53,6 +53,12 @@ export class Renderer {
   readonly gl: GL;
   readonly pen: Pen;
   readonly stats: RenderStats = { surfaces: 0, lights: 0, glyphs: 0 };
+  /**
+   * Set when the WebGL context was lost and not yet reported restored (the app listens on the
+   * canvas). Draw calls check it alongside `gl.isLost()` so a context that never fires
+   * `webglcontextrestored` stays guarded too.
+   */
+  lost = false;
 
   private readonly canvas: HTMLCanvasElement;
   private readonly progInstance: WebGLProgram;
@@ -186,6 +192,10 @@ export class Renderer {
 
   /** Draws the current contents of `this.pen` plus everything in `input`. Call after filling the pen. */
   render(input: FrameInput): void {
+    // A lost context makes every GL call a no-op at best and a throw at worst — resizing a render
+    // target throws "Render target is incomplete". The app pauses the run and asks the player to
+    // reload; drawing stays skipped until then (full resource rebuilding is out of scope).
+    if (this.lost || this.gl.isLost()) return;
     this.ensureSize(input.layout);
     const gl = this.gl;
     const g = gl.gl;
@@ -339,8 +349,10 @@ export class Renderer {
   /**
    * PNG of the last drawn frame. Only reliable in the same task as a `render()` call — the
    * drawing buffer is cleared once the frame is composited, so callers render first, then snapshot.
+   * Null when the context is lost; the scorecard composer draws a fallback background instead.
    */
-  snapshot(): string {
+  snapshot(): string | null {
+    if (this.lost || this.gl.isLost()) return null;
     return this.canvas.toDataURL('image/png');
   }
 

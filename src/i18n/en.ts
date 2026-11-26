@@ -253,6 +253,8 @@ export const en: UiDict & { content: ContentOverrides } = {
     qualityGaveUpTitle: 'Restored your chosen quality',
     qualityGaveUpBody:
       'Lowering quality did not raise the frame rate — the stutter has another cause (often a system power saver capping the frame rate).',
+    contextLostTitle: 'Graphics driver disconnected',
+    contextLostBody: 'The WebGL context was lost and the run was paused. Reload the page to continue.',
   },
   governor: {
     qualityHigh: 'High',

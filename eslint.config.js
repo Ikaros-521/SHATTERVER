@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   // promo/ is local, gitignored tooling (Node scripts for recording promo clips).
-  { ignores: ['dist/**', 'node_modules/**', 'promo/**', '.hyperframes/**'] },
+  { ignores: ['dist/**', 'dist-verify/**', 'node_modules/**', 'promo/**', '.hyperframes/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

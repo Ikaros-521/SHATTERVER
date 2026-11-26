@@ -491,11 +491,11 @@ export const UPGRADES: UpgradeDef[] = [
     apply: (s, lv) => {
       s.reaperRatio += 0.06 * lv;
     },
-    describe: (lv) => `对生命低于 ${b(pct(0.06 * lv))} 的砖块直接${b('处决')}（BOSS 核心免疫）。`,
+    describe: (lv) => `对生命低于 ${b(pct(0.06 * lv))} 的砖块直接${b('终结')}（BOSS 核心不受影响）。`,
   }),
   def({
     id: 'poison',
-    name: '腐蚀之毒',
+    name: '深度腐蚀',
     code: 'CORROSIVE',
     flavor: '百分比，无视一切防御。',
     rarity: 'epic',
@@ -592,9 +592,9 @@ export const UPGRADES: UpgradeDef[] = [
   }),
   def({
     id: 'plague',
-    name: '瘟疫传播',
-    code: 'PLAGUE',
-    flavor: '一个倒下，一排传染。',
+    name: '腐蚀蔓延',
+    code: 'CORROSION SPREAD',
+    flavor: '一处腐蚀，整排沦陷。',
     rarity: 'epic',
     maxLevel: 1,
     tags: ['poison'],

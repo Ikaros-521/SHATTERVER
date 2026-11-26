@@ -234,8 +234,8 @@ export const REACTIONS: ReactionDef[] = [
   {
     id: 'venom',
     name: '剧爆',
-    en: 'VENOM BURST',
-    recipe: '毒 + 火',
+    en: 'CORROSION BLAST',
+    recipe: '腐蚀 + 火',
     desc: '火焰引爆腐蚀中的砖块，造成大范围爆炸。',
     color: 0x8dff5a,
   },

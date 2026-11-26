@@ -950,7 +950,7 @@ describe('upgrades: everything else that is new', () => {
     expect(before - hp()).toBeGreaterThan(3 * BASE_DMG);
   });
 
-  it('Plague hands corrosion to the neighbours of a corroded brick', () => {
+  it('Corrosion spread hands corrosion to the neighbours of a corroded brick', () => {
     const spread = (build: Record<string, number>): [boolean, boolean] => {
       const world = makeWorld({ poison: 3, ...build }, { level: 6 });
       const plain = (): NonNullable<World['bricks'][number]>[] => world.bricks.filter((brick) => !brick.boss);

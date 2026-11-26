@@ -72,7 +72,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     bulletMult: 1,
     eraserChance: 0,
     purgePeriod: 0,
-    detail: ['砖块血量 +15%', '下沉速度 +20%', '额外 1 行砖'],
+    detail: ['砖块耐久 +15%', '下沉速度 +20%', '额外 1 行砖'],
   },
   {
     id: 'hard',
@@ -89,7 +89,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     bulletMult: 1.1,
     eraserChance: 0.04,
     purgePeriod: 0,
-    detail: ['砖块血量 +25%', '下沉速度 +30%', '额外 2 行砖', '挡板 −5%', '弹幕 +10%', '4% 湮灭砖'],
+    detail: ['砖块耐久 +25%', '下沉速度 +30%', '额外 2 行砖', '挡板 −5%', '弹幕 +10%', '4% 湮灭砖'],
   },
   {
     id: 'nightmare',
@@ -107,7 +107,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     eraserChance: 0.07,
     purgePeriod: 0,
     detail: [
-      '砖块血量 +40%',
+      '砖块耐久 +40%',
       '下沉速度 +50%',
       '额外 3 行砖',
       '挡板 −10%',
@@ -132,7 +132,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     eraserChance: 0.1,
     purgePeriod: 16,
     detail: [
-      '砖块血量 +60%',
+      '砖块耐久 +60%',
       '下沉速度 +75%',
       '额外 4 行砖',
       '挡板 −15%',

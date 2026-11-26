@@ -363,7 +363,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         date: '2026-11-25',
         title: 'A bigger card pool: power-ups and the Resonance school',
         notes: [
-          '<b>Upgrades 39 → 56</b>: a new Resonance school of five — Resonance Coil, Surge Antenna, Adrenaline, Twin Resonance and Perpetuum — plus Trampoline, Evade, Slow Field, Calibration, Capacitor, Recycler, Afterglow, Critical Mass, Thunderhead, Plague, Wildfire and Prism.',
+          '<b>Upgrades 39 → 56</b>: a new Resonance school of five — Resonance Coil, Surge Antenna, Adrenaline, Twin Resonance and Perpetuum — plus Trampoline, Evade, Slow Field, Calibration, Capacitor, Recycler, Afterglow, Critical Mass, Thunderhead, Corrosion Bloom, Wildfire and Prism.',
           '<b>17 power-ups</b>: bricks drop capsules from time to time. Caught on the paddle, one lasts a few seconds — for the current level only: Ball Split, Giant, Wide, Time Stop, Aegis… They follow the situation, with more offense as the wall nears the warning line and more repair when the shield runs low. The Codex gained a Power-ups tab.',
           '<b>Difficulty tiers</b>: five to choose from before a run — Standard, Advanced, Hard, Nightmare and Abyss — with a higher score multiplier at each step. Higher tiers field ball-swallowing eraser bricks, and Abyss erases one surplus ball every 16 seconds.',
           '<b>Online leaderboard</b>: finished runs upload by themselves and a nickname can be set. Fixed enormous scores crowding out the nickname, and numbers folding in mid-digit.',
@@ -585,13 +585,13 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Decree',
         flavor: 'Numbers are merely a suggestion.',
         describe: (lv) =>
-          `Bricks below ${b(pct(0.06 * lv))} health are ${b('executed')} outright (boss cores are immune).`,
+          `Bricks below ${b(pct(0.06 * lv))} health are ${b('cleared')} outright (boss cores are unaffected).`,
       },
       poison: {
         name: 'Corrosive',
         flavor: 'Percentage damage ignores every defense.',
         describe: (lv) =>
-          `Hits apply ${b('corrosion')}: damage per second equal to ${b(pct(0.025 * lv))} of the target's max health, for 4s. The boss killer.`,
+          `Hits apply ${b('corrosion')}: damage per second equal to ${b(pct(0.025 * lv))} of the target's max health, for 4s. Built for the toughest targets.`,
       },
       solar: {
         name: 'Prominence',
@@ -726,8 +726,8 @@ export const en: UiDict & { content: ContentOverrides } = {
           `Every 2.5s, lightning strikes the brick nearest the danger line for ${b(pct(3 * lv))} attack damage and sets off a ${b('lightning chain')} (${b(2 * lv)} jumps).`,
       },
       plague: {
-        name: 'Plague',
-        flavor: 'One falls, the row follows.',
+        name: 'Corrosion Bloom',
+        flavor: 'One corrodes, the row follows.',
         describe: () =>
           `A brick that shatters while ${b('corroded')} spreads its corrosion to every brick within ${b(150)}.`,
       },
@@ -842,13 +842,13 @@ export const en: UiDict & { content: ContentOverrides } = {
       advanced: {
         name: 'Advanced',
         desc: 'Thicker walls, sinking faster. Strength starts to matter.',
-        detail: ['Brick health +15%', 'Descent speed +20%', '+1 row of bricks'],
+        detail: ['Brick durability +15%', 'Descent speed +20%', '+1 row of bricks'],
       },
       hard: {
         name: 'Hard',
         desc: 'A narrower paddle, denser barrages, and ball-eating eraser bricks.',
         detail: [
-          'Brick health +25%',
+          'Brick durability +25%',
           'Descent speed +30%',
           '+2 rows of bricks',
           'Paddle −5%',
@@ -860,7 +860,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Nightmare',
         desc: 'Ball speed suppressed, eraser bricks in ranks. The exam hall for absurd builds.',
         detail: [
-          'Brick health +40%',
+          'Brick durability +40%',
           'Descent speed +50%',
           '+3 rows of bricks',
           'Paddle −10%',
@@ -873,7 +873,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Abyss',
         desc: 'Something from beyond the rift. Every 16 seconds, one surplus ball is erased.',
         detail: [
-          'Brick health +60%',
+          'Brick durability +60%',
           'Descent speed +75%',
           '+4 rows of bricks',
           'Paddle −15%',
@@ -998,7 +998,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         desc: 'Shock striking a frozen brick: the chain jumps 2 extra times at 90% damage and spreads the freeze.',
       },
       venom: {
-        name: 'Venom Burst',
+        name: 'Corrosion Blast',
         recipe: 'Corrode + Flame',
         desc: 'Flame detonates corroding bricks in a wide blast.',
       },

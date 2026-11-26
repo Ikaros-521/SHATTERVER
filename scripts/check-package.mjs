@@ -44,6 +44,16 @@ const CJK_TERMS = [
   '海洛因',
   '大麻',
   '摇头丸',
+  // Violence, disease and poison in copy — the rejection that followed the buffs update named
+  // 瘟疫/疫病 in the bundle. Game-mechanic words keep their clean names instead (腐蚀, 爆炸).
+  '死',
+  '杀',
+  '血',
+  '毒',
+  '疫',
+  '瘟',
+  '处决',
+  '邪魔',
   // Inflated claims and absolute wording.
   '免安装',
   '极致',

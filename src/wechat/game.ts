@@ -18,7 +18,8 @@ import { menuTree, type MenuActions } from '../ui/canvas/menu';
 import { CanvasSurface } from '../ui/canvas/surface';
 import { DEFAULT_THEME } from '../ui/canvas/theme';
 import { GL } from '../render/gl';
-import { loadSave, storeSave, type SaveData } from '../core/storage';
+import { loadSave, storeSave, type SaveData, type Settings } from '../core/storage';
+import { setLang, type Lang } from '../core/i18n';
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
 import type { Starter } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
@@ -32,6 +33,7 @@ import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
 import { pauseTree, type PauseActions } from './screens/pause';
 import { resultsTree, type ResultsModel } from './screens/results';
+import { settingsTree } from './screens/settings';
 import { starterTree } from './screens/starter';
 import { WorldBinding } from './world';
 import { drawHud, hudSignature, pauseButtonRect } from './hud';
@@ -47,7 +49,8 @@ type ShellScreen =
   | { kind: 'run' }
   | { kind: 'pause' }
   | { kind: 'draft' }
-  | { kind: 'results' };
+  | { kind: 'results' }
+  | { kind: 'settings' };
 
 function boot(): void {
   const sys = wx.getSystemInfoSync();
@@ -127,6 +130,8 @@ function boot(): void {
       ui.setTree(resultsTree(resultsModel, resultsActions, width, surface));
     } else if (current.kind === 'pause') {
       ui.setTree(pauseTree(pauseActions, width, height, surface));
+    } else if (current.kind === 'settings') {
+      ui.setTree(settingsTree(save, settingsActions, width, height, surface));
     }
   };
 
@@ -147,7 +152,10 @@ function boot(): void {
     shop: stub('shop'),
     tutorial: stub('tutorial'),
     codex: stub('codex'),
-    settings: stub('settings'),
+    settings: (): void => {
+      current = { kind: 'settings' };
+      rebuild();
+    },
     cloud: stub('cloud'),
     history: (): void => {
       current = { kind: 'history', tab: 'campaign' };
@@ -230,6 +238,23 @@ function boot(): void {
     },
     menu: (): void => {
       current = { kind: 'menu' };
+      rebuild();
+    },
+  };
+  const settingsActions = {
+    back: (): void => {
+      current = { kind: 'menu' };
+      rebuild();
+    },
+    update: (patch: Partial<Settings>): void => {
+      Object.assign(save.settings, patch);
+      storeSave(save);
+      rebuild();
+    },
+    setLanguage: (lang: Lang): void => {
+      save.settings.language = lang;
+      setLang(lang); // the module state the rebuild's t() reads
+      storeSave(save);
       rebuild();
     },
   };

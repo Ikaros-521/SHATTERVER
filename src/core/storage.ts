@@ -5,6 +5,7 @@ import { DAILY_MISSION_MAP, isDailyMissionId } from '../game/economy/dailies';
 import { isBallSkinId, isBgSkinId, isPaddleSkinId, isSkinId } from '../render/skins';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
+import { decodeSave, encodeSave } from './savecodec';
 import { APP_VERSION } from './version';
 
 export interface Settings {
@@ -163,6 +164,11 @@ export interface SaveData {
 /** Oldest runs fall off the local leaderboard beyond this. */
 export const HISTORY_CAP = 50;
 
+/**
+ * Local-storage key of the save. The stored value is an obfuscated blob (see `savecodec`), not
+ * plaintext JSON — a pre-obfuscation plaintext save under the same key still loads, and the next
+ * `storeSave` re-writes it obfuscated.
+ */
 const KEY = 'shatterverse.save.v1';
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -251,8 +257,7 @@ function migrateEconomy(records: Records): EconomyState {
   for (const record of records.history) {
     economy.bestCombo = Math.max(economy.bestCombo, record.combo);
     if (record.mode === 'campaign' && record.won) {
-      economy.winsByDifficulty[record.difficulty] =
-        (economy.winsByDifficulty[record.difficulty] ?? 0) + 1;
+      economy.winsByDifficulty[record.difficulty] = (economy.winsByDifficulty[record.difficulty] ?? 0) + 1;
     }
   }
   return economy;
@@ -343,7 +348,12 @@ export function loadSave(): SaveData {
   const save = defaultSave();
   let raw: unknown;
   try {
-    raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    const stored = localStorage.getItem(KEY);
+    // Obfuscated blobs decode here. A null decode means "not one of ours" — a missing key or a
+    // pre-obfuscation plaintext save — and falls through to the JSON below. A blob that fails its
+    // checksum (tampered or corrupted) also decodes to null, and the plaintext parse then throws,
+    // so both read as the fresh save the repair path already handles.
+    raw = JSON.parse(decodeSave(stored) ?? stored ?? 'null');
   } catch {
     return save;
   }
@@ -447,7 +457,7 @@ export function runRank(history: RunRecord[], score: number): number {
 
 export function storeSave(save: SaveData): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(save));
+    localStorage.setItem(KEY, encodeSave(JSON.stringify(save)));
   } catch {
     // Storage can be unavailable (private mode, quota). The game works fine without persistence.
   }

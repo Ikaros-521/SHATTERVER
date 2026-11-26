@@ -72,6 +72,7 @@ export interface ParagraphWidget extends Base {
   color: ColorKey;
   colorOverride?: string;
   align: Align;
+  alpha: number;
   /** Line height as a multiple of `size`. */
   lineHeight: number;
 }
@@ -190,6 +191,7 @@ export function paragraph(
     color?: ColorKey;
     colorOverride?: string;
     align?: Align;
+    alpha?: number;
     lineHeight?: number;
   } = {},
 ): ParagraphWidget {
@@ -200,6 +202,7 @@ export function paragraph(
     color: opts.color ?? 'ink',
     colorOverride: opts.colorOverride,
     align: opts.align ?? 'left',
+    alpha: opts.alpha ?? 1,
     lineHeight: opts.lineHeight ?? 1.45,
     x: 0,
     y: 0,
@@ -439,6 +442,7 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
           size: w.size,
           color: colorOf(theme, w.color, w.colorOverride),
           align: w.align,
+          alpha: w.alpha,
         });
         ly += lineHeight;
       }

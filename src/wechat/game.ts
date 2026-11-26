@@ -28,7 +28,10 @@ import { settleFinishedRun } from '../game/finish';
 import type { DifficultyId } from '../game/difficulty';
 import type { RunMode } from '../game/run';
 import { WeChatChannel } from '../net/wechatchannel';
+import type { BoardInfo } from '../net/cheddaboards';
+import { FANOUT_BOARDS } from '../net/cloud';
 import { buildMenuModel } from './menumodel';
+import { cloudBoardTree, type CloudBoardState } from './screens/cloudboard';
 import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
 import { pauseTree, type PauseActions } from './screens/pause';
@@ -50,7 +53,8 @@ type ShellScreen =
   | { kind: 'pause' }
   | { kind: 'draft' }
   | { kind: 'results' }
-  | { kind: 'settings' };
+  | { kind: 'settings' }
+  | ({ kind: 'cloud' } & CloudBoardState);
 
 function boot(): void {
   const sys = wx.getSystemInfoSync();
@@ -132,6 +136,17 @@ function boot(): void {
       ui.setTree(pauseTree(pauseActions, width, height, surface));
     } else if (current.kind === 'settings') {
       ui.setTree(settingsTree(save, settingsActions, width, height, surface));
+    } else if (current.kind === 'cloud') {
+      ui.setTree(
+        cloudBoardTree(
+          { nickname: cloud.nickname, tabs: cloudTabs },
+          { tab: current.tab, views: current.views, loaded: current.loaded },
+          cloudActions,
+          width,
+          height,
+          surface,
+        ),
+      );
     }
   };
 
@@ -156,7 +171,16 @@ function boot(): void {
       current = { kind: 'settings' };
       rebuild();
     },
-    cloud: stub('cloud'),
+    cloud: (): void => {
+      current = { kind: 'cloud', tab: 'all-time', views: {}, loaded: {} };
+      rebuild();
+      loadCurrentTab();
+      // The tab list itself is async on the channel; refresh the tabs row when it lands.
+      void cloud.knownBoards().then((tabs) => {
+        cloudTabs = tabs;
+        if (current.kind === 'cloud') rebuild();
+      });
+    },
     history: (): void => {
       current = { kind: 'history', tab: 'campaign' };
       rebuild();
@@ -257,6 +281,38 @@ function boot(): void {
       storeSave(save);
       rebuild();
     },
+  };
+  let cloudTabs: readonly BoardInfo[] = FANOUT_BOARDS;
+  const cloudActions = {
+    back: (): void => {
+      current = { kind: 'menu' };
+      rebuild();
+    },
+    setTab: (id: string): void => {
+      if (current.kind !== 'cloud') return;
+      current = { ...current, tab: id };
+      rebuild();
+      loadCurrentTab();
+    },
+  };
+  /** Reads the current tab through the channel, then repaints the screen with the rows. */
+  const loadCurrentTab = (): void => {
+    if (current.kind !== 'cloud') return;
+    const tab = current.tab;
+    if (current.loaded[tab]) return;
+    current.loaded[tab] = true;
+    void cloud.board(tab, 50).then((view) => {
+      if (current.kind !== 'cloud' || current.tab !== tab) return;
+      current.views[tab] = view
+        ? view.entries.map((entry) => ({
+            rank: entry.rank,
+            nickname: entry.nickname,
+            score: entry.score,
+            streak: entry.streak,
+          }))
+        : null;
+      rebuild();
+    });
   };
 
   /** The shell's half of the WorldBinding conversation: drafts yield, the finish settles. */

@@ -170,6 +170,12 @@ export class App implements UiActions {
   private scoring = true;
   /** Which records the just-finished run set, shown on the results screen and the share card. */
   private lastFresh: string[] = [];
+  /**
+   * The run whose cloud upload is still in flight. Outcomes are matched to their own run by
+   * reference (every run builds a fresh `RunRecord`), so browsing other screens cannot lose a
+   * settled upload and a late answer cannot land on the next run's results.
+   */
+  private lastCloudRecord: RunRecord | null = null;
   /** The render step in effect: the player's choice, or lower while this device cannot keep up. */
   private readonly governor: QualityGovernor;
   /** Recent frame durations. Feeds the governor and the performance readout. */
@@ -753,19 +759,23 @@ export class App implements UiActions {
     this.audio.setMusicDuck(0.5, 0.8);
     const sameMode = records.history.filter((entry) => entry.mode === run.mode);
     this.ui.showResults(this.session, won, fresh, { rank: runRank(sameMode, score), total: sameMode.length });
+    this.lastCloudRecord = record;
     void this.submitRun(record);
   }
 
   /**
    * Mirrors a finished run onto the cloud board. Runs after the results screen is already up and
-   * only ever edits one line of it: a slow or failed upload must not delay the player's feedback,
-   * and a late answer must not land on a screen they have left.
+   * only ever edits one line of it: a slow or failed upload must not delay the player's feedback.
+   * The settled outcome belongs to its own run, not to whatever screen is up when it arrives:
+   * writing the (hidden) status line of the results screen while the player browses 战绩/榜单 or
+   * the menu is harmless and shows when they return, while a different `lastCloudRecord` means a
+   * newer run owns the line and the stale answer is dropped instead of landing on its results.
    */
   private async submitRun(record: RunRecord): Promise<void> {
     if (!this.cloud) return;
     const outcome = await this.cloud.finishRun(record);
     this.cloud.invalidate();
-    if (this.ui.screen !== 'over') return;
+    if (this.lastCloudRecord !== record) return;
     this.ui.cloudStatus(outcome.message, outcome.ok ? 'ok' : 'warn');
   }
 
@@ -886,6 +896,18 @@ export class App implements UiActions {
     const draft = this.inRun && this.session.phase === 'draft';
 
     if (key === 'Space') {
+      // Typing in a text field (the 固定种子 box) must keep its spaces: ignore the global
+      // hotkeys while the event targets a text-entry element.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       event.preventDefault();
       if (this.isPlaying()) world.tryOverdrive();
       else if (this.paused && this.ui.screen === 'pause') this.resume();

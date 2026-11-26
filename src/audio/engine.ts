@@ -54,6 +54,8 @@ export class AudioEngine {
   private reverbInput: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private volumes = { music: 0.55, sfx: 0.8 };
+  /** Current music duck, 1 = full. `setVolumes` re-applies it or any settings change un-ducks. */
+  private duck = 1;
   /** Timestamps at which currently playing voices end; used to cap polyphony. */
   private voicesUntil: number[] = [];
   private analyser: AnalyserNode | null = null;
@@ -87,7 +89,7 @@ export class AudioEngine {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.sfxBus?.gain.setTargetAtTime(sfx, t, 0.03);
-    this.musicBus?.gain.setTargetAtTime(music * 0.9, t, 0.05);
+    this.musicBus?.gain.setTargetAtTime(music * 0.9 * this.duck, t, 0.05);
   }
 
   /** Creates and/or resumes the context. Must be called from a user gesture; safe to call repeatedly. */
@@ -295,8 +297,13 @@ export class AudioEngine {
 
   /** Fades the whole music bus, e.g. down for the pause menu. */
   setMusicDuck(amount: number, seconds: number): void {
+    this.duck = amount;
     if (!this.ctx || !this.musicBus) return;
-    this.musicBus.gain.setTargetAtTime(this.volumes.music * 0.9 * amount, this.ctx.currentTime, seconds / 3);
+    this.musicBus.gain.setTargetAtTime(
+      this.volumes.music * 0.9 * this.duck,
+      this.ctx.currentTime,
+      seconds / 3,
+    );
   }
 
   /** Creates a feedback delay for the arpeggiator. Returns its input node. */

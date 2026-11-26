@@ -904,16 +904,9 @@ export class Fx {
       post.edge[3] = Math.max(post.edge[3], 0.3 + 0.22 * pulse);
     }
 
+    // `post.shock` itself is written in `resolveView`, always derived from the world-space
+    // shocks, so pause redraws that skip `update` cannot re-transform already-converted values.
     post.shockCount = Math.min(8, this.shocks.length);
-    for (let i = 0; i < post.shockCount; i++) {
-      const s = this.shocks[i];
-      if (!s) continue;
-      const k = s.life / SHOCK_LIFE;
-      post.shock[i * 4] = s.x;
-      post.shock[i * 4 + 1] = s.y;
-      post.shock[i * 4 + 2] = s.radius;
-      post.shock[i * 4 + 3] = s.strength * k * k;
-    }
 
     // The lens sits on the newest black hole, or on the singularity when there is none.
     let strength = 0;
@@ -939,7 +932,9 @@ export class Fx {
 
   /**
    * Converts screen-space effects from world units to CSS pixels through the current (shaken,
-   * zoomed) view, so they stay glued to what caused them. Call once per frame after `update`.
+   * zoomed) view, so they stay glued to what caused them. `post.shock` is written only here,
+   * always projected from the world-space `shocks`, so repeated calls — including the low-rate
+   * pause redraws that skip `update` — are idempotent. Call once per frame after `update`.
    */
   resolveView(view: View): void {
     const post = this.post;
@@ -953,10 +948,14 @@ export class Fx {
     post.lens[2] = this.lens.r * view.scale;
     post.lens[3] = this.lens.strength;
     for (let i = 0; i < post.shockCount; i++) {
-      const [sx, sy] = toCss(post.shock[i * 4] ?? 0, post.shock[i * 4 + 1] ?? 0);
+      const s = this.shocks[i];
+      if (!s) continue;
+      const k = s.life / SHOCK_LIFE;
+      const [sx, sy] = toCss(s.x, s.y);
       post.shock[i * 4] = sx;
       post.shock[i * 4 + 1] = sy;
-      post.shock[i * 4 + 2] = (post.shock[i * 4 + 2] ?? 0) * view.scale;
+      post.shock[i * 4 + 2] = s.radius * view.scale;
+      post.shock[i * 4 + 3] = s.strength * k * k;
     }
   }
 

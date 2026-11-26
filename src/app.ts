@@ -50,6 +50,14 @@ import { UI, type PerfInfo, type UiActions } from './ui/ui';
 /** Minimum spacing between redraws of a screen where nothing moves (paused, drafting, over). */
 const IDLE_FRAME_MS = 66;
 
+/** Delay before the first background retry of a failed score submit; doubles each round, capped. */
+const SUBMIT_RETRY_FIRST_MS = 45_000;
+const SUBMIT_RETRY_MAX_MS = 15 * 60_000;
+/** Failed submits kept for the background retry. Older ones drop; the local history keeps them. */
+const SUBMIT_RETRY_QUEUE_MAX = 3;
+/** A double-click on the reroll button must not spend crystals twice; the R key shares the cadence. */
+const REROLL_DEBOUNCE_MS = 300;
+
 /** Upgrades that make the title-screen demo spectacular. The attract mode draws its build from these. */
 const DEMO_POOL = [
   'multiball',
@@ -176,6 +184,20 @@ export class App implements UiActions {
    * settled upload and a late answer cannot land on the next run's results.
    */
   private lastCloudRecord: RunRecord | null = null;
+  /**
+   * Finished runs whose cloud submit failed (offline, rate limit, dead service). They are retried
+   * in the background — the local history already keeps the score, this only closes the gap to
+   * the board — and bounded so a long offline stretch cannot pile work up.
+   */
+  private readonly pendingSubmits: RunRecord[] = [];
+  /** Timer for the next background retry round; null while none is scheduled. */
+  private submitRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Delay before the next retry round. Grows per failed round; rate limits answer to patience. */
+  private submitRetryDelayMs = 0;
+  /** True while a retry round is on the wire, so a fresh submit's flush cannot re-enter it. */
+  private flushingSubmits = false;
+  /** When the last reroll was accepted; a second click inside the window is ignored. */
+  private lastRerollAt = -REROLL_DEBOUNCE_MS;
   /** The render step in effect: the player's choice, or lower while this device cannot keep up. */
   private readonly governor: QualityGovernor;
   /** Recent frame durations. Feeds the governor and the performance readout. */
@@ -618,6 +640,11 @@ export class App implements UiActions {
   }
 
   reroll(): void {
+    // A double-click lands as two clicks a moment apart; only the first may spend crystals.
+    // The R key shares the cadence, which reads as deliberate in play.
+    const now = performance.now();
+    if (now - this.lastRerollAt < REROLL_DEBOUNCE_MS) return;
+    this.lastRerollAt = now;
     this.audio.ui(this.session.reroll() ? 'uiClick' : 'deny');
   }
 
@@ -775,8 +802,72 @@ export class App implements UiActions {
     if (!this.cloud) return;
     const outcome = await this.cloud.finishRun(record);
     this.cloud.invalidate();
-    if (this.lastCloudRecord !== record) return;
-    this.ui.cloudStatus(outcome.message, outcome.ok ? 'ok' : 'warn');
+    if (outcome.ok) {
+      if (this.lastCloudRecord === record) this.ui.cloudStatus(outcome.message, 'ok');
+      // The network just proved itself: anything queued by earlier failures can go out now too.
+      void this.flushPendingSubmits();
+      return;
+    }
+    this.queuePendingSubmit(record);
+    if (this.lastCloudRecord === record) this.ui.cloudStatus(outcome.message, 'warn');
+  }
+
+  /** The retry surface the UI uses: opening the leaderboard screen is a good moment to retry. */
+  flushCloudSubmits(): void {
+    void this.flushPendingSubmits();
+  }
+
+  /** Remembers a failed submit for the background retry, newest last and bounded. */
+  private queuePendingSubmit(record: RunRecord): void {
+    const index = this.pendingSubmits.indexOf(record);
+    if (index >= 0) this.pendingSubmits.splice(index, 1);
+    this.pendingSubmits.push(record);
+    while (this.pendingSubmits.length > SUBMIT_RETRY_QUEUE_MAX) this.pendingSubmits.shift();
+    this.scheduleSubmitRetry();
+  }
+
+  /** Arms the background retry timer if it is not already armed, at the current backoff delay. */
+  private scheduleSubmitRetry(): void {
+    if (this.submitRetryTimer !== null) return;
+    if (this.submitRetryDelayMs === 0) this.submitRetryDelayMs = SUBMIT_RETRY_FIRST_MS;
+    this.submitRetryTimer = setTimeout(() => {
+      this.submitRetryTimer = null;
+      void this.flushPendingSubmits();
+    }, this.submitRetryDelayMs);
+    this.submitRetryDelayMs = Math.min(this.submitRetryDelayMs * 2, SUBMIT_RETRY_MAX_MS);
+  }
+
+  /**
+   * Tries every queued submit once, in order. A round stops at the first failure and re-arms the
+   * timer with the grown delay; the record that failed stays in front. Runs from a fresh submit's
+   * success, the leaderboard screen opening and the browser's `online` event — a submit retried
+   * without a play-session token is still accepted while time validation is off, same as any
+   * late submit today. The results line is only written back for the run that owns it.
+   */
+  private async flushPendingSubmits(): Promise<void> {
+    if (!this.cloud || this.flushingSubmits || this.pendingSubmits.length === 0) return;
+    if (this.submitRetryTimer !== null) {
+      clearTimeout(this.submitRetryTimer);
+      this.submitRetryTimer = null;
+    }
+    this.flushingSubmits = true;
+    try {
+      while (this.pendingSubmits.length > 0) {
+        const record = this.pendingSubmits[0]!;
+        const outcome = await this.cloud.finishRun(record);
+        this.cloud.invalidate();
+        if (!outcome.ok) {
+          this.scheduleSubmitRetry();
+          return;
+        }
+        this.pendingSubmits.shift();
+        if (this.lastCloudRecord === record) this.ui.cloudStatus(outcome.message, 'ok');
+      }
+      // The backlog cleared: the next failure starts the backoff over.
+      this.submitRetryDelayMs = 0;
+    } finally {
+      this.flushingSubmits = false;
+    }
   }
 
   // ───────────────────────────── score card ─────────────────────────────
@@ -839,6 +930,9 @@ export class App implements UiActions {
   // ───────────────────────────── input ─────────────────────────────
 
   private bindInput(): void {
+    // The browser says the network came back: queued score submits go out without waiting for
+    // the backoff timer or the next leaderboard open.
+    window.addEventListener('online', () => void this.flushPendingSubmits());
     window.addEventListener('pointermove', (event) => {
       if (!this.isPlaying()) return;
       // A finger that taps the overdrive prompt must not teleport the paddle. Touch pointers keep

@@ -86,7 +86,7 @@ This project uses a custom non-commercial license (see [LICENSE](./LICENSE)). In
 | Upgrades          | 56                       | 5 rarities (common / rare / epic / legendary / mythic); mythics presuppose their school's build; 5 of them belong to the Resonance school  |
 | Power-ups         | 17                       | 15 timed (ball split, giant, wide, time stop…) + 2 instant; dropped as capsules by shattered bricks, they last for the current level only  |
 | Starter protocols | 4                        | Blank, Barrage, Battery, Elemental — each sets a run's starting point                                                                      |
-| Levels            | 3 chapters × 5 + Endless | 12 brick patterns and pixel motifs, a boss every 5 sectors; Endless loops and escalates forever                                            |
+| Levels            | 3 chapters × 5 + Endless | 11 brick patterns and 5 pixel motifs, a boss every 5 sectors; Endless loops and escalates forever                                          |
 | Level mutators    | 6                        | Gravity Well, Overpressure, Regenerating, Cloaked, Flak Zone, Gold Rush                                                                    |
 | Bosses            | 3                        | Multi-part pixel bosses: turrets, cores, phase shifts, summons, enrage                                                                     |
 | Combo tiers       | 9                        | HOT → BEYOND, driving music intensity and screen feedback                                                                                  |
@@ -109,7 +109,9 @@ src/
   game/        Pure logic: world simulation, physics, damage pipeline, upgrades, power-ups, level generation, session
   render/      WebGL2 renderer, SDF instanced shaders, post chain, FX director, camera
   audio/       Web Audio synthesis engine, SFX recipes, procedural music, audio director
-  ui/          DOM UI: HUD, draft, codex, results, settings, i18n
+  ui/          DOM UI: HUD, draft, codex, results, settings
+  i18n/        UI copy, game-content overrides and release notes in zh/en/ja/ko
+  net/         Cloud leaderboard channels: the CheddaBoards client, the Bilibili Toy channel, nickname and anonymous identity
   app.ts       Application layer: state machine, input, main loop
 ```
 

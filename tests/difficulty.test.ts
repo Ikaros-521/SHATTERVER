@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { onBallHitBrick } from '../src/game/combat';
 import { RNG } from '../src/core/rng';
-import { DIFFICULTIES, DIFFICULTY_MAP, difficultyOf } from '../src/game/difficulty';
+import { DIFFICULTIES, DIFFICULTY_MAP, difficultyOf, isDifficultyId } from '../src/game/difficulty';
 import { buildLevel, difficultyRamp } from '../src/game/levels/generator';
 import { Session } from '../src/game/session';
 import type { Starter } from '../src/game/starters';
@@ -145,5 +145,17 @@ describe('difficulty: in the world', () => {
     for (let i = 0; i < 60 * 40 && session.phase === 'playing'; i++) session.update(dt);
     const voided = session.world.balls.filter((ball) => ball.voided).length;
     expect(voided).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('isDifficultyId', () => {
+  it('rejects Object.prototype members, which a hand-edited save can hold', () => {
+    for (const id of ['constructor', 'toString', 'hasOwnProperty']) {
+      expect(isDifficultyId(id)).toBe(false);
+      // And difficultyOf must fall back to the default instead of returning a function.
+      expect(difficultyOf(id)).toBe(DIFFICULTY_MAP.standard);
+    }
+    expect(isDifficultyId('abyss')).toBe(true);
+    expect(isDifficultyId(42)).toBe(false);
   });
 });

@@ -115,27 +115,59 @@ const TOY_SCORE_LIMIT = 16_777_215;
 const TOY_LINEAR_MAX = 16_000_000;
 
 /**
- * Score the log segment is sized for: about an endless run of level 700. Boss parts compound
- * two geometric growths (`hpUnit` × `bossScale`), so the score climbs tenfold every ~7.5 levels
- * and a level-400 run is already near 1e60. At or beyond the sized-for score every run shares
- * the ceiling — the one place two different scores can still tie.
+ * Score the log segment is sized for, far beyond any realistic run: with the per-brick cap
+ * (`SCORE_BRICK_CAP`) an endless run lands near 1e10 by level 400 and grows slowly from there.
+ * 1e30 leaves two more orders of headroom than anything the scoring can reach, and — together
+ * with {@link TOY_COMPRESSED_MIN} — still keeps the segment's resolution near 0.07% per board
+ * value. At or beyond the sized-for score every run shares the ceiling, the one place two
+ * different scores can tie.
  */
-const TOY_COMPRESSED_MAX = 1e100;
+const TOY_COMPRESSED_MAX = 1e30;
+
+/**
+ * Board value the compressed segment starts at. The segment lives in the top slice of the range,
+ * not directly above {@link TOY_LINEAR_MAX}: that keeps compressed values out of the range real
+ * scores occupy, so {@link decompressToyScore} can tell them apart and show the board the true
+ * score again. The 77 215 values of the slice spread over the segment's 52 nats, so runs about
+ * 0.07% apart still sort apart — nearly the resolution the wide segment used to have.
+ */
+export const TOY_COMPRESSED_MIN = 16_700_000;
 
 /**
  * Maps a run score onto the platform's 0..16 777 215 integer range.
  *
- * Identity up to {@link TOY_LINEAR_MAX}; above it a strictly increasing log segment, because
- * endless score grows geometrically with the level and only a log keeps pace. Runs more than
- * about 0.03% apart always land on different board values, so deep runs sort apart instead of
- * all clamping to one shared ceiling. Monotonic over the whole domain, constant time.
+ * Identity up to {@link TOY_LINEAR_MAX}; above it a strictly increasing log segment squeezed into
+ * `[TOY_COMPRESSED_MIN, TOY_SCORE_LIMIT]`, because endless score grows geometrically with the
+ * level and only a log keeps pace. Monotonic over the whole domain, constant time, and the exact
+ * inverse of {@link decompressToyScore} up to rounding.
  */
 export function clampToyScore(score: number): number {
   if (!(score > 0)) return 0;
   if (score <= TOY_LINEAR_MAX) return Math.round(score);
   if (score >= TOY_COMPRESSED_MAX) return TOY_SCORE_LIMIT;
-  const perNat = (TOY_SCORE_LIMIT - TOY_LINEAR_MAX) / Math.log(TOY_COMPRESSED_MAX / TOY_LINEAR_MAX);
-  return Math.min(TOY_SCORE_LIMIT, Math.round(TOY_LINEAR_MAX + perNat * Math.log(score / TOY_LINEAR_MAX)));
+  const perNat =
+    (TOY_SCORE_LIMIT - TOY_COMPRESSED_MIN) / Math.log(TOY_COMPRESSED_MAX / TOY_LINEAR_MAX);
+  return Math.min(
+    TOY_SCORE_LIMIT,
+    Math.round(TOY_COMPRESSED_MIN + perNat * Math.log(score / TOY_LINEAR_MAX)),
+  );
+}
+
+/**
+ * Recovers the run score a board value stands for, so the leaderboard shows what the player
+ * actually scored instead of a compressed sixteens-of-millions look-alike. Exact on the linear
+ * segment; on the compressed segment exact to the segment's resolution (about 0.03%), which is
+ * far tighter than the board's display formatting. A value the old wide mapping wrote — below
+ * {@link TOY_COMPRESSED_MIN} but above the linear max — displays as the look-alike it is until
+ * that player's next deep submit overwrites it.
+ */
+export function decompressToyScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= TOY_COMPRESSED_MIN) return Math.max(0, Math.round(value));
+  if (value >= TOY_SCORE_LIMIT) return TOY_COMPRESSED_MAX;
+  const perNat =
+    (TOY_SCORE_LIMIT - TOY_COMPRESSED_MIN) / Math.log(TOY_COMPRESSED_MAX / TOY_LINEAR_MAX);
+  return Math.round(TOY_LINEAR_MAX * Math.exp((value - TOY_COMPRESSED_MIN) / perNat));
 }
 
 export type ToyFailureKind = 'rate-limited' | 'not-logged-in' | 'unsupported' | 'invalid' | 'error';

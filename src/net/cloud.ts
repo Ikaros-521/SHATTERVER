@@ -119,6 +119,10 @@ export class Cloud {
   private readonly boardCache = new Map<string, { at: number; view: BoardView }>();
   /** Board reads still on the wire; concurrent readers of one board share them. */
   private readonly boardInflight = new Map<string, InflightBoard>();
+  /** The last my-rank read and when it landed; the panel opens cost one call per 30 s, not two. */
+  private rankCache: { at: number; value: PlayerRank } | null = null;
+  /** A rank read still on the wire; concurrent readers join it. */
+  private rankInflight: Promise<PlayerRank | null> | null = null;
   /** Bumped by {@link invalidate}: a read that started earlier must not write into the new cache. */
   private boardGeneration = 0;
   /** Boards the server has told us do not exist. Never asked twice in one session. */
@@ -273,7 +277,7 @@ export class Cloud {
       void this.reconcileNickname();
     }
 
-    const rank = fanout.ok ? await this.myRank() : null;
+    const rank = fanout.ok ? await this.myRank(true) : null;
     return {
       ok: fanout.ok,
       message: fanout.ok
@@ -422,11 +426,32 @@ export class Cloud {
     }
   }
 
-  /** This player's position on the game-wide board. Null until a score has created the profile. */
-  async myRank(): Promise<PlayerRank | null> {
+  /**
+   * This player's position on the game-wide board, from a 30-second cache so repeated panel
+   * opens do not spend the request budget twice. A submit passes `force` to read past the cache
+   * — the line it feeds must reflect the score that just landed. Null until a score has created
+   * the profile; a failed read is not cached, so the next call retries.
+   */
+  async myRank(force = false): Promise<PlayerRank | null> {
     if (!this.scored) return null;
-    const result = await this.client.myRank(this.playerId);
-    return result.ok ? result.data : null;
+    if (!force) {
+      const cached = this.rankCache;
+      if (cached && this.now() - cached.at < BOARD_TTL_MS) return cached.value;
+      if (this.rankInflight) return this.rankInflight;
+    }
+    const request = this.client
+      .myRank(this.playerId)
+      .then((result) => {
+        if (!result.ok) return null;
+        this.rankCache = { at: this.now(), value: result.data };
+        return result.data;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (this.rankInflight === request) this.rankInflight = null;
+      });
+    this.rankInflight = request;
+    return request;
   }
 
   /** The player's profile, used to learn the name the server applied to a pending rename. */
@@ -435,7 +460,7 @@ export class Cloud {
     return result.ok ? result.data : null;
   }
 
-  /** Forgets cached board reads, so opening the leaderboard always shows the latest submit. */
+  /** Forgets cached board and rank reads, so opening the leaderboard always shows the latest submit. */
   invalidate(): void {
     this.boardCache.clear();
     // In-flight reads of the previous generation are dropped from the map too: the next read joins
@@ -443,6 +468,8 @@ export class Cloud {
     this.boardInflight.clear();
     this.boardGeneration++;
     this.gameAt = 0;
+    this.rankCache = null;
+    this.rankInflight = null;
   }
 }
 

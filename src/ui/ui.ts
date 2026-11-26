@@ -69,6 +69,8 @@ export interface UiActions {
    * B站 Toy boards when the page runs as a Bilibili Toy.
    */
   readonly cloud: Leaderboard | null;
+  /** Retries queued score submits in the background; the leaderboard screen opening is a good moment. */
+  flushCloudSubmits?(): void;
 }
 
 /** Frame-rate figures behind the performance readout. */
@@ -598,6 +600,8 @@ export class UI implements HudHost {
   showCloud(): void {
     if (!this.cloudPanel) return;
     this.returnTo = this.current === 'over' ? 'over' : 'menu';
+    // The player is about to look at the board: any submit that failed earlier gets its retry now.
+    this.actions.flushCloudSubmits?.();
     this.cloudPanel.open();
     this.show('cloud');
   }

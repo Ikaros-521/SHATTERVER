@@ -14,8 +14,6 @@ export interface Difficulty {
   id: DifficultyId;
   name: string;
   en: string;
-  /** One line for the selector. */
-  desc: string;
   color: number;
   /** Every point of score is multiplied by this. */
   scoreMult: number;
@@ -44,7 +42,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     id: 'standard',
     name: '标准',
     en: 'STANDARD',
-    desc: '原版体验。构筑成型后会越来越轻松。',
     color: 0x7dffe0,
     scoreMult: 1,
     descentMult: 1,
@@ -61,7 +58,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     id: 'advanced',
     name: '进阶',
     en: 'ADVANCED',
-    desc: '墙更厚、沉得更快。强度开始有意义。',
     color: 0x9ff3ff,
     scoreMult: 1.5,
     descentMult: 1.2,
@@ -78,7 +74,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     id: 'hard',
     name: '困难',
     en: 'HARD',
-    desc: '挡板变窄，弹幕变密，出现会吃球的湮灭砖。',
     color: 0xffd24a,
     scoreMult: 2.2,
     descentMult: 1.3,
@@ -95,7 +90,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     id: 'nightmare',
     name: '噩梦',
     en: 'NIGHTMARE',
-    desc: '球速被压制，湮灭砖成排。留给离谱构筑的考场。',
     color: 0xff5c8a,
     scoreMult: 3,
     descentMult: 1.5,
@@ -120,7 +114,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     id: 'abyss',
     name: '深渊',
     en: 'ABYSS',
-    desc: '界外之物。每 16 秒，多出的球会被抹掉一个。',
     color: 0xff2fb0,
     scoreMult: 4,
     descentMult: 1.75,
@@ -151,7 +144,9 @@ export const DIFFICULTY_MAP: Record<DifficultyId, Difficulty> = Object.fromEntri
 export const DEFAULT_DIFFICULTY: DifficultyId = 'standard';
 
 export function isDifficultyId(value: unknown): value is DifficultyId {
-  return typeof value === 'string' && value in DIFFICULTY_MAP;
+  // `Object.hasOwn` keeps `Object.prototype` members (`'toString'` in a hand-edited save) from
+  // passing and handing a function back as a difficulty.
+  return typeof value === 'string' && Object.hasOwn(DIFFICULTY_MAP, value);
 }
 
 export function difficultyOf(id: unknown): Difficulty {

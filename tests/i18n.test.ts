@@ -134,6 +134,14 @@ describe('t()', () => {
   it('isLang narrows only real languages and rejects lookalikes', () => {
     for (const lang of ['zh', 'en', 'ja', 'ko']) expect(isLang(lang)).toBe(true);
     for (const lang of ['fr', 'ZH', 'enn', '', null]) expect(isLang(lang)).toBe(false);
+    // Object.prototype members must not pass as languages (a hand-edited save can hold them).
+    for (const lang of ['constructor', 'toString', 'hasOwnProperty']) expect(isLang(lang)).toBe(false);
+  });
+
+  it('dot paths cannot reach Object.prototype members', () => {
+    expect(t('constructor')).toBe('constructor');
+    expect(t('toString.valueOf')).toBe('toString.valueOf');
+    expect(t('menu.settings')).toBe('设置');
   });
 
   it('ships Chinese as the default language, regardless of anything else', () => {

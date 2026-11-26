@@ -66,6 +66,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     campaignEyebrow: 'CAMPAIGN · 15 SECTORS · 3 BOSSES',
     endlessEyebrow: 'ENDLESS · 終わりのない階層',
     crystals: '+{n} クリスタル',
+    diffRowLabel: '難易度',
   },
   draft: {
     title: 'アップグレードを1つ選択',
@@ -101,7 +102,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     timelineTip: '{level} {name} · {time}秒 · 被弾 {n}',
     retry: 'もう一局',
     saveShot: '戦績カードを保存',
-    shotSaved: '保存しました ✓',
+    shotSaved: '保存を要求しました ✓',
     shotFailed: '生成に失敗',
     viewHistory: '戦績を見る',
     cloudBoard: 'クラウドランキング',
@@ -122,7 +123,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
   },
   cloud: {
     title: 'クラウドランキング',
-    sub: 'スコアは自動アップロード。総合榜は全難易度混合。難易度別・モード別のボードはサービス側で作成後に自動表示されます。',
+    sub: 'スコアは自動アップロード。総合ランキングは全難易度混合。難易度別・モード別のボードはサービス側で作成後に自動表示されます。',
     nicknameLabel: 'ニックネーム',
     nicknamePlaceholder: '3〜16文字の半角英数字・アンダースコア',
     saveName: '名前を保存',
@@ -220,7 +221,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     gpuLine: 'GPU 約{ms} ms/フレーム — {parts}（各パスに約0.1msの計測オーバーヘッドを含む）',
     gpuComposite: '合成',
     gpuBackdrop: '背景',
-    gpuLights: '光效',
+    gpuLights: '光エフェクト',
     gpuSurfaces: 'ブロックとボール',
     gpuBloom: 'ブルーム',
     gpuNebula: '星雲',
@@ -495,7 +496,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
         name: 'ガイダンスコア',
         flavor: 'ボールは自分が行くべき場所を知っている。',
         describe: (lv) =>
-          `パドルに触れるたびに制導を${b(String(2 + lv))}回装填：ボールはブロックをロックして曲がり命中します。旋回力 ${b('+' + lv)} ランク。`,
+          `パドルに触れるたびにガイダンスを${b(String(2 + lv))}回装填：ボールはブロックをロックして曲がり命中します。旋回力 ${b('+' + lv)} ランク。`,
       },
       split: {
         name: '分裂プロトコル',
@@ -782,7 +783,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: 'シーカー',
-        desc: 'パドルに触れるたび、強力な追尾6回分を装填。',
+        desc: 'パドルに触れるたび、強力なガイダンス6回分を装填。',
       },
       rage: {
         name: 'レイジ',
@@ -830,17 +831,14 @@ export const ja: UiDict & { content: ContentOverrides } = {
     difficulty: {
       standard: {
         name: '標準',
-        desc: 'オリジナルの体験。ビルドが形になればどんどん楽になる。',
         detail: ['ステージはオリジナルのまま'],
       },
       advanced: {
         name: 'アドバンスド',
-        desc: '壁は厚く、沈みは速く。強度に意味が出始める。',
         detail: ['ブロック耐久 +15%', '沈降速度 +20%', '追加1列'],
       },
       hard: {
         name: 'ハード',
-        desc: 'パドルは細く、弾幕は濃く、ボールを飲む消滅ブロックが出現。',
         detail: [
           'ブロック耐久 +25%',
           '沈降速度 +30%',
@@ -852,7 +850,6 @@ export const ja: UiDict & { content: ContentOverrides } = {
       },
       nightmare: {
         name: 'ナイトメア',
-        desc: 'ボール速度を封圧、消滅ブロックは列をなす。突飛ビルドのための試験場。',
         detail: [
           'ブロック耐久 +40%',
           '沈降速度 +50%',
@@ -865,7 +862,6 @@ export const ja: UiDict & { content: ContentOverrides } = {
       },
       abyss: {
         name: 'アビス',
-        desc: '界の外なる何か。16秒ごとに余分なボールが1つ抹消される。',
         detail: [
           'ブロック耐久 +60%',
           '沈降速度 +75%',
@@ -898,7 +894,6 @@ export const ja: UiDict & { content: ContentOverrides } = {
     },
     chapters: [
       {
-        name: 'ネオンシティ',
         places: [
           'ネオン街区',
           'データ高速',
@@ -911,7 +906,6 @@ export const ja: UiDict & { content: ContentOverrides } = {
         ],
       },
       {
-        name: 'ソーラーコア',
         places: [
           '溶岩パイプライン',
           'コロナの井戸',
@@ -923,7 +917,6 @@ export const ja: UiDict & { content: ContentOverrides } = {
         ],
       },
       {
-        name: 'ヴォイドリフト',
         places: [
           '虚空回廊',
           'シンギュラリティの縁',

@@ -63,10 +63,6 @@ export function difficultyName(tier: Difficulty): string {
   return overrides()?.difficulty[tier.id]?.name ?? tier.name;
 }
 
-export function difficultyDesc(tier: Difficulty): string {
-  return overrides()?.difficulty[tier.id]?.desc ?? tier.desc;
-}
-
 export function difficultyDetail(id: DifficultyId): string[] {
   return overrides()?.difficulty[id]?.detail ?? difficultyOf(id).detail;
 }
@@ -82,10 +78,6 @@ export function starterDesc(starter: Starter): string {
 }
 
 // ── chapters & levels ──
-
-export function chapterName(chapterIndex: number, canonicalName: string): string {
-  return overrides()?.chapters[chapterIndex]?.name ?? canonicalName;
-}
 
 /**
  * A level's display name. The canonical name is one of the chapter's place names, so its index

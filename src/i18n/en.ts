@@ -66,6 +66,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     campaignEyebrow: 'CAMPAIGN · 15 SECTORS · 3 BOSSES',
     endlessEyebrow: 'ENDLESS · NO FINAL SECTOR',
     crystals: '+{n} crystals',
+    diffRowLabel: 'Difficulty',
   },
   draft: {
     title: 'Pick one upgrade',
@@ -101,7 +102,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     timelineTip: '{level} {name} · {time}s · hits taken {n}',
     retry: 'Run it back',
     saveShot: 'Save score card',
-    shotSaved: 'Saved ✓',
+    shotSaved: 'Save requested ✓',
     shotFailed: 'Render failed',
     viewHistory: 'Records',
     cloudBoard: 'Cloud board',
@@ -127,7 +128,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     nicknamePlaceholder: '3–16 letters, digits or underscores',
     saveName: 'Save name',
     noteRule: 'Cloud nicknames take {min}–{max} letters, digits or underscores.',
-    noteOk: '「{name}」 works.',
+    noteOk: '"{name}" works.',
     toyEyebrow: 'CLOUD · BILIBILI TOY',
     toySub:
       'Scores upload to the Bilibili Toy boards automatically: all-time / weekly / daily, plus the endless, campaign and abyss boards.',
@@ -141,7 +142,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     askSaved: 'Saved — scores will be recorded as "{name}".',
     noNickname:
       'No nickname yet. Without one the board shows a server-assigned Player_ number. {min}–{max} letters, digits or underscores only.',
-    pendingNickname: '「{name}」 will appear on the cloud board once your first score is uploaded.',
+    pendingNickname: '"{name}" will appear on the cloud board once your first score is uploaded.',
     currentNickname: 'Current nickname: {name}',
     saving: 'Saving…',
     loading: 'Loading…',
@@ -250,7 +251,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     bannerMutator: 'MUTATOR · {name} — {desc}',
     qualityAdjustedTitle: 'Quality adjusted automatically',
     qualityAdjustedBody:
-      'The frame rate fell short, so the game is now at 「{tier}」 and will remember it for this device. Change it any time in settings.',
+      'The frame rate fell short, so the game is now at "{tier}" and will remember it for this device. Change it any time in settings.',
     qualityGaveUpTitle: 'Settled on the most sustainable quality',
     qualityGaveUpBody:
       'Lowering quality did not raise the frame rate — the stutter has another cause (often a system power saver capping the frame rate).',
@@ -415,8 +416,8 @@ export const en: UiDict & { content: ContentOverrides } = {
     boardCampaign: 'Campaign',
     boardAbyss: 'Abyss',
     boardGlobal: 'Global',
-    renamePending: 'Saved 「{name}」 — it will appear on the cloud board once your first score is uploaded.',
-    renameApplied: 'Nickname updated to 「{name}」.',
+    renamePending: 'Saved "{name}" — it will appear on the cloud board once your first score is uploaded.',
+    renameApplied: 'Nickname updated to "{name}".',
     renameRejected: 'Nickname rejected: {error}',
     renameRateLimited: 'Too many attempts — try again shortly.',
     renameOffline: 'The cloud board is unreachable; the nickname is saved on this device only.',
@@ -723,7 +724,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Thunderhead',
         flavor: 'There is always a cloud overhead.',
         describe: (lv) =>
-          `Every 2.5s, lightning strikes the brick nearest the danger line for ${b(pct(3 * lv))} attack damage and sets off a ${b('lightning chain')} (${b(2 * lv)} jumps).`,
+          `Every 2.5s, lightning strikes the brick nearest the warning line for ${b(pct(3 * lv))} attack damage and sets off a ${b('lightning chain')} (${b(2 * lv)} jumps).`,
       },
       plague: {
         name: 'Corrosion Bloom',
@@ -836,17 +837,14 @@ export const en: UiDict & { content: ContentOverrides } = {
     difficulty: {
       standard: {
         name: 'Standard',
-        desc: 'The game as designed. Once a build comes together, it eases up.',
         detail: ['Sectors as designed'],
       },
       advanced: {
         name: 'Advanced',
-        desc: 'Thicker walls, sinking faster. Strength starts to matter.',
         detail: ['Brick durability +15%', 'Descent speed +20%', '+1 row of bricks'],
       },
       hard: {
         name: 'Hard',
-        desc: 'A narrower paddle, denser barrages, and ball-eating eraser bricks.',
         detail: [
           'Brick durability +25%',
           'Descent speed +30%',
@@ -858,7 +856,6 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       nightmare: {
         name: 'Nightmare',
-        desc: 'Ball speed suppressed, eraser bricks in ranks. The exam hall for absurd builds.',
         detail: [
           'Brick durability +40%',
           'Descent speed +50%',
@@ -871,7 +868,6 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       abyss: {
         name: 'Abyss',
-        desc: 'Something from beyond the rift. Every 16 seconds, one surplus ball is erased.',
         detail: [
           'Brick durability +60%',
           'Descent speed +75%',
@@ -904,7 +900,6 @@ export const en: UiDict & { content: ContentOverrides } = {
     },
     chapters: [
       {
-        name: 'Neon City',
         places: [
           'Neon Blocks',
           'Data Speedway',
@@ -917,7 +912,6 @@ export const en: UiDict & { content: ContentOverrides } = {
         ],
       },
       {
-        name: 'Solar Core',
         places: [
           'Lava Pipelines',
           'Corona Well',
@@ -929,7 +923,6 @@ export const en: UiDict & { content: ContentOverrides } = {
         ],
       },
       {
-        name: 'Void Rift',
         places: [
           'Void Gallery',
           'Singularity Edge',

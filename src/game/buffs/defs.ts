@@ -235,5 +235,7 @@ export const OFFENCE: ReadonlySet<BuffId> = new Set<BuffId>([
 export const COVER: ReadonlySet<BuffId> = new Set<BuffId>(['aegis', 'magnet', 'wide']);
 
 export function isBuffId(value: unknown): value is BuffId {
-  return typeof value === 'string' && value in BUFF_MAP;
+  // `Object.hasOwn` keeps `Object.prototype` members (`'constructor'` in a hand-edited save)
+  // from passing and posing as a buff.
+  return typeof value === 'string' && Object.hasOwn(BUFF_MAP, value);
 }

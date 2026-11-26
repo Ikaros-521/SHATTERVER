@@ -237,6 +237,10 @@ export class CheddaBoards implements CloudApi {
     try {
       response = await this.fetchImpl(`${this.base}${path}`, {
         method,
+        // The CDN serves reads with `max-age=30` + an `s-maxage`, which would let a leaderboard
+        // open show the snapshot from before a submit for up to half a minute. Reads here are
+        // already rate-limited by the caches above, so bypass the HTTP cache outright.
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'X-Game-ID': this.config.gameId,

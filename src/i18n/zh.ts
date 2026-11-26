@@ -91,6 +91,7 @@ export const zh = {
     campaignEyebrow: 'CAMPAIGN · 15 SECTORS · 3 BOSSES',
     endlessEyebrow: 'ENDLESS · 没有终点',
     crystals: '+{n} 碎晶',
+    diffRowLabel: '难度',
   },
   draft: {
     title: '选择一项强化',
@@ -126,7 +127,7 @@ export const zh = {
     timelineTip: '{level} {name} · {time} 秒 · 受创 {n}',
     retry: '再来一局',
     saveShot: '保存战绩截图',
-    shotSaved: '已保存 ✓',
+    shotSaved: '已请求保存 ✓',
     shotFailed: '生成失败',
     viewHistory: '查看战绩',
     cloudBoard: '云端榜单',

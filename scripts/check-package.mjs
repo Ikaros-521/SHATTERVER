@@ -54,6 +54,18 @@ const CJK_TERMS = [
   '瘟',
   '处决',
   '邪魔',
+  // Real-money / random-draw flavour in copy — the rejection after the shop update. The shop's
+  // currency wording stays on 兑换/获得/发放/余额 (see AGENTS.md §2.5); `price` as a data field
+  // name is fine, visible copy must not say 抽卡/计费/入账/钱包.
+  '抽卡',
+  '计费',
+  '入账',
+  '钱包',
+  '充值',
+  '付费',
+  '收费',
+  '到账',
+  '提现',
   // Inflated claims and absolute wording.
   '免安装',
   '极致',

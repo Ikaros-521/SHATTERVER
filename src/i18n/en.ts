@@ -349,11 +349,11 @@ export const en: UiDict & { content: ContentOverrides } = {
         date: '2026-11-26',
         title: 'Daily loops, skins, the Wildcard, and Stardust across devices',
         notes: [
-          '<b>Daily loop</b>: the first run of each day pays double Stardust, and three daily missions settle themselves — new ones every day, visible on the shop\u2019s progress tab.',
+          '<b>Daily loop</b>: the first run of each day earns double Stardust, and three daily missions settle themselves — new ones every day, visible on the shop\u2019s progress tab.',
           '<b>Skins</b>: a new shop shelf — four ball skins (Startrail, Molten, Aurora, Deep Space) and one background theme, Neon Arcade, all generated procedurally; switch between them and the classic look any time.',
           '<b>The Wildcard</b>: the shop\u2019s headline protocol — choose two Common or Rare upgrades yourself and write your own opening.',
           '<b>Supply trials</b>: try any supply you do not own for one free run before exchanging for it.',
-          '<b>Stardust across devices</b>: inside the B站 Toy, the wallet mirrors itself through the platform\u2019s cloud storage, so a new device picks up where you left off (Toy environment only; everywhere else is unchanged).',
+          '<b>Stardust across devices</b>: inside the B站 Toy, your Stardust mirrors itself through the platform\u2019s cloud storage, so a new device picks up where you left off (Toy environment only; everywhere else is unchanged).',
         ],
       },
       {
@@ -361,10 +361,10 @@ export const en: UiDict & { content: ContentOverrides } = {
         date: '2026-11-26',
         title: 'Stardust Shop: earn Stardust by playing, exchange it for protocols and supplies',
         notes: [
-          '<b>Stardust Shop</b>: a new main-menu entry. Every finished run pays Stardust for time played and performance, plus a bonus for clearing the campaign. Stardust comes only from runs and stays on this device.',
+          '<b>Stardust Shop</b>: a new main-menu entry. Every finished run earns Stardust for time played and performance, plus a bonus for clearing the campaign. Stardust comes only from runs and stays on this device.',
           '<b>14 opening protocols</b>: Bulwark, Glacier, Chrono, Critical, Overdrive, Stasis, Melt, Void, Orbital, Thunderhead, Voltage, Mirror, Superconduct, Corrosion Blast — each a different build to start from, and three of them can trigger a reaction from the very first hits.',
           '<b>6 carried supplies</b>: Crystal Cache, Pre-Charge, Spare Shield, Free Reroll, Head Start, Second Wind. Supplies are owned forever and carried into runs through loadout slots; the slots are earned by playing (10 runs finished, campaign cleared).',
-          '<b>31 milestones</b>: first perfect catch, first reaction, clears on every difficulty, endless depth, combo peaks… everything settles automatically — nothing to claim — and the first time you take each upgrade pays extra Stardust.',
+          '<b>31 milestones</b>: first perfect catch, first reaction, clears on every difficulty, endless depth, combo peaks… everything settles automatically — nothing to claim — and the first time you take each upgrade grants extra Stardust.',
           '<b>Wishlist</b>: pin one item and the menu keeps a running "how much to go" counter.',
           '<b>First-run gift</b>: your first finished run pays 250 Stardust on top of its own earnings — enough to exchange for the first supply right away.',
         ],

@@ -51,7 +51,18 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
 - 禁止：`0MB`、免安装、极致、最强、第一（作为宣传语时）、唯一、绝对、顶级。
 - **「0MB」已经踩过两次雷**（promo 封面 → og:description + og-cover 徽章），不要再出现。
 
-### 2.3 不引导站外
+### 2.3 商店/经济文案：兑换，不谈钱（第六次驳回）
+
+星尘商店类文案用**游戏内语言**，避开金融与随机抽取词汇：
+
+- 用：兑换 / 获得 / 发放 / 余额 / 扣除碎晶 / 里程碑自动发放 / 商店 / 补给。
+- 不用：抽卡、计费、入账、钱包、充值、付费、收费、到账、提现、买（「买下后可随时切换」→
+  「获得后可随时切换」）。日韩语同理（ガチャ/가챠/課金 一类也不出现）。
+- `price` 作为商品**数据字段名**可以保留（不可见）；可见值层面一律「兑换」。
+- 英文值避免 `pays / buy / wallet`：`earns / grants / Exchange / Stardust`（SHOP 页签名可保留）。
+- `check:package` 词表已含 抽卡/计费/入账/钱包/充值/付费/收费/到账/提现。
+
+### 2.4 不引导站外
 
 - 文案里不写「网页版」「官网」「链接」「点此下载」之类指向站外的表述。
 - **提审包里不得出现任何站外域名**：既包括项目自己的 GitHub Pages 地址（那是在宣传站外网页版），
@@ -63,7 +74,7 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
   `cheddaboards` 以及 web-only 文件（`llms.txt`/`robots.txt`/`sitemap.xml`/`og-cover.png`）
   判为失败。
 
-### 2.4 四语一起改
+### 2.5 四语一起改
 
 界面文案有 `zh / en / ja / ko` 四份（`src/i18n/`）。新增任何文案必须四份齐全，并同样遵守红线。
 英文避免 `KILLER / WEAPON / DEATH / BOMB` 一类实词（`dead-center`、`deadeye` 这类构词无碍）。

@@ -319,6 +319,30 @@ describe('theme catalog', () => {
     }
   });
 
+  it('the sakura limbs are a tapered tree, under the blossom and in its own layer', () => {
+    // Its first boughs were four straight rods of one thickness, drawn in the nearer layer over
+    // the blossom: a handful of black sticks where a tree should be. The limbs now leave a trunk
+    // in order and thin as they go, and the blossom is what shows in front of them.
+    const frag = THEMES.get('sakura')!.bg.frag;
+    const limbs = frag.indexOf('col = mix(col, bark, fill(limb));');
+    const bloom = frag.indexOf('col = mix(col, bloom, blossom * 0.97);');
+    expect(limbs).toBeGreaterThan(0);
+    expect(bloom).toBeGreaterThan(limbs);
+    // Tapered rods along a curve, joined without a corner, where the blossom hangs: not a rod
+    // drawn in the nearer layer, which would slide over the flowers as the paddle moves.
+    expect(frag).toMatch(/float branch\(vec2 p, vec2 a, vec2 b, float bow, float ra, float rb\)/);
+    expect(frag).toContain('smin(d, branch(');
+    expect(frag).toContain('vec2 tree = sakuraTree(mid, ext, spread, uDetail);');
+    expect(frag).not.toMatch(/sdSegment\(near,/);
+    // Every limb ends thinner than it begins: a trunk and three boughs, and a twig off each
+    // bough but the one along the outer side's bottom half.
+    const tapered = [...frag.matchAll(/branch\(s, [^;\n]*?, (0\.\d+), (0\.\d+)\)/g)];
+    expect(tapered.length).toBe(8);
+    for (const [, from, to] of tapered) {
+      expect(Number(to), `${from} to ${to}`).toBeLessThan(Number(from));
+    }
+  });
+
   it('every theme carries legal colours, glow and a balanced scene', () => {
     const balanced = (src: string, open: string, close: string): boolean =>
       src.split(open).length === src.split(close).length;

@@ -24,6 +24,103 @@ float lantern(vec2 s) {
   d = min(d, sdCircle(s - vec2(0.0, 0.176), 0.009));
   return d;
 }
+
+// A point part-way along a branch. t is its share of the way from a to b, and the branch bows
+// sideways by bow on the way: towards the left of a to b when bow is positive.
+vec2 branchPoint(vec2 a, vec2 b, float bow, float t) {
+  vec2 n = vec2(-(b - a).y, (b - a).x);
+  n /= max(length(n), 1e-4);
+  vec2 c = (a + b) * 0.5 + n * bow;
+  return mix(mix(a, c, t), mix(c, b, t), t);
+}
+
+// Distance to a branch that runs from a to b, bows by bow and thins from ra to rb: four tapered
+// rods along its curve. Their rounded ends overlap, so no joint shows.
+float branch(vec2 p, vec2 a, vec2 b, float bow, float ra, float rb) {
+  float d = 1e5;
+  vec2 prev = a;
+  for (int i = 1; i <= 4; i++) {
+    float t = float(i) * 0.25;
+    vec2 cur = branchPoint(a, b, bow, t);
+    d = min(d, sdTapered(p, prev, cur, mix(ra, rb, t - 0.25), mix(ra, rb, t)));
+    prev = cur;
+  }
+  return d;
+}
+
+// The smaller of two distances, with the corner where they meet rounded off over roughly k:
+// a union that looks grown together rather than glued.
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// A place in a tree's own frame: u in from its corner, v down from the top of the window.
+vec2 limbAt(vec2 corner, float side, float spread, float u, float v) {
+  return corner + vec2(side * u * spread, -v);
+}
+
+// The sakura tree that hangs into the window from one top corner. A trunk comes down out of the
+// top of the frame and goes over into its long bough, which leans in over the field; two more
+// boughs leave it, one dropping towards the garden and one down the outer side, and twigs leave
+// those. Every limb is thinner than the one it grows from and bows under the blossom it carries.
+//
+// side is 1 for the tree at the left corner, which grows towards +x, and -1 for the one at the
+// right, which is its mirror. spread stretches the tree in from its corner, so that it reaches
+// the field on a wide window. detail 0 leaves the outer twigs out.
+//
+// x of the result is the distance to the trunk and its three boughs, y to the nearest limb of
+// all: the blossom lets the boughs show through it and hides the twigs.
+vec2 sakuraLimbs(vec2 s, vec2 corner, float side, float spread, float detail) {
+  vec2 trunkA = limbAt(corner, side, spread, 0.15, -0.30);
+  vec2 fork = limbAt(corner, side, spread, 0.267, 0.40);
+  vec2 b1a = fork;
+  vec2 b1b = limbAt(corner, side, spread, 1.06, 0.56);
+  vec2 b2a = limbAt(corner, side, spread, 0.255, 0.34);
+  vec2 b2b = limbAt(corner, side, spread, 0.36, 0.56);
+  vec2 b3a = limbAt(corner, side, spread, 0.235, 0.22);
+  vec2 b3b = limbAt(corner, side, spread, 0.09, 0.74);
+  float d = branch(s, trunkA, fork, 0.008 * side, 0.026, 0.019);
+  d = smin(d, branch(s, b1a, b1b, 0.11 * side, 0.017, 0.0065), 0.012);
+  d = smin(d, branch(s, b2a, b2b, 0.04 * side, 0.012, 0.005), 0.010);
+  d = smin(d, branch(s, b3a, b3b, -0.03 * side, 0.011, 0.005), 0.010);
+  float boughs = d;
+  // A twig off the long bough that drops into the field's upper corner, and one off the bough
+  // that drops towards the garden.
+  vec2 t1a = branchPoint(b1a, b1b, 0.11 * side, 0.52);
+  vec2 t1b = limbAt(corner, side, spread, 0.80, 0.74);
+  float twigs = branch(s, t1a, t1b, -0.02 * side, 0.006, 0.0025);
+  vec2 t3b = limbAt(corner, side, spread, 0.30, 0.76);
+  twigs = min(twigs, branch(s, b2b, t3b, -0.015 * side, 0.005, 0.0022));
+  if (detail > 0.5) {
+    // …one that turns up into the field's top corner, and one off the outer bough.
+    vec2 t2a = branchPoint(b1a, b1b, 0.11 * side, 0.80);
+    vec2 t2b = limbAt(corner, side, spread, 1.24, 0.34);
+    twigs = min(twigs, branch(s, t2a, t2b, 0.02 * side, 0.0055, 0.0022));
+    vec2 t4a = branchPoint(b3a, b3b, -0.03 * side, 0.60);
+    vec2 t4b = limbAt(corner, side, spread, 0.03, 0.86);
+    twigs = min(twigs, branch(s, t4a, t4b, 0.01 * side, 0.0045, 0.002));
+  }
+  return vec2(boughs, smin(d, twigs, 0.006));
+}
+
+// Distance to the nearest limb of either sakura tree, as sakuraLimbs gives it. ext is the
+// window's half extents.
+//
+// Nothing of a tree is below its lowest twig or further in than its furthest tip, and the sky
+// and the pond under them are most of the window: the limbs are only summed up inside that box.
+vec2 sakuraTree(vec2 s, vec2 ext, float spread, float detail) {
+  vec2 d = vec2(1e5);
+  for (int i = 0; i < 2; i++) {
+    float side = i == 0 ? 1.0 : -1.0;
+    vec2 corner = vec2(-side * ext.x, ext.y);
+    vec2 frame = vec2((s.x - corner.x) * side / spread, corner.y - s.y);
+    if (frame.x > -0.2 && frame.x < 1.4 && frame.y > -0.35 && frame.y < 0.98) {
+      d = min(d, sakuraLimbs(s, corner, side, spread, detail));
+    }
+  }
+  return d;
+}
 `,
     body: `
 // ── sky: navy overhead, dusky violet where it meets the hills ──
@@ -85,36 +182,68 @@ col += vec3(0.15, 0.10, 0.21) * exp(-abs(mid.y + 0.42) * 9.0) * 0.30;
 float fallen = step(0.986, hash21(floor(near * 150.0))) * smoothstep(0.55, 0.95, abs(near.x) / max(ext.x, 1.0));
 col += vec3(0.55, 0.34, 0.48) * fallen * 0.5 * fill(mid.y - wobble(mid, -0.50, 0.03, 5.0));
 
-// ── sakura in bloom: lumpy masses of it hung from the upper corners, leaning in over the field ──
+// ── the sakura trees: the dark limbs first, then the blossom that weighs them down ──
+// Each tree hangs in from a top corner (see sakuraLimbs). On a wide window it is stretched in
+// from its corner, so that its long bough reaches over the field; on a narrow one it is drawn in
+// instead, so that the two trees frame the top of the window without crossing in the middle. Bark is a dark wood lit from above and a little
+// from its own side of the window, so that every limb reads as round: the normal is the slope of
+// the distance, taken from four samples a hair apart, and only where a limb is near.
+float spread = mix(0.64, 1.25, wide);
+vec2 tree = sakuraTree(mid, ext, spread, uDetail);
+float limb = tree.y;
+vec3 bark = vec3(0.034, 0.021, 0.048);
+if (limb < 0.02) {
+  vec2 e = vec2(0.004, 0.0);
+  vec2 slope = vec2(
+    sakuraTree(mid + e.xy, ext, spread, uDetail).y - sakuraTree(mid - e.xy, ext, spread, uDetail).y,
+    sakuraTree(mid + e.yx, ext, spread, uDetail).y - sakuraTree(mid - e.yx, ext, spread, uDetail).y
+  );
+  float side = mid.x < 0.0 ? 1.0 : -1.0;
+  float lit = max(dot(normalize(offCentre(slope)), normalize(vec2(-0.45 * side, 0.89))), 0.0);
+  bark = mix(bark, vec3(0.27, 0.20, 0.34), pow(lit, 1.5));
+}
+col = mix(col, bark, fill(limb));
+
+// ── sakura in bloom: a garland of it along every limb, thickest where each one ends ──
 // A cluster is a density, not a disc: its distance from the heart, roughened by a noise field
 // that is shared by all of them, so no two read as the same circle. bloomD ends up as the
-// nearest cluster's density at this pixel: 0 at its heart, 1 past its rim.
+// nearest cluster's density at this pixel: 0 at its heart, 1 past its rim. Each entry says where
+// a cluster hangs in its tree's frame, as in limbAt, and how wide it is. There are more of them
+// than there are limbs to carry them, and they overlap: that is what makes one canopy rather
+// than a row of balls on a wire.
+const vec3 clusters[15] = vec3[15](
+  vec3(0.20, 0.16, 0.22),
+  vec3(0.38, 0.26, 0.14),
+  vec3(0.56, 0.30, 0.16),
+  vec3(0.72, 0.44, 0.15),
+  vec3(0.90, 0.38, 0.15),
+  vec3(1.07, 0.55, 0.17),
+  vec3(0.42, 0.42, 0.11),
+  vec3(0.38, 0.52, 0.14),
+  vec3(0.17, 0.46, 0.11),
+  vec3(0.10, 0.70, 0.15),
+  vec3(0.76, 0.66, 0.10),
+  vec3(0.82, 0.80, 0.13),
+  vec3(1.24, 0.33, 0.14),
+  vec3(0.30, 0.76, 0.13),
+  vec3(0.04, 0.84, 0.12)
+);
 float lump = fbm(mid * 6.5 + 3.0);
 float bloomD = 10.0;
 for (int i = 0; i < 2; i++) {
-  float side = i == 0 ? -1.0 : 1.0;
-  vec2 corner = vec2(side * ext.x, ext.y);
-  for (int k = 0; k < 7; k++) {
-    float fk = float(k);
-    float h1 = hash11(fk * 1.7 + side * 3.1);
-    float h2 = hash11(fk * 2.9 + side * 5.3 + 0.5);
-    float h3 = hash11(fk * 4.3 + side * 7.7 + 2.5);
-    // The first is the crown in the corner; the rest hang close under and beside it, so the
-    // seven of them read as one tree rather than seven clouds.
-    vec2 off = k == 0 ? vec2(0.14, -0.12) : vec2(0.04 + 0.62 * h1, -0.02 - 0.60 * h2);
-    float r = (k == 0 ? 0.34 : 0.20 + 0.15 * h3) * (1.0 + 0.2 * wide);
-    vec2 q = mid - (corner + vec2(side * off.x, off.y));
+  float side = i == 0 ? 1.0 : -1.0;
+  vec2 corner = vec2(-side * ext.x, ext.y);
+  for (int k = 0; k < 15; k++) {
+    vec2 q = mid - limbAt(corner, side, spread, clusters[k].x, clusters[k].y);
+    float r = clusters[k].z * mix(0.72, 1.2, wide);
     bloomD = min(bloomD, length(q * vec2(1.0, 0.88)) / r + (lump - 0.5) * 0.9);
   }
-  // …and two on each side that lean in over the field from the arena's own upper corners, where
-  // the backdrop's darker plate keeps them well behind the bricks.
-  vec2 q2 = mid - vec2(side * (0.88 + 0.10 * wide), 0.88);
-  bloomD = min(bloomD, length(q2 * vec2(1.0, 0.92)) / 0.25 + (lump - 0.5) * 0.9);
-  vec2 q3 = mid - vec2(side * (1.06 + 0.20 * wide), 0.50);
-  bloomD = min(bloomD, length(q3 * vec2(1.0, 1.12)) / 0.19 + (lump - 0.5) * 0.9);
 }
 // The rim sits at 0.84 of a cluster's radius, so the lumps on it swing about a quarter of it.
 float blossom = 1.0 - smoothstep(0.80, 0.88, bloomD);
+// The boughs show faintly through the blossom covering them, as they do on a real tree; the
+// twigs do not, so no thin line is drawn across a mass of flowers.
+blossom *= 1.0 - 0.5 * fill(tree.x + 0.003);
 // Lit from within: pale at the heart, violet towards the rim, flecked with single flowers and
 // with the dark leaves that show between them.
 vec3 bloom = mix(vec3(0.96, 0.66, 0.84), vec3(0.42, 0.20, 0.52), smoothstep(0.0, 0.95, bloomD) * 0.9);
@@ -148,35 +277,6 @@ float fleck = step(0.975, hash21(fcell + 2.0)) * (1.0 - smoothstep(0.0, 0.13, le
 water += vec3(0.95, 0.70, 0.82) * fleck * 0.45 * (1.0 - farOut);
 water += vec3(0.45, 0.36, 0.52) * (1.0 - smoothstep(0.0, 0.006, depth)) * 0.5;
 col = mix(col, water, smoothstep(-0.003, 0.003, depth));
-
-// ── the boughs the blossom sits on: dark, near, reaching in from the corners ──
-// Inward is towards the middle of the window, which is the opposite way on each side.
-float bough = 1e5;
-for (int i = 0; i < 2; i++) {
-  float side = i == 0 ? -1.0 : 1.0;
-  float inward = -side;
-  vec2 corner = vec2(side * ext.x, ext.y);
-  bough = min(bough, sdSegment(near, corner + vec2(inward * -0.06, 0.06), corner + vec2(inward * 0.72, -0.34)) - 0.011);
-  bough = min(bough, sdSegment(near, corner + vec2(inward * 0.30, -0.17), corner + vec2(inward * 0.27, -0.92)) - 0.007);
-  if (uDetail > 0.5) {
-    bough = min(bough, sdSegment(near, corner + vec2(inward * 0.52, -0.27), corner + vec2(inward * 0.90, -0.60)) - 0.006);
-    bough = min(bough, sdSegment(near, corner + vec2(inward * 0.14, -0.62), corner + vec2(inward * 0.50, -0.84)) - 0.005);
-  }
-}
-col = mix(col, vec3(0.040, 0.025, 0.068), fill(bough));
-
-// Single blossoms dotted along them: the nearest things in the garden.
-for (int i = 0; i < 12; i++) {
-  if (uDetail < 0.5 && i >= 6) break;
-  float fi = float(i);
-  float side = mod(fi, 2.0) < 1.0 ? -1.0 : 1.0;
-  float inward = -side;
-  vec2 corner = vec2(side * ext.x, ext.y);
-  vec2 p = mix(corner + vec2(inward * 0.08, -0.10), corner + vec2(inward * 0.80, -0.86), hash11(fi * 3.1 + 0.7));
-  p += vec2(inward * (hash11(fi * 5.7 + 2.3) - 0.5) * 0.10, (hash11(fi + 11.0) - 0.5) * 0.10);
-  float r = 0.011 + 0.007 * hash11(fi * 1.9);
-  col = mix(col, vec3(1.0, 0.80, 0.90), fill(sdCircle(near - p, r)));
-}
 
 // ── two stone lanterns at the pond's edge, their fireboxes lit ──
 for (int i = 0; i < 2; i++) {

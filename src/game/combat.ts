@@ -295,6 +295,12 @@ function chainLightning(world: World, origin: Brick, power: number): void {
   targets.sort((a, b) => a.d2 - b.d2);
 
   const damage = power * (superconduct ? 0.9 : s.shockDamage);
+  // Superconduct is a discovery in its own right: record it when the discharge starts on a frozen
+  // brick, ahead of overload — `react` starts `REACT_CD`, so on a brick that is both, only the
+  // first check wins, and the frozen case is the one that was never being recorded.
+  if (superconduct && origin.reactCd <= 0) {
+    react(world, origin, 'superconduct');
+  }
   // Overload: lightning discharging through a brick that is already burning detonates it.
   if (origin.burnT > 0 && origin.reactCd <= 0) {
     react(world, origin, 'overload');

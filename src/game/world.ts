@@ -632,7 +632,10 @@ export class World {
       if (s.buffPerpetuum && this.buffs.length > 0) amount *= PERPETUUM_GAIN;
     }
     const before = this.energy;
-    this.energy = Math.min(100, this.energy + amount);
+    // The meter is clamped at both ends: gains cap at full, a missed ball after Overdrive must not
+    // push it below empty.
+    const next = this.energy + amount;
+    this.energy = next < 0 ? 0 : Math.min(100, next);
     if (before < 100 && this.energy >= 100) this.events.emit('overdrive', 'ready');
   }
 

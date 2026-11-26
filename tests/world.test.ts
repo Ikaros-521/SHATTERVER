@@ -422,6 +422,23 @@ describe('world: combat systems', () => {
     expect(phases).toEqual(['start', 'end']);
   });
 
+  it('never lets the overdrive meter drain below empty', () => {
+    const world = makeWorld({}, { bot: false, balls: 1 });
+    startPlaying(world);
+    const ball = world.balls[0]!;
+
+    // A miss right after Overdrive ended lands on an empty meter — it must stay at 0.
+    world.energy = 0;
+    world.loseBall(ball);
+    expect(world.energy).toBe(0);
+
+    // A drain on a partly filled meter still takes its full price.
+    runUntil(world, () => ball.alive, 3);
+    world.energy = 5;
+    world.loseBall(ball);
+    expect(world.energy).toBe(2);
+  });
+
   it('applies burn on hit and lets it tick', () => {
     const world = makeWorld({ fire: 5 }, { level: 12 });
     const found = runUntil(world, () => world.bricks.some((b) => b.burnT > 0 && b.burnDps > 0), 30) < 30;
@@ -443,6 +460,21 @@ describe('world: combat systems', () => {
     expect(firsts.length).toBeGreaterThanOrEqual(3);
     expect(firsts.filter((first) => first)).toHaveLength(1);
     expect(world.run.reactions).toEqual(['overload']);
+  });
+
+  it('discovers superconduct when lightning chains through a frozen brick', () => {
+    const world = makeWorld({ frost: 3, shock: 2, absolutezero: 1, power: 3 }, { level: 9 });
+    const firsts: string[] = [];
+    let superconducts = 0;
+    world.events.on('reaction', (event) => {
+      if (event.id === 'superconduct') superconducts++;
+      if (event.first) firsts.push(event.id);
+    });
+    startPlaying(world);
+    runUntil(world, () => world.run.reactions.includes('superconduct') || world.state !== 'playing', 30);
+    expect(superconducts, 'the reaction fires, not just the effect').toBeGreaterThan(0);
+    expect(world.run.reactions.filter((id) => id === 'superconduct')).toHaveLength(1);
+    expect(firsts.filter((id) => id === 'superconduct')).toHaveLength(1);
   });
 
   it('freezes with Absolute Zero and bursts ice when frozen bricks die', () => {

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>碎界 · 构建产物模拟器</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05060f;
+        overflow: hidden;
+        touch-action: none;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // 与 src/wechat/harness.ts 相同的最小 wx 实现,但加载的是 dist-wechat/game.js 构建产物。
+      window.__errs = [];
+      window.addEventListener('error', (e) => window.__errs.push(String(e.message)));
+      const handlers = { start: [], move: [], end: [] };
+      let created = 0;
+      window.wx = {
+        createCanvas: () => {
+          created++;
+          const canvas = document.createElement('canvas');
+          if (created === 1) {
+            canvas.id = 'screen';
+            document.body.appendChild(canvas);
+          }
+          return canvas;
+        },
+        getSystemInfoSync: () => ({
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
+          pixelRatio: window.devicePixelRatio || 1,
+        }),
+        onTouchStart: (cb) => handlers.start.push(cb),
+        onTouchMove: (cb) => handlers.move.push(cb),
+        onTouchEnd: (cb) => handlers.end.push(cb),
+        getStorageSync: () => null,
+        setStorageSync: () => undefined,
+      };
+      document.addEventListener('pointerdown', (e) => {
+        const t = { clientX: e.clientX, clientY: e.clientY };
+        handlers.start.forEach((cb) => cb({ touches: [t], changedTouches: [t] }));
+      });
+      document.addEventListener('pointermove', (e) => {
+        const t = { clientX: e.clientX, clientY: e.clientY };
+        handlers.move.forEach((cb) => cb({ touches: [t], changedTouches: [t] }));
+      });
+      document.addEventListener('pointerup', (e) => {
+        const t = { clientX: e.clientX, clientY: e.clientY };
+        handlers.end.forEach((cb) => cb({ touches: [], changedTouches: [t] }));
+      });
+    </script>
+    <script src="/dist-wechat/game.js"></script>
+  </body>
+</html>

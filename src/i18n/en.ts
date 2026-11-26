@@ -345,6 +345,19 @@ export const en: UiDict & { content: ContentOverrides } = {
     menuAria: 'Release notes',
     versions: [
       {
+        version: '0.3.1',
+        date: '2026-11-26',
+        title: 'Leaderboard & control fixes',
+        notes: [
+          '<b>Leaner board reads</b>: opening the cloud leaderboard no longer re-requests data it already has — the shared B站 Toy read budget per open drops by about half.',
+          '<b>True deep-run scores</b>: scores above 16 million now show on the Toy board as the score that was actually played, not a compressed look-alike.',
+          '<b>Automatic re-upload</b>: a score whose upload was cut off retries in the background; it tries at once when the board opens or the network returns.',
+          '<b>Keyboard fixes</b>: with the tutorial or release notes open, Tab no longer reaches the menu buttons behind them.',
+          '<b>Draft guard</b>: a rapid double-click on the reroll button is counted once.',
+          '<b>Launch & nickname fixes</b>: the B站 Toy nickname prefetch no longer errors at startup, and longer suffixed nicknames survive a restart.',
+        ],
+      },
+      {
         version: '0.3.0',
         date: '2026-11-26',
         title: 'Guidance rework, scoring fix and phone fixes',

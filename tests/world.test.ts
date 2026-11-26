@@ -543,3 +543,65 @@ describe('world: robustness across the whole upgrade pool', () => {
     expect(average).toBeLessThan(8);
   });
 });
+
+describe('world: enemy bullets', () => {
+  /** Injects one bullet just inside the given wall moving into it, and returns it. */
+  function injectAtWall(world: World, side: 'left' | 'right'): { id: number } {
+    const r = 7;
+    const id = 900_001;
+    const left = side === 'left';
+    world.bullets.push({
+      id,
+      x: left ? WALL + r + 4 : ARENA_W - WALL - r - 4,
+      y: 300,
+      vx: left ? -400 : 400,
+      vy: 60,
+      r,
+      dead: false,
+    });
+    return { id };
+  }
+
+  function bulletById(world: World, id: number) {
+    return world.bullets.find((b) => b.id === id)!;
+  }
+
+  it('bounces off the left wall instead of leaving the field', () => {
+    const world = makeWorld({}, { level: 1, seed: 1 });
+    startPlaying(world);
+    clearCourt(world);
+    const { id } = injectAtWall(world, 'left');
+    const bullet = bulletById(world, id);
+
+    world.update(DT);
+    // One frame at 400 u/s covers the 4-unit gap, so the clamp and flip must already have happened.
+    expect(bullet.dead, 'still alive after the bounce').toBe(false);
+    expect(bullet.vx).toBeGreaterThan(0);
+    expect(bullet.x).toBeGreaterThanOrEqual(WALL + bullet.r - 0.001);
+
+    for (let frames = 0; frames < 90 && !bullet.dead; frames++) {
+      world.update(DT);
+      expect(bullet.x, 'bullet x').toBeGreaterThanOrEqual(WALL + bullet.r - 0.001);
+      expect(bullet.x, 'bullet x').toBeLessThanOrEqual(ARENA_W - WALL - bullet.r + 0.001);
+    }
+  });
+
+  it('bounces off the right wall instead of leaving the field', () => {
+    const world = makeWorld({}, { level: 1, seed: 1 });
+    startPlaying(world);
+    clearCourt(world);
+    const { id } = injectAtWall(world, 'right');
+    const bullet = bulletById(world, id);
+
+    world.update(DT);
+    expect(bullet.dead, 'still alive after the bounce').toBe(false);
+    expect(bullet.vx).toBeLessThan(0);
+    expect(bullet.x).toBeLessThanOrEqual(ARENA_W - WALL - bullet.r + 0.001);
+
+    for (let frames = 0; frames < 90 && !bullet.dead; frames++) {
+      world.update(DT);
+      expect(bullet.x, 'bullet x').toBeGreaterThanOrEqual(WALL + bullet.r - 0.001);
+      expect(bullet.x, 'bullet x').toBeLessThanOrEqual(ARENA_W - WALL - bullet.r + 0.001);
+    }
+  });
+});

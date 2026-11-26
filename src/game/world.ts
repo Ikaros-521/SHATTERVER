@@ -740,6 +740,17 @@ export class World {
       if (bullet.dead) continue;
       bullet.x += bullet.vx * dt;
       bullet.y += bullet.vy * dt;
+      // Side walls bounce bullets like balls: an aimed shot that misses wide stays in the field
+      // instead of vanishing behind a wall and still claiming a hit from off-screen.
+      if (bullet.x < WALL + bullet.r) {
+        bullet.x = WALL + bullet.r;
+        bullet.vx = Math.abs(bullet.vx);
+        this.events.emit('bounce', { x: bullet.x - bullet.r, y: bullet.y, nx: 1, ny: 0 });
+      } else if (bullet.x > ARENA_W - WALL - bullet.r) {
+        bullet.x = ARENA_W - WALL - bullet.r;
+        bullet.vx = -Math.abs(bullet.vx);
+        this.events.emit('bounce', { x: bullet.x + bullet.r, y: bullet.y, nx: -1, ny: 0 });
+      }
       // A bullet only hurts when it gets past the paddle: blocking it is the same skill as catching.
       // The block box is a little generous — being clipped by a near-miss never feels fair.
       if (bullet.y > ARENA_H + 12) {

@@ -101,8 +101,32 @@ describe('blocked handles', () => {
       'Passage',
       'Analyst',
       'Scunthorpe',
+      // Four-letter and ambiguous terms live in the whole-handle list, so their innocent longer
+      // words stay playable: the player sees a name, not a filtered fragment.
+      'SpicyCat',
+      'SpicyPanda',
+      'Nazir',
+      'Nazia',
+      'Heroine',
+      'Conspicuous',
     ]) {
       expect(isBlockedName(name), name).toBe(false);
+    }
+  });
+
+  it('still refuses those short and ambiguous terms as the whole handle', () => {
+    for (const name of [
+      'nazi',
+      'NAZI',
+      'nazi_123',
+      'n4z1', // leet folded to the whole word
+      'kike',
+      'spic',
+      'mdma',
+      'heroin',
+      's_p_i_c', // separators dropped, then the whole-word comparison hits
+    ]) {
+      expect(isBlockedName(name), name).toBe(true);
     }
   });
 

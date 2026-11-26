@@ -15,8 +15,10 @@ drift apart.
 
 Matching rules (implemented in `src/net/nickname.ts`):
 
-- Terms here are matched **anywhere** in the normalised handle (all are ≥ 5 characters and
-  unambiguous).
+- Terms here are matched **anywhere** in the normalised handle: five characters or more and
+  unambiguous, so they cannot sit inside an innocent word. The one deliberate four-letter
+  exception is `porn`, whose longer forms (`pornhub`, …) are exactly what a handle filter must
+  catch and which no ordinary name contains.
 - `_` and other separators are stripped before matching, leet substitutions are folded
   (`sh1t` → `shit`), and runs of a repeated letter collapse (`fuuuck` → `fuck`).
 - Handles are ASCII-only (`A–Z a–z 0–9 _`), so no CJK terms are listed: Chinese input is rejected
@@ -30,14 +32,11 @@ nigga
 faggot
 retard
 tranny
-kike
-spic
 chink
 wetback
 whitepower
 heilhitler
 siegsheil
-nazi
 hitler
 genocide
 lynching
@@ -60,14 +59,12 @@ penis
 vagina
 pussy
 cocaine
-heroin
 cannabis
 marijuana
 ketamine
 methamphetamine
 ecstasy
 fentanyl
-mdma
 casino
 bet365
 betway
@@ -95,6 +92,10 @@ xinjiangcamp
 
 Short or ambiguous terms: these only block a handle that _is_ the word (plus an optional digit
 suffix), so `Cass`, `Sussex` and `Grape` stay playable while `Ass`, `Sex` and `Rape` do not.
+
+Four-letter words, and words that are the innocent prefix of a real name (`Spicy`, `Nazir`,
+`Heroine`), belong here too: kept in the substring list they rejected whole families of ordinary
+handles. The bare handle and its digit variants are still refused.
 
 ```text
 fuck
@@ -147,4 +148,9 @@ killer
 murder
 murderer
 pedo
+kike
+spic
+nazi
+heroin
+mdma
 ```

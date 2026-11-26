@@ -603,7 +603,9 @@ button.sigil-tile:hover {
   position: fixed;
   display: none;
   top: calc(var(--ay) + 10px);
-  right: calc(100vw - var(--ax) - var(--aw) - 10px);
+  /* 10px inside the arena's right edge, mirroring the overdrive pill's left inset. A minus here
+     would put the button outside the frame, which clips on phones (the arena spans the window). */
+  right: calc(100vw - var(--ax) - var(--aw) + 10px);
   align-items: center;
   justify-content: center;
   width: 44px;

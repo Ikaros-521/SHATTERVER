@@ -70,6 +70,7 @@ This project uses a custom non-commercial license (see [LICENSE](./LICENSE)). In
 ## How it plays
 
 - **Balls are never lost.** A ball that reaches the bottom relaunches from the paddle shortly after. Catching with **different parts of the paddle** steers the return angle; a dead-center catch is a "perfect catch" and charges the most.
+- **Launches go straight up.** A ball leaving the paddle — at the start of a level or after a relaunch — fires vertically from its centre: park the paddle under a brick to hit exactly that one. Guided balls are the exception; they scatter on launch and find targets of their own.
 - **The brick wall sinks.** Bricks past the red warning line shatter and cost one shield. At zero shields the run ends.
 - **Intercept barrages with the paddle.** Turret and boss barrages only cost shield when they slip past the bottom; balls and lasers can destroy them too.
 - **Every cleared level, a three-way draft.** Crystals reroll the options, or skipping banks more crystals.

@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { RNG } from '../src/core/rng';
-import { ARENA_W, BALL_SPEED, BASE_DMG, DANGER_Y, PADDLE_Y, WALL } from '../src/game/config';
+import {
+  ARENA_W,
+  BALL_ANTI_STALL,
+  BALL_SPEED,
+  BASE_DMG,
+  DANGER_Y,
+  PADDLE_H,
+  PADDLE_Y,
+  WALL,
+} from '../src/game/config';
 import { applyDamage, basePower } from '../src/game/combat';
+import type { Ball, Brick } from '../src/game/entities';
 import { buildLevel } from '../src/game/levels/generator';
 import { createRun } from '../src/game/run';
 import { UPGRADES } from '../src/game/upgrades/defs';
@@ -16,6 +26,8 @@ interface WorldOptions {
   seed?: number;
   bot?: boolean;
   hp?: number;
+  /** Real balls on the field at the start of the level. */
+  balls?: number;
 }
 
 function makeWorld(upgrades: Record<string, number>, options: WorldOptions = {}): World {
@@ -23,6 +35,7 @@ function makeWorld(upgrades: Record<string, number>, options: WorldOptions = {})
   const run = createRun('endless', seed);
   Object.assign(run.upgrades, upgrades);
   run.stats = computeStats(run.upgrades, 0);
+  if (options.balls !== undefined) run.stats.ballCount = options.balls;
   if (options.hp !== undefined) {
     run.hp = options.hp;
     run.maxHp = Math.max(run.maxHp, options.hp);
@@ -267,6 +280,129 @@ describe('world: paddle & balls', () => {
       }
       expect(world.state, `${fps}fps`).toBe('clearing');
     }
+  });
+});
+
+describe('world: launch', () => {
+  /** Runs the countdown with the paddle headed for `x`. Returns each ball as it left the paddle. */
+  function launchFrom(
+    x: number,
+    upgrades: Record<string, number> = {},
+    options: WorldOptions = {},
+  ): { world: World; left: Ball[] } {
+    const world = makeWorld(upgrades, { ...options, bot: false });
+    world.input.x = x;
+    const left: Ball[] = [];
+    world.events.on('launch', () => left.push(...world.balls.map((ball) => ({ ...ball }))));
+    startPlaying(world);
+    return { world, left };
+  }
+
+  it('parks the balls on the paddle, a lone one dead centre', () => {
+    const lone = makeWorld({}, { bot: false, balls: 1 });
+    const ball = lone.balls[0]!;
+    lone.input.x = 480;
+    runUntil(lone, () => Math.abs(lone.paddle.x - 480) < 0.01, 0.5);
+    expect(lone.state, 'still waiting on the countdown').toBe('intro');
+    expect(ball.x).toBeCloseTo(lone.paddle.x, 6);
+    expect(ball.y).toBeCloseTo(PADDLE_Y - PADDLE_H / 2 - ball.radius, 6);
+
+    // A stack fills rows of nine, each centred on the paddle, and stays inside its width.
+    const stack = makeWorld({}, { bot: false, balls: 10 });
+    stack.update(DT);
+    expect(stack.balls).toHaveLength(10);
+    const bottom = stack.balls.filter((ball) => ball.y === Math.max(...stack.balls.map((b) => b.y)));
+    expect(bottom).toHaveLength(9);
+    const offsets = bottom.map((ball) => ball.x - stack.paddle.x).sort((a, b) => a - b);
+    expect(new Set(offsets).size, 'one ball per slot').toBe(9);
+    for (let i = 0; i < 9; i++) expect(offsets[i]!).toBeCloseTo(-offsets[8 - i]!, 6);
+    expect(Math.max(...offsets.map(Math.abs))).toBeLessThan(stack.paddle.halfW);
+    const above = stack.balls.filter((ball) => !bottom.includes(ball));
+    expect(above).toHaveLength(1);
+    expect(above[0]!.x).toBeCloseTo(stack.paddle.x, 6);
+    expect(above[0]!.y).toBeCloseTo(bottom[0]!.y - 20, 6);
+  });
+
+  it('sends an unguided stack straight up from wherever the paddle was parked', () => {
+    const { left } = launchFrom(300, { multiball: 1 });
+    expect(left).toHaveLength(5);
+    for (const ball of left) {
+      expect(Math.abs(ball.vx), 'no sideways drift').toBeLessThan(1e-9);
+      expect(ball.vy).toBeLessThan(0);
+      expect(Math.hypot(ball.vx, ball.vy)).toBeCloseTo(ball.speed, 5);
+    }
+    // The volley is centred on the paddle: where the player parked it is where the balls go up.
+    const centre = left.reduce((sum, ball) => sum + ball.x, 0) / left.length;
+    expect(centre).toBeCloseTo(300, 3);
+  });
+
+  it('hits the brick the paddle was parked under', () => {
+    const world = makeWorld({}, { bot: false });
+    // The lowest brick among the columns the paddle can reach: nothing in its way but empty court.
+    const target = world.bricks
+      .filter((brick) => brick.col >= 2 && brick.col <= 9)
+      .reduce((lowest, brick) => (brick.y > lowest.y ? brick : lowest));
+    world.input.x = target.x;
+    const hits: Brick[] = [];
+    world.events.on('hit', (event) => hits.push(event.brick));
+    startPlaying(world);
+    expect(hits, 'nothing is hit before the countdown ends').toHaveLength(0);
+    runUntil(world, () => hits.length > 0, 5);
+    expect(hits.length, 'the volley found something').toBeGreaterThan(0);
+    expect(hits[0]).toBe(target);
+  });
+
+  it('still fans a guided stack out, so each ball can pick a brick of its own', () => {
+    const { left } = launchFrom(360, { homing: 1 });
+    expect(left).toHaveLength(4);
+    const vx = left.map((ball) => ball.vx).sort((a, b) => a - b);
+    expect(vx[0]).toBeLessThan(-left[0]!.speed * 0.3);
+    expect(vx[vx.length - 1]).toBeGreaterThan(left[0]!.speed * 0.3);
+    expect(left.every((ball) => ball.vy < 0 && ball.lock === 0)).toBe(true);
+  });
+
+  it('re-launches a lost ball straight up, however long it had gone without a brick', () => {
+    const world = makeWorld({}, { bot: false, balls: 1 });
+    startPlaying(world);
+    clearCourt(world);
+    world.input.x = 200;
+    runUntil(world, () => Math.abs(world.paddle.x - 200) < 0.01, 0.5);
+    const ball = world.balls[0]!;
+    ball.dryT = BALL_ANTI_STALL + 3;
+    world.loseBall(ball);
+    runUntil(world, () => ball.alive, 3);
+    expect(ball.alive).toBe(true);
+    expect(ball.x).toBeCloseTo(200, 2);
+    expect(ball.dryT, 'a fresh trip: the anti-stall clock starts over').toBe(0);
+    expect(Math.abs(ball.vx)).toBeLessThan(1e-9);
+
+    // Nothing overhead and nothing steering: it climbs dead straight until the top wall turns it.
+    let widest = 0;
+    runUntil(
+      world,
+      () => ball.vy > 0,
+      3,
+      () => {
+        if (ball.vy < 0) widest = Math.max(widest, Math.abs(ball.vx));
+      },
+    );
+    expect(ball.vy, 'rebounded off the top wall').toBeGreaterThan(0);
+    expect(widest, 'straight all the way up').toBeLessThan(1e-9);
+  });
+
+  it('lets the SEEKER capsule choose the relaunch angle, as guidance chooses the launch', () => {
+    const world = makeWorld({}, { bot: false, balls: 1 });
+    startPlaying(world);
+    clearCourt(world);
+    expect(world.activateBuff('homing')).toBe(true);
+    const ball = world.balls[0]!;
+    let tilted = 0;
+    for (let i = 0; i < 6; i++) {
+      world.loseBall(ball);
+      runUntil(world, () => ball.alive, 3);
+      if (Math.abs(ball.vx) > ball.speed * 0.05) tilted++;
+    }
+    expect(tilted, 'a guided relaunch is not pinned to vertical').toBeGreaterThan(0);
   });
 });
 

@@ -316,6 +316,11 @@ function lockOf(ball: Ball, bricks: readonly Brick[]): Brick | null {
   return null;
 }
 
+/** True while guidance steers `ball`: charges loaded, and a turn rate to spend them with. */
+export function isGuided(ball: Ball, homing: number): boolean {
+  return ball.guided > 0 && homing > 0;
+}
+
 /**
  * Steers `ball` for one frame, or leaves it alone when it has no reason to turn.
  *
@@ -324,7 +329,7 @@ function lockOf(ball: Ball, bricks: readonly Brick[]): Brick | null {
  * brick for BALL_ANTI_STALL seconds drifts towards one at ANTI_STALL_TURN instead.
  */
 export function guide(ball: Ball, bricks: readonly Brick[], homing: number, dt: number): void {
-  const armed = ball.guided > 0 && homing > 0;
+  const armed = isGuided(ball, homing);
   if (!armed && ball.dryT <= BALL_ANTI_STALL) return;
   const turn = armed ? homing : ANTI_STALL_TURN;
 

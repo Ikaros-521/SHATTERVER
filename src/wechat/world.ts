@@ -58,15 +58,19 @@ export class WorldBinding {
     height: number,
     dpr: number,
     private readonly cb: WorldCallbacks,
-    /** Debug hooks: the self-playing paddle and a deep start, for reaching drafts quickly. */
-    options: { bot?: boolean; level?: number } = {},
+    /**
+     * Debug hooks: the self-playing paddle and a deep start, for reaching drafts quickly.
+     * `supplies` overrides the carried loadout — the shell's real start merges the trial supply
+     * in (the DOM `startRun` does the same) and hands the merged list here.
+     */
+    options: { bot?: boolean; level?: number; supplies?: readonly string[] } = {},
     /** The shell's audio director, when the platform can make sound; effects and BGM attach here. */
     audio?: AudioDirector | null,
   ) {
     this.session = new Session(mode, randomSeed(), {
       starter,
       difficulty: difficultyOf(difficultyId),
-      supplies: save.economy.loadout,
+      supplies: options.supplies ?? save.economy.loadout,
       bot: options.bot ?? false,
       level: options.level,
     });

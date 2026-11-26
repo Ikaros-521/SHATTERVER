@@ -31,6 +31,10 @@
           const canvas = document.createElement('canvas');
           if (created === 1) {
             canvas.id = 'screen';
+            // 真机运行时把首块画布铺满屏幕；浏览器 stub 得自己定 CSS 尺寸，
+            // 否则画布按 backing-store 像素显示，画面放大裁切。
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
             document.body.appendChild(canvas);
           }
           return canvas;

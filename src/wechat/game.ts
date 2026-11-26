@@ -484,6 +484,16 @@ function boot(): void {
     }
     lastRun = { mode, starter, difficulty };
     resultsModel = null;
+    // The DOM startRun's opening bookkeeping (app.ts): the trial supply rides along as a
+    // one-run gift — de-duplicated by the session — and is spent the moment a scoring run
+    // opens; the run count feeds the loadout's slot gates, so it must move too.
+    const econ = save.economy;
+    const supplies = econ.trialSupply ? [...econ.loadout, econ.trialSupply] : econ.loadout;
+    // The default screen is set before the binding is built: an opening draft (head-start
+    // trial, protocol intro picks) fires its event inside the constructor, and that must win
+    // over the run screen. Its own rebuild lands while `world` is still null, so one more
+    // runs below once the assignment is real.
+    current = { kind: 'run' };
     world = new WorldBinding(
       screen,
       save,
@@ -494,10 +504,13 @@ function boot(): void {
       height,
       dpr,
       worldCallbacks(true),
-      {},
+      { supplies },
       audio,
     );
-    current = { kind: 'run' };
+    econ.trialSupply = null;
+    save.records.runs++;
+    storeSave(save);
+    if ((current as ShellScreen).kind === 'draft') rebuild();
     // The previous screen's tree stays installed but is not composited during a run.
     ui.markDirty();
   };

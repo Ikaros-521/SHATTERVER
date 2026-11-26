@@ -8,16 +8,23 @@
  * the CJK labels ride the 2D canvas for free.
  *
  * Visible content, top to bottom: shield pips, the sector code and its clear/boss progress, the
- * crystal count, the big score, the combo readout, the overdrive prompt, and the pause button.
- * The build/buff/stat panels are a later slice.
+ * crystal count, the big score, the combo readout, the build strip (one rarity-tinted tile per
+ * owned upgrade), the buff chips (codename + countdown + drain bar), the overdrive prompt, and
+ * the pause button.
  */
 
 import { t } from '../core/i18n';
 import { formatNumber, formatScore } from '../core/math';
 import { COMBO_TIME } from '../game/config';
 import { COMBO_TIERS } from '../game/levels/definitions';
+import { BUFF_MAP } from '../game/buffs/defs';
+import { UPGRADE_MAP } from '../game/upgrades/defs';
+import { RARITY_INFO } from '../game/upgrades/present';
 import { bossName, comboTierLabel, levelName } from '../i18n/content';
+import { rgba } from '../ui/canvas/theme';
 import type { Session } from '../game/session';
+import type { Run } from '../game/run';
+import type { World } from '../game/world';
 
 /** Everything the overlay draws, hashed into one comparable string. */
 export function hudSignature(session: Session, dps: number): string {
@@ -39,6 +46,12 @@ export function hudSignature(session: Session, dps: number): string {
     Math.round((world.comboTimer / COMBO_TIME) * 20),
     world.energy >= 100 && !world.odActive && world.state === 'playing' ? 'ready' : '-',
     Math.round(dps),
+    // The build strip (per owned upgrade) and the buff chips (per second of countdown).
+    Object.entries(run.upgrades)
+      .filter(([, lv]) => (lv ?? 0) > 0)
+      .map(([id, lv]) => `${id}${lv}`)
+      .join(','),
+    world.buffs.map((buff) => `${buff.id}${Math.ceil(buff.t)}`).join(','),
   ].join('|');
 }
 
@@ -144,6 +157,10 @@ export function drawHud(
     ctx.fillRect(width - 136, 158, 120 * Math.max(0, Math.min(1, world.comboTimer / COMBO_TIME)), 4);
   }
 
+  // ── build strip + buff chips (below the score, wrapping left to right) ──
+  const chipsY = drawBuildStrip(ctx, width, run, font);
+  drawBuffChips(ctx, width, world, chipsY, font);
+
   // ── overdrive prompt ──
   const ready = world.energy >= 100 && !world.odActive && world.state === 'playing';
   if (ready) {
@@ -181,4 +198,107 @@ function drawPauseButton(ctx: CanvasRenderingContext2D, width: number, font: str
   ctx.fillRect(width - 30, 24, 5, 18);
   ctx.restore();
   void font;
+}
+
+const CHIP_H = 22;
+const CHIP_STEP = 28;
+const STRIP_X = 16;
+
+/**
+ * One rarity-tinted tile per owned upgrade — the canvas answer to the DOM build panel's icon
+ * row. Tiles wrap like the DOM panel does; returns the y the next strip starts at.
+ */
+function drawBuildStrip(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  run: Run,
+  font: string,
+): number {
+  const owned = Object.entries(run.upgrades).filter(([, lv]) => (lv ?? 0) > 0);
+  let x = STRIP_X;
+  let y = 168;
+  ctx.textAlign = 'left';
+  if (owned.length === 0) {
+    ctx.font = `400 11px ${font}`;
+    ctx.fillStyle = 'rgba(102, 119, 156, 0.6)';
+    ctx.fillText(t('hud.buildEmpty'), x, y + 5);
+    return y + CHIP_STEP;
+  }
+  for (const [id, lv] of owned) {
+    const def = UPGRADE_MAP[id];
+    if (!def) continue;
+    const tint = rgba(RARITY_INFO[def.rarity].color, 1);
+    const code = (def.code || id).slice(0, 3);
+    ctx.font = `700 10px ${font}`;
+    const codeW = ctx.measureText(code).width;
+    const levelText = (lv ?? 1) > 1 ? `×${lv}` : '';
+    ctx.font = `700 9px ${font}`;
+    const levelW = levelText ? ctx.measureText(levelText).width : 0;
+    const w = 10 + codeW + (levelText ? 6 + levelW : 0) + 10;
+    if (x + w > width - STRIP_X) {
+      x = STRIP_X;
+      y += CHIP_STEP;
+    }
+    drawChip(ctx, x, y, w, tint);
+    ctx.fillStyle = '#eaf2ff';
+    ctx.font = `700 10px ${font}`;
+    ctx.fillText(code, x + 10, y + 6);
+    if (levelText) {
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillText(levelText, x + 10 + codeW + 6, y + 7);
+    }
+    x += w + 6;
+  }
+  return y + CHIP_STEP;
+}
+
+/** One chip per running temporary buff: codename, countdown in seconds, and a drain bar. */
+function drawBuffChips(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  world: World,
+  y: number,
+  font: string,
+): void {
+  let x = STRIP_X;
+  ctx.textAlign = 'left';
+  for (const buff of world.buffs) {
+    const def = BUFF_MAP[buff.id];
+    if (!def) continue;
+    const tint = rgba(def.color, 1);
+    const text = `${def.code} ${Math.ceil(buff.t)}`;
+    ctx.font = `700 10px ${font}`;
+    const w = 10 + ctx.measureText(text).width + 10;
+    if (x + w > width - STRIP_X) {
+      x = STRIP_X;
+      y += CHIP_STEP;
+    }
+    drawChip(ctx, x, y, w, tint);
+    ctx.fillStyle = '#eaf2ff';
+    ctx.fillText(text, x + 10, y + 6);
+    const frac = Math.max(0, Math.min(1, buff.t / Math.max(0.001, buff.max)));
+    ctx.fillStyle = tint;
+    ctx.fillRect(x + 1, y + CHIP_H - 3, (w - 2) * frac, 2);
+    x += w + 6;
+  }
+}
+
+/** Shared chip backing: dark glass with a tinted stroke, so tiles read over the world. */
+function drawChip(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  tint: string,
+): void {
+  ctx.fillStyle = 'rgba(9, 13, 30, 0.72)';
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, CHIP_H, 7);
+  else ctx.rect(x, y, w, CHIP_H);
+  ctx.fill();
+  ctx.strokeStyle = tint;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }

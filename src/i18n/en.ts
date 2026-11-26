@@ -345,6 +345,19 @@ export const en: UiDict & { content: ContentOverrides } = {
     menuAria: 'Release notes',
     versions: [
       {
+        version: '0.4.0',
+        date: '2026-11-26',
+        title: 'Stardust Shop: earn Stardust by playing, exchange it for protocols and supplies',
+        notes: [
+          '<b>Stardust Shop</b>: a new main-menu entry. Every finished run pays Stardust for time played and performance, plus a bonus for clearing the campaign. Stardust comes only from runs and stays on this device.',
+          '<b>14 opening protocols</b>: Bulwark, Glacier, Chrono, Critical, Overdrive, Stasis, Melt, Void, Orbital, Thunderhead, Voltage, Mirror, Superconduct, Corrosion Blast — each a different build to start from, and three of them can trigger a reaction from the very first hits.',
+          '<b>6 carried supplies</b>: Crystal Cache, Pre-Charge, Spare Shield, Free Reroll, Head Start, Second Wind. Supplies are owned forever and carried into runs through loadout slots; the slots are earned by playing (10 runs finished, campaign cleared).',
+          '<b>31 milestones</b>: first perfect catch, first reaction, clears on every difficulty, endless depth, combo peaks… everything settles automatically — nothing to claim — and the first time you take each upgrade pays extra Stardust.',
+          '<b>Wishlist</b>: pin one item and the menu keeps a running "how much to go" counter.',
+          '<b>First-run gift</b>: your first finished run pays 250 Stardust on top of its own earnings — enough to exchange for the first supply right away.',
+        ],
+      },
+      {
         version: '0.3.1',
         date: '2026-11-26',
         title: 'Leaderboard & control fixes',

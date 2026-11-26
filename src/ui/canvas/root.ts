@@ -38,6 +38,8 @@ export class CanvasUi {
   private tracking = false;
   private dragging = false;
   private pressed: ButtonWidget | null = null;
+  /** What the last `pointerDown` hit, for `__shell`-style automation probes. */
+  lastProbe: { x: number; y: number; hit: string | null } | null = null;
   private scroller: ScrollWidget | null = null;
   private scrollStartOffset = 0;
 
@@ -87,6 +89,9 @@ export class CanvasUi {
     this.scrollStartOffset = 0;
     if (!this.tree) return;
     const hit = hitTest(this.tree, x, y);
+    // Automation probe (the shell's `__shell.ui` reads it): what this press actually landed on.
+    const target = hit as { kind: string; text?: string } | null;
+    this.lastProbe = { x, y, hit: target ? `${target.kind}${target.text ? `:${target.text}` : ''}` : null };
     if (hit?.kind === 'button' && !hit.disabled) this.pressed = hit;
     // The deepest scroll region containing the point owns the drag, if it turns into one.
     const scrolls: ScrollWidget[] = [];

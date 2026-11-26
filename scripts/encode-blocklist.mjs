@@ -32,12 +32,19 @@ function readSection(markdown, heading) {
 const markdown = fs.readFileSync(DOCS, 'utf8');
 const substrings = readSection(markdown, 'BLOCKED_SUBSTRINGS');
 const whole = readSection(markdown, 'BLOCKED_WHOLE');
+const cjk = readSection(markdown, 'BLOCKED_CJK');
 
 for (const term of [...substrings, ...whole]) {
   if (!/^[a-z0-9]+$/.test(term)) throw new Error(`not plain lowercase ascii: ${term}`);
 }
+for (const term of cjk) {
+  if (!/^\p{Script=Han}+$/u.test(term)) throw new Error(`not plain Han characters: ${term}`);
+}
 
 const b64 = (terms) => Buffer.from(terms.join(','), 'utf8').toString('base64');
+// atob/btoa are latin1-only, so the CJK terms cannot ride the base64 channel. Percent-encoding
+// keeps them out of plaintext form just the same, and decodes with decodeURIComponent.
+const pct = (terms) => encodeURIComponent(terms.join(','));
 
 const block = [
   BEGIN,
@@ -48,6 +55,9 @@ const block = [
   `export const BLOCKED_WHOLE: readonly string[] = decode(`,
   `  '${b64(whole)}',`,
   `);`,
+  `export const BLOCKED_CJK: readonly string[] = decodeUtf(`,
+  `  '${pct(cjk)}',`,
+  `);`,
   END,
 ].join('\n');
 
@@ -57,4 +67,4 @@ const to = source.indexOf(END);
 if (from < 0 || to < 0) throw new Error('markers not found in src/net/blocklist.ts');
 
 fs.writeFileSync(TARGET, source.slice(0, from) + block + source.slice(to + END.length), 'utf8');
-console.log(`encoded ${substrings.length} substring + ${whole.length} whole terms`);
+console.log(`encoded ${substrings.length} substring + ${whole.length} whole + ${cjk.length} cjk terms`);

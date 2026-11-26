@@ -21,8 +21,14 @@ Matching rules (implemented in `src/net/nickname.ts`):
   catch and which no ordinary name contains.
 - `_` and other separators are stripped before matching, leet substitutions are folded
   (`sh1t` → `shit`), and runs of a repeated letter collapse (`fuuuck` → `fuck`).
-- Handles are ASCII-only (`A–Z a–z 0–9 _`), so no CJK terms are listed: Chinese input is rejected
-  at the charset step before the blocklist is consulted.
+- The web and B站 Toy channels only accept `A–Z a–z 0–9 _`, so the two ASCII lists below were all
+  they ever needed. The **WeChat channel accepts Chinese nicknames**, which is what the
+  `BLOCKED_CJK` section is for: plain Han-character terms, matched by direct containment after
+  normalisation (no leet folding or collapsing — Chinese variants are listed explicitly).
+- The CJK list deliberately covers only common profanity, insults and sexual content. Political
+  terms are NOT listed anywhere: nickname moderation on the platforms is the platforms' job, and
+  a list like that shipped in a bundle is exactly the review incident the encoding exists to
+  avoid.
 
 ## BLOCKED_SUBSTRINGS
 
@@ -153,4 +159,50 @@ spic
 nazi
 heroin
 mdma
+```
+
+## BLOCKED_CJK
+
+```text
+傻逼
+草泥马
+尼玛
+你妈
+他妈
+卧槽
+我操
+操你
+干你
+日你
+妈的
+废物
+白痴
+脑残
+智障
+弱智
+贱人
+婊子
+母狗
+鸡巴
+屌
+肏
+色情
+黄片
+裸聊
+援交
+约炮
+炮友
+一夜情
+自慰
+射精
+口交
+性交
+做爱
+强奸
+轮奸
+嫖娼
+卖淫
+恋童
+雏妓
+乱伦
 ```

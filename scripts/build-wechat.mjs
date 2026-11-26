@@ -12,19 +12,29 @@
 import { build } from 'vite';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 
+// The AppID is read BEFORE the build: `vite build` empties dist-wechat, and an appid corrected
+// there — the 小游戏测试号 paste, or the IDE's own rewrite — must survive every rebuild. The
+// repo-root appid is only the placeholder a fresh checkout falls back to.
+let appid = '';
+try {
+  const existing = JSON.parse(readFileSync('dist-wechat/project.config.json', 'utf8'));
+  if (typeof existing.appid === 'string' && existing.appid) appid = existing.appid;
+} catch {
+  // No previous output (first build): fall through to the root config.
+}
+
 await build({ configFile: 'vite.wechat.config.ts' });
 
 // Portrait for the menu shell; the arena's orientation is decided with the gameplay screens.
 writeFileSync('dist-wechat/game.json', `${JSON.stringify({ deviceOrientation: 'portrait' }, null, 2)}\n`);
 
-// Self-contained IDE project: the AppID rides from the repo-root config so a fork replaces it
-// in one place. Written every build, so config edits here survive dist wipes.
+// Self-contained IDE project.
 const root = JSON.parse(readFileSync('project.config.json', 'utf8'));
 const ide = {
   compileType: 'game',
   libVersion: root.libVersion ?? '3.18.1',
   projectname: root.projectname ?? 'shatterverse',
-  appid: root.appid ?? '',
+  appid: appid || root.appid || '',
   setting: root.setting ?? {},
   editorSetting: root.editorSetting ?? {},
 };

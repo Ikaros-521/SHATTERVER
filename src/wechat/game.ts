@@ -26,15 +26,17 @@ import type { RunMode } from '../game/run';
 import { buildMenuModel } from './menumodel';
 import { historyTree, type HistoryState } from './screens/history';
 import { starterTree } from './screens/starter';
+import { WorldBinding } from './world';
 import { UITextureLayer } from './uitexture';
 
 const DPR_CAP = 2;
 
-/** The screens the shell can show so far. Gameplay screens join as they are ported. */
+/** The screens the shell can show so far. Remaining screens join as they are ported. */
 type ShellScreen =
   | { kind: 'menu' }
   | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId }
-  | ({ kind: 'history' } & HistoryState);
+  | ({ kind: 'history' } & HistoryState)
+  | { kind: 'run' };
 
 function boot(): void {
   const sys = wx.getSystemInfoSync();
@@ -61,6 +63,9 @@ function boot(): void {
   const layer = new UITextureLayer(wrap, uiCanvas);
 
   let current: ShellScreen = { kind: 'menu' };
+  /** The live run, when one is on the screen. The shell owns the rAF it advances in. */
+  let world: WorldBinding | null = null;
+  let lastTime = 0;
 
   const rebuild = (): void => {
     if (current.kind === 'menu') {
@@ -76,7 +81,7 @@ function boot(): void {
           surface,
         ),
       );
-    } else {
+    } else if (current.kind === 'history') {
       ui.setTree(historyTree(save, { tab: current.tab }, historyActions, width, height, surface));
     }
   };
@@ -145,8 +150,23 @@ function boot(): void {
     },
     start: (starter: Starter): void => {
       if (current.kind !== 'starter') return;
-      // The seam where the game world plugs in; until then, log the exact call the DOM makes.
-      console.log('startRun:', current.mode, starter.id, current.difficulty);
+      const { mode, difficulty } = current;
+      // The game world takes the screen canvas over: menus yield, the run renders full-screen.
+      world = new WorldBinding(screen, save, mode, starter, difficulty, width, height, dpr, {
+        onFinish: (): void => {
+          world?.dispose();
+          world = null;
+          current = { kind: 'menu' };
+          rebuild();
+        },
+        onDraft: (options, choose) => {
+          console.log('draft:', options.map((option) => option.id).join('/'));
+          void choose;
+        },
+      });
+      current = { kind: 'run' };
+      // The menu tree stays installed but is not composited during a run; force a repaint on return.
+      ui.markDirty();
     },
   };
 
@@ -161,23 +181,39 @@ function boot(): void {
 
   wx.onTouchStart((event) => {
     const touch = event.touches[0];
-    if (touch) ui.pointerDown(touch.clientX, touch.clientY);
+    if (!touch) return;
+    if (current.kind === 'run') world?.pointer(touch.clientX);
+    else ui.pointerDown(touch.clientX, touch.clientY);
   });
   wx.onTouchMove((event) => {
     const touch = event.touches[0];
-    if (touch) ui.pointerMove(touch.clientX, touch.clientY);
+    if (!touch) return;
+    if (current.kind === 'run') world?.pointer(touch.clientX);
+    else ui.pointerMove(touch.clientX, touch.clientY);
   });
   wx.onTouchEnd((event) => {
     const touch = event.changedTouches[0];
-    if (touch) ui.pointerUp(touch.clientX, touch.clientY);
+    if (!touch) return;
+    if (current.kind === 'run') world?.releasePointer();
+    else ui.pointerUp(touch.clientX, touch.clientY);
   });
 
   const bg = DEFAULT_THEME.colors.bg;
   wrap.gl.clearColor(((bg >> 16) & 255) / 255, ((bg >> 8) & 255) / 255, (bg & 255) / 255, 1);
 
-  function frame(): void {
+  function frame(now: number): void {
+    const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+    lastTime = now;
+    if (current.kind === 'run' && world) {
+      // The run owns the whole screen: world renders itself, no UI texture this frame.
+      world.frame(dt, now / 1000);
+      requestAnimationFrame(frame);
+      return;
+    }
     if (ui.frame()) layer.upload();
     wrap.bind(null);
+    // The Renderer may have left a different viewport/program behind on a run→menu transition.
+    wrap.gl.viewport(0, 0, wrap.gl.drawingBufferWidth, wrap.gl.drawingBufferHeight);
     wrap.gl.clear(wrap.gl.COLOR_BUFFER_BIT);
     layer.draw();
     requestAnimationFrame(frame);

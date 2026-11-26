@@ -57,6 +57,8 @@ export class AudioDirector {
   private pickupChain = 0;
   private pickupChainAt = 0;
   private muted = false;
+  /** True while the music low-pass is plunged by time stop; see `attach`. */
+  private cutoffLow = false;
 
   constructor() {
     this.music = new Music(this.engine);
@@ -137,6 +139,12 @@ export class AudioDirector {
 
   /** Wires a world's events to sounds. Returns a function that unwires them. */
   attach(world: World): () => void {
+    // The director outlives worlds: if one ends mid-time-stop, its restoring 'end' never fires,
+    // so clear the plunged filter before the next world inherits it.
+    if (this.cutoffLow) {
+      this.engine.setMusicCutoff(18000, 0.1);
+      this.cutoffLow = false;
+    }
     const on = <K extends keyof WorldEvents>(type: K, fn: (event: WorldEvents[K]) => void): (() => void) =>
       world.events.on(type, fn);
     const off = [
@@ -181,6 +189,7 @@ export class AudioDirector {
       on('timeStop', (phase) => {
         this.play(phase === 'start' ? 'timeStop' : 'timeResume', undefined, 1.3);
         this.engine.setMusicCutoff(phase === 'start' ? 420 : 18000, phase === 'start' ? 0.35 : 0.5);
+        this.cutoffLow = phase === 'start';
       }),
       on('boss', (e) => this.play(e.phase === 'die' ? 'bossDie' : 'boss', undefined, 1.3)),
       on('shoot', () => this.play('shoot', undefined, 0.2)),

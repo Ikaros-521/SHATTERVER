@@ -204,16 +204,18 @@ export class AudioEngine {
     return { peak, rms: Math.sqrt(energy / data.length) };
   }
 
-  /** Output node for a voice: dry bus plus an optional reverb tap. */
-  private output(dest: AudioNode | undefined, reverb: number | undefined, isMusic = false): AudioNode {
-    const dry = dest ?? (isMusic ? (this.musicBus as AudioNode) : (this.sfxBus as AudioNode));
-    if (!reverb || !this.reverbInput) return dry;
+  /** Output node for a voice: its dry bus (music or SFX). */
+  private output(dest: AudioNode | undefined, isMusic = false): AudioNode {
+    return dest ?? (isMusic ? (this.musicBus as AudioNode) : (this.sfxBus as AudioNode));
+  }
+
+  /** Taps one voice into the reverb. The send dies with the voice: no leaks, no sums. */
+  private tapReverb(source: AudioNode, amount: number): void {
     const send = this.ctx?.createGain();
-    if (!send) return dry;
-    send.gain.value = reverb;
-    send.connect(this.reverbInput);
-    dry.connect(send);
-    return dry;
+    if (!send) return;
+    send.gain.value = amount;
+    source.connect(send);
+    send.connect(this.reverbInput!);
   }
 
   private track(until: number): void {
@@ -226,8 +228,8 @@ export class AudioEngine {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     const t0 = ctx.currentTime + (o.delay ?? 0);
-    const out = this.output(o.dest, o.reverb, isMusic);
     const gain = ctx.createGain();
+    const out = this.output(o.dest, isMusic);
     const peak = o.gain ?? 0.2;
     const attack = o.attack ?? 0.004;
     gain.gain.setValueAtTime(0.0001, t0);
@@ -235,6 +237,8 @@ export class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + o.dur);
     gain.connect(out);
     if (o.echo) gain.connect(o.echo);
+    // The send taps this voice's envelope, not the bus: it ends when the voice ends.
+    if (o.reverb) this.tapReverb(gain, o.reverb);
 
     const osc = ctx.createOscillator();
     osc.type = o.type ?? 'sine';
@@ -253,14 +257,16 @@ export class AudioEngine {
     const ctx = this.ctx;
     if (!ctx || !this.noiseBuffer || ctx.state !== 'running') return;
     const t0 = ctx.currentTime + (o.delay ?? 0);
-    const out = this.output(o.dest, o.reverb, isMusic);
     const gain = ctx.createGain();
+    const out = this.output(o.dest, isMusic);
     const peak = o.gain ?? 0.2;
     const attack = o.attack ?? 0.002;
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.linearRampToValueAtTime(peak, t0 + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + o.dur);
     gain.connect(out);
+    // The send taps this voice's envelope, not the bus: it ends when the voice ends.
+    if (o.reverb) this.tapReverb(gain, o.reverb);
 
     const filter = ctx.createBiquadFilter();
     filter.type = o.filter ?? 'bandpass';

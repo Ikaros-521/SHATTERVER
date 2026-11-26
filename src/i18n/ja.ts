@@ -132,6 +132,11 @@ export const ja: UiDict & { content: ContentOverrides } = {
       'スコアはビリビリ Toy のランキングへ自動アップロード：総合 / 週間 / 今日のほか、エンドレス・キャンペーン・アビスのボードあり。「グローバル」は CheddaBoards 世界ランキングの閲覧専用ミラーです。',
     toyNote: 'クラウドの表示名はビリビリのニックネームです。設定は不要です。',
     toyNoteNamed: 'クラウドの表示名：ビリビリのニックネーム「{name}」',
+    askEyebrow: 'CLOUD · NICKNAME',
+    askTitle: 'ランキングのニックネームを設定',
+    askSub: '成績はオンラインランキングにアップロードされます。スコアを記録するニックネームを決めましょう。',
+    askSkip: '後で設定',
+    askSaved: '保存しました。スコアは「{name}」として記録されます。',
     noNickname:
       'ニックネームが未設定です。設定しない場合はサーバーが割り当てた Player_ 番号が表示されます。{min}〜{max}文字の半角英数字・アンダースコアのみ。',
     pendingNickname: '「{name}」は次回スコアのアップロード後にクラウドに表示されます。',

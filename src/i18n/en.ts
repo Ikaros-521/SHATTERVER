@@ -132,6 +132,12 @@ export const en: UiDict & { content: ContentOverrides } = {
       'Scores upload to the Bilibili Toy boards automatically: all-time / weekly / daily, plus the endless, campaign and abyss boards. "Global" is a read-only mirror of the CheddaBoards global board.',
     toyNote: 'The cloud board shows your Bilibili nickname — nothing to set up.',
     toyNoteNamed: 'The cloud board shows your Bilibili nickname: {name}',
+    askEyebrow: 'CLOUD · NICKNAME',
+    askTitle: 'Choose a leaderboard name',
+    askSub:
+      'Your runs upload to the online leaderboard. Pick a nickname so your scores are recorded under it.',
+    askSkip: 'Maybe later',
+    askSaved: 'Saved — scores will be recorded as "{name}".',
     noNickname:
       'No nickname yet. Without one the board shows a server-assigned Player_ number. {min}–{max} letters, digits or underscores only.',
     pendingNickname: '「{name}」 will appear on the cloud board once your first score is uploaded.',

@@ -280,8 +280,34 @@ export class App implements UiActions {
     setLang(this.save.settings.language);
     applyDom();
     this.ui.showMenu();
+    this.primeToyIdentity();
     this.lastTime = performance.now();
     requestAnimationFrame(this.frame);
+  }
+
+  /**
+   * Resolves the player's identity as early as possible on the B站 Toy channel, so the
+   * leaderboard screen already knows who is playing when it opens. The platform's
+   * `getUserProfile` needs a user gesture for its first-use consent dialog, and boot has none —
+   * so the first attempt fires while the SDK handshake may still answer on its own, and the next
+   * two gestures (any click) retry it. Missing every window costs nothing: the leaderboard
+   * screen fetches on open, inside its own click, exactly as before.
+   */
+  private primeToyIdentity(): void {
+    const cloud = this.cloud;
+    if (!cloud || cloud.kind !== 'toy' || !cloud.loadNickname) return;
+    const loadNickname = cloud.loadNickname;
+    let gestures = 0;
+    const retry = (): void => {
+      if (cloud.nickname || gestures >= 2) {
+        document.removeEventListener('pointerdown', retry);
+        return;
+      }
+      gestures += 1;
+      void loadNickname();
+    };
+    void loadNickname(); // Boot attempt: the SDK handshake may already have an answer.
+    document.addEventListener('pointerdown', retry);
   }
 
   // ───────────────────────────── session lifecycle ─────────────────────────────

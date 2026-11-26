@@ -157,6 +157,11 @@ export const zh = {
       '成绩自动上传到B站排行榜：总榜 / 本周 / 今日，另有无尽、战役与深渊榜。 「全球榜」是 CheddaBoards 全球榜的只读镜像。',
     toyNote: '云榜显示你的B站昵称（支持中文），无需另外设置。',
     toyNoteNamed: '云榜显示你的B站昵称：{name}',
+    askEyebrow: 'CLOUD · NICKNAME',
+    askTitle: '设置云榜昵称',
+    askSub: '你的成绩会上传到云端排行榜。设置一个昵称，后续比分都会记在它名下。',
+    askSkip: '稍后再说',
+    askSaved: '已保存，后续比分将记在「{name}」名下。',
     noNickname:
       '还没有设置昵称。不设置的话，云榜会显示服务器自动分配的 Player_ 编号。只能使用 {min}–{max} 位英文字母、数字或下划线。',
     pendingNickname: '「{name}」会在下一局成绩上传后出现在云榜上。',

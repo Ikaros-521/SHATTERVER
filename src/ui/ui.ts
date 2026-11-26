@@ -42,6 +42,7 @@ import { Changelog, changelogUnseen } from './changelog';
 import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
+import { NicknamePrompt, shouldAskNickname } from './nickname';
 import { sigil } from './sigil';
 import { shouldAutoShow, Tutorial } from './tutorial';
 
@@ -153,6 +154,8 @@ export class UI implements HudHost {
   private readonly tutorial: Tutorial;
   /** The release notes, overlaid the same way: on their own after an update, or from the menu's version link. */
   private readonly changelog: Changelog;
+  /** The entry nickname prompt, built with the cloud screen: same channel, same identity. */
+  private readonly nicknamePrompt: NicknamePrompt | null;
 
   constructor(
     private readonly actions: UiActions,
@@ -162,8 +165,14 @@ export class UI implements HudHost {
     this.difficulty = save.settings.difficulty;
     this.hud = new HUD(this);
     this.cloudPanel = actions.cloud ? new CloudPanel(actions.cloud, audio) : null;
-    // Any exit from the deck — finish, skip, Esc — marks it seen once, via the usual settings route.
-    this.tutorial = new Tutorial(audio, () => this.actions.updateSettings({ tutorialSeen: true }));
+    this.nicknamePrompt = actions.cloud ? new NicknamePrompt(audio, actions.cloud) : null;
+    // Any exit from the deck — finish, skip, Esc — marks it seen once, via the usual settings
+    // route. Whatever nickname ask is waiting steps in right behind it, while the menu is still
+    // the screen in view.
+    this.tutorial = new Tutorial(audio, () => {
+      this.actions.updateSettings({ tutorialSeen: true });
+      this.maybeAskNickname();
+    });
     // Same route for the notes: dismissed by the button or by Esc is "seen" either way.
     this.changelog = new Changelog(audio, () => this.actions.updateSettings({ changelogSeen: APP_VERSION }));
     // The version link is the one place the version shows on screen, and static markup cannot know it.
@@ -371,17 +380,36 @@ export class UI implements HudHost {
     byId('menu-cloud').hidden = this.cloudPanel === null;
     // First launch of a fresh save opens the deck on top of the menu; veterans keep their menu.
     // After an update the release notes come first, and a deck that is due waits behind them: the
-    // notes dismiss into it, as long as the menu is still what is on screen.
+    // notes dismiss into it, as long as the menu is still what is on screen. The nickname ask
+    // comes last of the three, so an unnamed player meets it on a menu with nothing else queued.
+    // Nothing is queued only when both overlays are settled — and the ask opens after
+    // `show('menu')`, since before it `current` is not yet 'menu' on the boot path.
+    const notesDue = changelogUnseen(this.save.settings);
     const tutorialDue = shouldAutoShow(this.save.settings, this.save.records);
-    if (changelogUnseen(this.save.settings)) {
+    if (notesDue) {
       this.changelog.open(() => {
         if (tutorialDue && this.current === 'menu') this.tutorial.openTutorial();
+        else this.maybeAskNickname();
       });
     } else if (tutorialDue) {
       this.tutorial.openTutorial();
     }
     this.setAccent(DEFAULT_ACCENT);
     this.show('menu');
+    if (!notesDue && !tutorialDue) this.maybeAskNickname();
+  }
+
+  /**
+   * Opens the nickname ask when it is due: a Chedda channel to record scores on, no name chosen,
+   * the menu on screen and nothing else stacked on top of it. Called on every path that lands on
+   * the menu — direct, or behind the release notes and the tutorial — and from the tutorial's own
+   * exit, so a first-run player meets the ask on a menu with nothing else queued.
+   */
+  private maybeAskNickname(): void {
+    if (this.current !== 'menu') return;
+    if (this.nicknamePrompt?.showing) return;
+    if (!shouldAskNickname(this.actions.cloud)) return;
+    this.nicknamePrompt?.open();
   }
 
   showPlay(): void {
@@ -1156,6 +1184,7 @@ export class UI implements HudHost {
     applyDom();
     this.tutorial.applyLanguage();
     this.changelog.applyLanguage();
+    this.nicknamePrompt?.applyLanguage();
     switch (this.current) {
       case 'menu':
         this.showMenu();

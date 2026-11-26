@@ -2576,16 +2576,18 @@ button.sigil-tile:hover {
   box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.25);
 }
 
-#cloud-name-note[data-tone='ok'] {
+/* Tone rules are shared by every note that sets `data-tone`: the leaderboard screen's own and
+   the entry nickname prompt's alike. */
+.setting-note[data-tone='ok'] {
   border-left-color: var(--accent);
 }
 
-#cloud-name-note[data-tone='warn'] {
+.setting-note[data-tone='warn'] {
   border-left-color: #ff5c8a;
   color: #ffb0c4;
 }
 
-#cloud-name-note[data-tone='info'] {
+.setting-note[data-tone='info'] {
   border-left-color: rgb(255 255 255 / 0.25);
 }
 

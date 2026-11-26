@@ -132,6 +132,11 @@ export const ko: UiDict & { content: ContentOverrides } = {
       '점수는 빌리빌리 Toy 랭킹에 자동 업로드됩니다: 종합 / 주간 / 오늘 외에 엔드리스·캠페인·심연 판이 있습니다. 「글로벌」은 CheddaBoards 세계 랭킹의 읽기 전용 미러입니다.',
     toyNote: '클라우드에는 빌리빌리 닉네임이 표시됩니다. 설정이 필요 없습니다.',
     toyNoteNamed: '클라우드 표시명: 빌리빌리 닉네임 「{name}」',
+    askEyebrow: 'CLOUD · NICKNAME',
+    askTitle: '리더보드 닉네임 설정',
+    askSub: '점수는 온라인 리더보드에 업로드됩니다. 기록될 닉네임을 정해 주세요.',
+    askSkip: '나중에',
+    askSaved: '저장했습니다. 점수가 "{name}" 이름으로 기록됩니다.',
     noNickname:
       '닉네임이 아직 없습니다. 설정하지 않으면 서버가 할당한 Player_ 번호가 표시됩니다. {min}~{max}자의 영문, 숫자, 밑줄만 가능합니다.',
     pendingNickname: '「{name}」은 다음 판 점수가 업로드된 후 클라우드에 나타납니다.',

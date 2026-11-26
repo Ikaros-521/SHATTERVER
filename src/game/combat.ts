@@ -161,8 +161,8 @@ export function onBallHitBrick(
   const crit = world.rng.chance(s.critChance);
   const pierce = world.rng.chance(s.pierceChance);
   ball.dryT = 0;
-  // This contact spends the ball's guidance; the paddle re-arms it.
-  ball.guided = false;
+  // This contact spends one guidance charge; the paddle reloads them.
+  if (ball.guided > 0) ball.guided--;
   ball.lock = 0;
 
   // Eraser bricks trade a ball for the hit — but never the last few, so a playable core always
@@ -455,6 +455,7 @@ function spawnChild(world: World, x: number, y: number, parent: Ball): void {
     child: true,
     ttl: 4,
   });
+  child.guided = world.live.guidedCharges;
   world.balls.push(child);
   world.events.emit('split', { x, y });
 }

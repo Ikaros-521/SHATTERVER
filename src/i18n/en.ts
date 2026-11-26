@@ -440,7 +440,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         name: 'Guidance',
         flavor: 'They know where they need to go.',
         describe: (lv) =>
-          `After each paddle return a ball locks onto one brick and bends to hit it — once. Steering force ${b('+' + lv)} grade.`,
+          `Each paddle return loads ${b(String(2 + lv))} guidance charges: a ball locks onto a brick and bends to hit it. Steering force ${b('+' + lv)} grade.`,
       },
       split: {
         name: 'Mitosis',
@@ -730,7 +730,7 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: 'Seeker',
-        desc: 'Balls steer hard onto one brick after each paddle return.',
+        desc: 'Balls steer hard: six locked strikes loaded each paddle return.',
       },
       rage: {
         name: 'Rage',

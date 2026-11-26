@@ -437,7 +437,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
         name: 'ガイダンスコア',
         flavor: 'ボールは自分が行くべき場所を知っている。',
         describe: (lv) =>
-          `パドルに触れるたびに、ボールはブロックを1つロックして曲がり命中します（1回まで）。旋回力 ${b('+' + lv)} ランク。`,
+          `パドルに触れるたびに制導を${b(String(2 + lv))}回装填：ボールはブロックをロックして曲がり命中します。旋回力 ${b('+' + lv)} ランク。`,
       },
       split: {
         name: '分裂プロトコル',
@@ -724,7 +724,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: 'シーカー',
-        desc: 'パドルに触れるたび、ボールが強力に曲がってブロック1つに命中。',
+        desc: 'パドルに触れるたび、強力な追尾6回分を装填。',
       },
       rage: {
         name: 'レイジ',

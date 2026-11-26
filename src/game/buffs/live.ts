@@ -10,6 +10,8 @@ export const LASER_BUFF_BEAMS = 3;
 export const MAGNET_BUFF_RANGE = 300;
 /** Homing turn rate (rad/s) of 「制导蜂群」: about a maxed Guidance. */
 export const HOMING_BUFF_TURN = 7;
+/** Guidance charges 「制导蜂群」 loads per paddle return: above any Guidance core level. */
+export const SEEKER_CHARGES = 6;
 /** Damage banked per pierce while 「幽灵穿透」 lasts, and the cap it banks towards. */
 export const GHOST_PIERCE_BONUS = 0.2;
 export const GHOST_MOMENTUM_MAX = 3;
@@ -67,6 +69,7 @@ export function withBuffs(base: BuildStats, buffs: readonly ActiveBuff[]): Build
         break;
       case 'homing':
         s.homing = Math.max(s.homing, HOMING_BUFF_TURN);
+        s.guidedCharges = Math.max(s.guidedCharges, SEEKER_CHARGES);
         break;
       case 'aegis':
         s.aegis = true;

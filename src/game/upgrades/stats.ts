@@ -17,6 +17,8 @@ export interface BuildStats {
   pierceBonus: number;
   /** Homing turn rate in rad/s. */
   homing: number;
+  /** Guidance charges loaded per paddle return (and at a ball's birth). Needs `homing` to steer. */
+  guidedCharges: number;
   /** Chance for a killed brick to split off a child ball. */
   splitChance: number;
   splitChildren: boolean;
@@ -141,6 +143,7 @@ export function defaultStats(): BuildStats {
     pierceChance: 0,
     pierceBonus: 0,
     homing: 0,
+    guidedCharges: 1,
     splitChance: 0,
     splitChildren: false,
     ghostRatio: 0,

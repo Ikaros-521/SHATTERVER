@@ -390,6 +390,7 @@ export class World {
         ghost,
         dock,
       });
+      ball.guided = s.guidedCharges;
       ball.docked = true;
       this.balls.push(ball);
     };
@@ -1128,7 +1129,7 @@ export class World {
     ball.squash = 1;
     // A fresh trip up: banked damage, floor bounces and guidance all start over.
     ball.floor = 0;
-    ball.guided = true;
+    ball.guided = s.guidedCharges;
     ball.lock = 0;
     if (s.empowerBonus > 0) ball.emp = s.empowerDuration;
 
@@ -1209,7 +1210,7 @@ export class World {
     ball.emp = 0;
     ball.stallT = 0;
     ball.floor = 0;
-    ball.guided = true;
+    ball.guided = this.live.guidedCharges;
     ball.lock = 0;
     ball.ignore.clear();
   }
@@ -1546,19 +1547,19 @@ export class World {
       for (const side of [-1, 1]) {
         if (this.balls.length >= MAX_BALLS || twins >= MAX_CLONES) return;
         const angle = Math.atan2(parent.vy, parent.vx) + side * SPLIT_ANGLE;
-        this.balls.push(
-          makeBall({
-            x: parent.x,
-            y: parent.y,
-            angle,
-            speed: parent.speed,
-            radius: parent.radius * SPLIT_CLONE_RADIUS,
-            mult: SPLIT_CLONE_MULT,
-            child: true,
-            clone: true,
-            ttl: buff.t,
-          }),
-        );
+        const twin = makeBall({
+          x: parent.x,
+          y: parent.y,
+          angle,
+          speed: parent.speed,
+          radius: parent.radius * SPLIT_CLONE_RADIUS,
+          mult: SPLIT_CLONE_MULT,
+          child: true,
+          clone: true,
+          ttl: buff.t,
+        });
+        twin.guided = this.live.guidedCharges;
+        this.balls.push(twin);
         twins++;
         this.events.emit('split', { x: parent.x, y: parent.y });
       }

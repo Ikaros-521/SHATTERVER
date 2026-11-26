@@ -215,9 +215,10 @@ export const UPGRADES: UpgradeDef[] = [
     tags: ['ball'],
     apply: (s, lv) => {
       s.homing += 2.4 * lv;
+      s.guidedCharges = 2 + lv;
     },
     describe: (lv) =>
-      `触板后球体锁定一块砖，拐弯命中一次即止，再次触板后重新制导。转向力 ${b('+' + lv)} 级。`,
+      `球体装填 ${b(String(2 + lv))} 次制导：触板后锁定一块砖拐弯命中，耗尽后再次触板重新装填。转向力 ${b('+' + lv)} 级。`,
   }),
   def({
     id: 'split',

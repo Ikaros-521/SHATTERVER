@@ -436,7 +436,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
         name: '유도 코어',
         flavor: '공은 자기가 가야 할 곳을 압니다.',
         describe: (lv) =>
-          `패들에 닿을 때마다 공이 블록 하나를 잠그어 휘어져 명중합니다(1회). 선회력 ${b('+' + lv)}급.`,
+          `패들에 닿을 때마다 유도를 ${b(String(2 + lv))}회 장전: 공이 블록을 잠그어 휘어져 명중합니다. 선회력 ${b('+' + lv)}급.`,
       },
       split: {
         name: '분열 프로토콜',
@@ -716,7 +716,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       },
       homing: {
         name: '시커',
-        desc: '패들에 닿을 때마다 공이 휘어져 블록 하나에 강하게 명중합니다.',
+        desc: '패들에 닿을 때마다 강력한 유도 6회를 장전합니다.',
       },
       rage: {
         name: '레이지',

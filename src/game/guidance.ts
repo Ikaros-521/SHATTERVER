@@ -6,8 +6,9 @@ import type { Ball, Brick } from './entities';
  * Everything that bends a ball towards a brick on purpose: the Guidance core and the SEEKER capsule,
  * and the drift of a ball that has touched nothing for a while (anti-stall).
  *
- * Guidance is a one-shot. The paddle arms it and the ball spends it on its first brick contact, so a
- * ball makes one aimed turn per trip and flies and bounces straight the rest of the time.
+ * Guidance works in charges. The paddle loads `guidedCharges` of them at each return, and a ball
+ * spends one per aimed hit — one steered arc onto a locked brick, then straight flight and plain
+ * bounces until the next charge or the next trip.
  *
  * A ball turns at a limited rate, so it can only line up on a brick that lies outside its turning
  * circle. Inside it the ball has to loop around first — which is what made guided balls swerve
@@ -238,8 +239,32 @@ const NEAR_D2 = new Float64Array(NEAREST);
 const NEAR_BRICK: (Brick | null)[] = new Array<Brick | null>(NEAREST).fill(null);
 
 /**
- * The brick this ball should steer towards — the one it can reach soonest — and the route there,
- * written to `out`. Null when there is nothing to aim at.
+ * How isolated a brick is, 0 in a crowd to 1 all alone. An aimed hit on a lone brick strands the
+ * ball at the edge of the field, so the picker charges lonely bricks a longer route rather than a
+ * crowded one — steering stays inside the brick field, where the next bounce finds work.
+ */
+function isolationOf(brick: Brick, bricks: readonly Brick[]): number {
+  let neighbours = 0;
+  for (const other of bricks) {
+    if (other === brick || other.dead || other.cloaked) continue;
+    if ((other.x - brick.x) ** 2 + (other.y - brick.y) ** 2 <= ISOLATION_R2) {
+      neighbours++;
+      if (neighbours >= ISOLATION_CROWD) return 0;
+    }
+  }
+  return 1 - neighbours / ISOLATION_CROWD;
+}
+
+/** Bricks within this distance of a candidate count as its crowd. */
+const ISOLATION_R2 = 120 ** 2;
+/** Neighbours at which a brick counts as fully crowded. */
+const ISOLATION_CROWD = 5;
+/** How much a wholly isolated brick's route is stretched, as a fraction. */
+const ISOLATION_PENALTY = 0.6;
+
+/**
+ * The brick this ball should steer towards — the one it can reach soonest once lonely bricks are
+ * charged for the detour — and the route there, written to `out`. Null when there is nothing to aim at.
  */
 export function pickTarget(ball: Ball, bricks: readonly Brick[], turn: number, out: Route): Brick | null {
   // No route is shorter than the distance it covers, so the nearest bricks are weighed first: a good
@@ -263,8 +288,9 @@ export function pickTarget(ball: Ball, bricks: readonly Brick[], turn: number, o
   let target: Brick | null = null;
   const consider = (brick: Brick): void => {
     routeTo(ball, turn, brick, out);
-    if (out.path < best) {
-      best = out.path;
+    const cost = out.path * (1 + ISOLATION_PENALTY * isolationOf(brick, bricks));
+    if (cost < best) {
+      best = cost;
       target = brick;
     }
   };
@@ -293,12 +319,12 @@ function lockOf(ball: Ball, bricks: readonly Brick[]): Brick | null {
 /**
  * Steers `ball` for one frame, or leaves it alone when it has no reason to turn.
  *
- * With Guidance armed the ball turns at the build's `homing` rate towards the brick it has locked
- * onto. Without it — Guidance spent, or none in the build — a ball that has touched no brick for
- * BALL_ANTI_STALL seconds drifts towards one at ANTI_STALL_TURN instead.
+ * With charges left the ball turns at the build's `homing` rate towards the brick it has locked
+ * onto. Without them — charges spent, or no Guidance in the build — a ball that has touched no
+ * brick for BALL_ANTI_STALL seconds drifts towards one at ANTI_STALL_TURN instead.
  */
 export function guide(ball: Ball, bricks: readonly Brick[], homing: number, dt: number): void {
-  const armed = ball.guided && homing > 0;
+  const armed = ball.guided > 0 && homing > 0;
   if (!armed && ball.dryT <= BALL_ANTI_STALL) return;
   const turn = armed ? homing : ANTI_STALL_TURN;
 

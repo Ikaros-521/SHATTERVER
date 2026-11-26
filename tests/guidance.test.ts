@@ -199,15 +199,15 @@ describe('guidance: choosing a brick', () => {
 describe('guidance: when a ball turns', () => {
   const far = brickAt(360, 300);
 
-  it('turns only while its guidance is armed', () => {
+  it('turns only while it has a charge to spend', () => {
     const armed = ballAt(300, 700, UP);
-    armed.guided = true;
+    armed.guided = 1;
     guide(armed, [far], 4.8, DT);
     expect(headingOf(armed)).toBeGreaterThan(UP);
     expect(headingOf(armed)).toBeLessThanOrEqual(UP + 4.8 * DT + 1e-12);
 
     const spent = ballAt(300, 700, UP);
-    spent.guided = false;
+    spent.guided = 0;
     guide(spent, [far], 4.8, DT);
     expect(headingOf(spent)).toBe(UP);
   });
@@ -215,21 +215,21 @@ describe('guidance: when a ball turns', () => {
   it('drifts towards a brick once it has touched none for a while, guidance or not', () => {
     for (const homing of [0, 4.8]) {
       const dry = ballAt(300, 700, UP);
-      dry.guided = false;
+      dry.guided = 0;
       dry.dryT = BALL_ANTI_STALL + 1;
       guide(dry, [far], homing, DT);
       expect(headingOf(dry), `homing ${homing}`).toBeGreaterThan(UP);
       expect(headingOf(dry), `homing ${homing}`).toBeLessThanOrEqual(UP + ANTI_STALL_TURN * DT + 1e-12);
     }
     const fresh = ballAt(300, 700, UP);
-    fresh.guided = false;
+    fresh.guided = 0;
     guide(fresh, [far], 0, DT);
     expect(headingOf(fresh)).toBe(UP);
   });
 
   it('keeps its lock even when another brick becomes the nearer one', () => {
     const ball = ballAt(360, 700, UP);
-    ball.guided = true;
+    ball.guided = 1;
     guide(ball, [far], 7, DT);
     expect(ball.lock).toBe(far.id);
 
@@ -244,7 +244,7 @@ describe('guidance: when a ball turns', () => {
   it('takes a new brick once the one it locked on is gone or hidden', () => {
     const near = brickAt(330, 620);
     const dead = ballAt(360, 700, UP);
-    dead.guided = true;
+    dead.guided = 1;
     guide(dead, [far, near], 7, DT);
     far.dead = true;
     guide(dead, [far, near], 7, DT);
@@ -253,7 +253,7 @@ describe('guidance: when a ball turns', () => {
     far.dead = false;
     far.cloaked = true;
     const hidden = ballAt(360, 700, UP);
-    hidden.guided = true;
+    hidden.guided = 1;
     hidden.lock = far.id;
     guide(hidden, [far, near], 7, DT);
     expect(hidden.lock).toBe(near.id);
@@ -261,7 +261,7 @@ describe('guidance: when a ball turns', () => {
 
   it('lets go when there is nothing left to aim at', () => {
     const ball = ballAt(360, 700, UP);
-    ball.guided = true;
+    ball.guided = 1;
     ball.lock = 4242;
     guide(ball, [], 4.8, DT);
     expect(ball.lock).toBe(0);
@@ -311,15 +311,14 @@ function clearCourt(world: World): void {
 }
 
 describe('guidance: in play', () => {
-  it('spends its guidance on its first brick contact and flies straight from then on', () => {
+  it('spends one charge per brick contact and flies straight once they are gone', () => {
     const world = makeWorld({ homing: 3 }, { balls: 1 });
     startPlaying(world);
     const ball = world.balls[0]!;
-    expect(ball.guided, 'armed at launch').toBe(true);
+    expect(ball.guided, 'loaded with 2 + level charges at launch').toBe(5);
     expect(ball.lock, 'has not picked a brick while docked').toBe(0);
 
     let hits = 0;
-    let rebounds = 0;
     world.events.on('hit', (event) => {
       if (event.source === 'ball') hits++;
     });
@@ -332,42 +331,55 @@ describe('guidance: in play', () => {
       5,
     );
     expect(hits).toBeGreaterThan(0);
-    expect(ball.guided, 'spent by the contact').toBe(false);
-    expect(ball.lock).toBe(0);
+    expect(5 - ball.guided, 'every contact spends exactly one charge').toBe(hits);
+    expect(ball.guided).toBeGreaterThan(0);
 
-    // Until something bounces it, its heading does not move.
+    runUntil(
+      world,
+      () => {
+        dropCapsules(world);
+        return ball.guided === 0;
+      },
+      20,
+    );
+    expect(hits, 'each charge bought exactly one contact').toBe(5);
+
+    // With the charges gone it flies and bounces straight: no heading change until a rebound.
+    let rebounds = 0;
     world.events.on('bounce', () => rebounds++);
     world.events.on('paddle', () => rebounds++);
     world.events.on('floorBounce', () => rebounds++);
-    for (let i = 0; i < 30 && rebounds === 0; i++) {
+    for (let i = 0; i < 30; i++) {
       const before = headingOf(ball);
       dropCapsules(world);
+      rebounds = 0;
       world.update(DT);
+      if (rebounds > 0) continue; // a rebound may bend the heading; steering may not
       expect(Math.abs(angleDelta(before, headingOf(ball))), `frame ${i}`).toBeLessThan(1e-9);
     }
   });
 
-  it('re-arms the guidance when the paddle returns the ball', () => {
+  it('reloads the guidance when the paddle returns the ball', () => {
     const world = makeWorld({ homing: 3 }, { balls: 1, bot: false });
     startPlaying(world);
     const ball = world.balls[0]!;
-    ball.guided = false;
+    ball.guided = 0;
     ball.lock = 4242;
     ball.x = world.paddle.x;
     ball.y = PADDLE_Y - 30;
     ball.vx = 0;
     ball.vy = ball.speed;
     world.paddleBounce(ball);
-    expect(ball.guided).toBe(true);
+    expect(ball.guided, 'a full magazine of 2 + level').toBe(5);
     expect(ball.lock, 'picks a fresh brick for the new trip').toBe(0);
   });
 
-  it('re-arms the guidance when a lost ball relaunches from the paddle', () => {
+  it('reloads the guidance when a lost ball relaunches from the paddle', () => {
     const world = makeWorld({ homing: 3 }, { balls: 1, bot: false });
     startPlaying(world);
     clearCourt(world);
     const ball = world.balls[0]!;
-    ball.guided = false;
+    ball.guided = 0;
     ball.x = ARENA_W - 60;
     ball.y = 500;
     ball.vx = 0;
@@ -376,7 +388,7 @@ describe('guidance: in play', () => {
     expect(ball.alive).toBe(false);
     runUntil(world, () => ball.alive, 3);
     expect(ball.alive).toBe(true);
-    expect(ball.guided).toBe(true);
+    expect(ball.guided).toBe(5);
   });
 
   it('arms every ball as it is born, twins from 「球体分裂」 included', () => {
@@ -387,7 +399,7 @@ describe('guidance: in play', () => {
     world.update(DT);
     const twins = world.balls.filter((ball) => ball.clone);
     expect(twins).toHaveLength(2);
-    expect(twins.every((ball) => ball.guided && ball.lock === 0)).toBe(true);
+    expect(twins.every((ball) => ball.guided === 5 && ball.lock === 0)).toBe(true);
   });
 
   it('still drifts a spent ball towards a brick once it has been dry for a while', () => {
@@ -399,7 +411,7 @@ describe('guidance: in play', () => {
     keep.baseY = 150;
     keep.y = 150;
     const ball = world.balls[0]!;
-    ball.guided = false;
+    ball.guided = 0;
     ball.dryT = BALL_ANTI_STALL + 1;
     ball.x = 640;
     ball.y = 400;
@@ -453,15 +465,20 @@ describe('guidance: in play', () => {
         let trip: { lock: number } | null = { lock: 0 };
         for (let t = 0; t < 40 && world.state === 'playing'; t += DT) {
           dropCapsules(world);
+          const flying = ball.alive && !ball.docked;
           rebounds = 0;
           landed.brick = null;
           const returnsBefore = paddleReturns;
-          const armed = ball.guided;
+          const armed = flying && ball.guided > 0;
           const dry = ball.dryT;
-          const before = headingOf(ball);
-          const lost = !ball.alive;
+          const before = flying ? headingOf(ball) : 0;
           world.update(DT);
-          if (paddleReturns !== returnsBefore || (lost && ball.alive)) trip = { lock: 0 };
+          if (paddleReturns !== returnsBefore) trip = { lock: 0 };
+          // A trip that ends in the floor is over; the relaunch starts a fresh one, uncounted.
+          if (!ball.alive || ball.docked) {
+            trip = null;
+            continue;
+          }
           if (trip && trip.lock === 0) trip.lock = ball.lock;
           const brickHit = landed.brick as Brick | null;
           if (brickHit) {
@@ -471,8 +488,9 @@ describe('guidance: in play', () => {
             }
             trip = null;
           }
-          if (Math.abs(angleDelta(before, headingOf(ball))) > 1e-9 && rebounds === 0) {
-            expect(armed || dry > BALL_ANTI_STALL, 'steered with nothing to steer for').toBe(true);
+          if (flying && Math.abs(angleDelta(before, headingOf(ball))) > 1e-9 && rebounds === 0) {
+            // The sim adds the frame to dryT before steering, so a frame that crosses the line counts.
+            expect(armed || dry + DT > BALL_ANTI_STALL, 'steered with nothing to steer for').toBe(true);
             if (armed) turnsWhileArmed++;
           }
         }

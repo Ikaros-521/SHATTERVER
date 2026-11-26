@@ -2,6 +2,7 @@ import type { AudioDirector } from '../audio/director';
 import { applyDom, isLang, t } from '../core/i18n';
 import { formatNumber, formatScore, formatTime, mixHex } from '../core/math';
 import type { SaveData, Settings } from '../core/storage';
+import { APP_VERSION } from '../core/version';
 import {
   bossName,
   bossTitle,
@@ -37,6 +38,7 @@ import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
+import { Changelog, changelogUnseen } from './changelog';
 import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
 import { HUD, tagChips, type HudHost } from './hud';
@@ -149,6 +151,8 @@ export class UI implements HudHost {
   private readonly cloudPanel: CloudPanel | null;
   /** The first-run tutorial overlay. A plain menu tool, so it never joins `ScreenId`. */
   private readonly tutorial: Tutorial;
+  /** The release notes, overlaid the same way: on their own after an update, or from the menu's version link. */
+  private readonly changelog: Changelog;
 
   constructor(
     private readonly actions: UiActions,
@@ -160,6 +164,10 @@ export class UI implements HudHost {
     this.cloudPanel = actions.cloud ? new CloudPanel(actions.cloud, audio) : null;
     // Any exit from the deck — finish, skip, Esc — marks it seen once, via the usual settings route.
     this.tutorial = new Tutorial(audio, () => this.actions.updateSettings({ tutorialSeen: true }));
+    // Same route for the notes: dismissed by the button or by Esc is "seen" either way.
+    this.changelog = new Changelog(audio, () => this.actions.updateSettings({ changelogSeen: APP_VERSION }));
+    // The version link is the one place the version shows on screen, and static markup cannot know it.
+    setText(byId('menu-version-tag'), `v${APP_VERSION}`);
     // Phones and tablets do without the effects their compositor cannot afford (see the
     // `[data-pointer]` rules in the stylesheet). Re-marked if the primary input ever changes.
     const pointer = window.matchMedia('(pointer: coarse)');
@@ -189,6 +197,7 @@ export class UI implements HudHost {
     on('history', () => this.showHistory());
     on('cloud', () => this.showCloud());
     on('tutorial', () => this.tutorial.openTutorial());
+    on('changelog', () => this.changelog.open());
     on('settings', () => this.showSettings());
     on('back', () => this.back());
     on('resume', () => this.actions.resume());
@@ -257,6 +266,9 @@ export class UI implements HudHost {
     document.body.dataset.screen = id ?? 'play';
     // The HUD stays up behind the pause menu so the build is still readable.
     this.hud.setVisible(id === null || id === 'pause');
+    // The version link is the menu's alone. It sits outside the screens so that it can pin to the
+    // corner of the window instead of scrolling away with a menu taller than that.
+    byId('menu-version').hidden = id !== 'menu';
     if (id !== null) this.hideTooltip();
     // The performance figures follow the game live while the settings screen is up.
     window.clearInterval(this.perfTicker);
@@ -358,7 +370,16 @@ export class UI implements HudHost {
     // A build without credentials simply has no cloud section: no dead menu entry.
     byId('menu-cloud').hidden = this.cloudPanel === null;
     // First launch of a fresh save opens the deck on top of the menu; veterans keep their menu.
-    if (shouldAutoShow(this.save.settings, this.save.records)) this.tutorial.openTutorial();
+    // After an update the release notes come first, and a deck that is due waits behind them: the
+    // notes dismiss into it, as long as the menu is still what is on screen.
+    const tutorialDue = shouldAutoShow(this.save.settings, this.save.records);
+    if (changelogUnseen(this.save.settings)) {
+      this.changelog.open(() => {
+        if (tutorialDue && this.current === 'menu') this.tutorial.openTutorial();
+      });
+    } else if (tutorialDue) {
+      this.tutorial.openTutorial();
+    }
     this.setAccent(DEFAULT_ACCENT);
     this.show('menu');
   }
@@ -1134,6 +1155,7 @@ export class UI implements HudHost {
   applyLanguage(): void {
     applyDom();
     this.tutorial.applyLanguage();
+    this.changelog.applyLanguage();
     switch (this.current) {
       case 'menu':
         this.showMenu();

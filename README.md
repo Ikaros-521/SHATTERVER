@@ -171,6 +171,12 @@ src/
 - **凭据**：Game ID 与 API Key 在 `src/net/config.ts`，可用 `VITE_CB_GAME_ID` / `VITE_CB_API_KEY` 覆盖；把 Key 置空即可整体关闭云榜（菜单入口同时消失）。API Key 按设计是公开的：它会随构建产物下发，不能读私有数据、不能改游戏。
 - **隐私**：匿名游玩只上传随机设备 ID、昵称、分数、最高连击与场次；不采集邮箱、位置或广告标识。见 [CheddaBoards 隐私政策](https://cheddaboards.com/privacy)。
 
+## 版本与更新日志
+
+- **版本号只有一个来源**：`package.json` 的 `version`，游戏启动时读入（`src/core/version.ts`），显示在主菜单左下角。
+- **更新日志在游戏内**：点主菜单左下角的版本号打开，按版本从新到旧排列，中英日韩四语。升级后第一次进入主菜单会**自动弹出一次**，关闭（按钮或 Esc）即记为已读，之后不再重复；全新安装不弹（没有「更新」可言），照常先看新手说明。已读版本记在存档的 `settings.changelogSeen`；旧存档没有这个字段，所以已有玩家在下一次更新后会看到一次。
+- **发版步骤**：改 `package.json` 的 `version` → 在 `src/i18n/` 下 `zh.ts`、`en.ts`、`ja.ts`、`ko.ts` 的 `changelog.versions` 最前面各加一条同版本、同日期的条目 → `pnpm test`。测试会拦住「版本号升了但日志没写」「四语条目或日期不一致」「中文文案踩到平台审核词」。
+
 ## 常见问题（FAQ）
 
 - **需要下载安装或注册账号吗？** 不需要。访问 <https://ikaros-521.github.io/SHATTERVER/> 即可零下载直接在浏览器游玩，无需账号即可使用本地排行榜与战绩截图功能。

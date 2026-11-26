@@ -18,6 +18,21 @@ export interface TutorialPage {
   mutators?: boolean;
 }
 
+/**
+ * One entry of the in-game changelog. `notes` may carry `<b>` highlights and nothing else — they
+ * are set as HTML. `version` and `date` are language-neutral and must agree in every locale, and
+ * the first entry must be the running version; `tests/changelog.test.ts` enforces both.
+ */
+export interface ChangelogEntry {
+  /** Package version without the leading `v`, e.g. `0.3.0`. */
+  version: string;
+  /** Release date, `YYYY-MM-DD`. */
+  date: string;
+  /** One line naming the release. */
+  title: string;
+  notes: string[];
+}
+
 export const zh = {
   common: {
     back: '返回',
@@ -328,6 +343,57 @@ export const zh = {
         },
       ] as TutorialPage[]),
     ],
+  },
+  changelog: {
+    eyebrow: 'CHANGELOG · v{version}',
+    title: '更新日志',
+    sub: '以下是近几次更新的内容，之后可以随时点主菜单左下角的版本号回看。',
+    latest: '最新',
+    close: '知道了',
+    menuLabel: '更新日志',
+    menuAria: '查看更新日志',
+    // Newest first. Write a release for players rather than from commit messages: what changed in
+    // play, in the words the game itself uses for things, and within the platform review vocabulary
+    // (no combat-flavoured terms, no inflated numbers, nothing that points off-platform).
+    versions: [
+      {
+        version: '0.3.0',
+        date: '2026-11-26',
+        title: '制导重做 · 计分调整 · 手机端修复',
+        notes: [
+          '<b>制导重做</b>：制导核心与「制导蜂群」胶囊改为按次锁定。球每次回到挡板时装填若干次制导，拐弯命中一块砖即消耗一次，耗尽后下次触板再装填；制导核心的装填次数随等级提升（3 / 4 / 5 次）。球会优先锁定更快能打到的砖——借墙反弹也算一条路——落单的砖排在其后。',
+          '<b>发射垂直向上</b>：开局与重生的新球从挡板正中垂直向上发射，停靠时也会居中排列——看到的位置就是发射的位置，把挡板移到砖块正下方就能精确命中。带制导的球例外：发射时仍会扇形散开寻找目标。',
+          '<b>增益胶囊改为垂直掉落</b>：胶囊从砖块碎裂的位置直落，要用挡板接住才生效，落到地面就消失；拥有磁力时才会被吸向挡板。',
+          '<b>计分调整（无尽模式）</b>：单块砖的计分设了上限——分数随清掉的砖块增长，不再随深层关卡砖块的强度指数膨胀，标准难度下约第 18 关起生效。闯关模式各难度的分数与之前逐位相同。',
+          '<b>B站排行榜修复</b>：超深的无尽对局成绩超过榜单的分数上限时，不再全部并列在同一个封顶值上——1600 万以内的分数原样上榜，之上的按对数压缩，仍能分出先后。',
+          '<b>手机竖屏</b>：连击读数去掉面板、变成不遮场的文字，连击归零时自动淡化；触屏端的超载提示按钮挪到场地左上角，避开拖动挡板的拇指，点按时也不会再把挡板拽过去。',
+          '<b>增益栏修复</b>：对局结束的瞬间收回全部临时增益，增益栏不再残留上一局的图标。',
+          '<b>更新日志</b>：新增本页面。以后每次更新，进入主菜单时会先弹出一次更新内容，看过即不再重复；随时可以点主菜单左下角的版本号回看。',
+        ],
+      },
+      {
+        version: '0.2.0',
+        date: '2026-11-25',
+        title: '卡池扩容：临时增益与共振体系',
+        notes: [
+          '<b>强化 39 → 56 种</b>：新增「共振」体系 5 张——共振线圈、增益天线、肾上腺素、双共振、永动引擎；另有弹性地板、闪避协议、缓速力场、精准校准、电容组、回收协议、过载余波、临界质量、雷云、瘟疫传播、野火、棱镜。',
+          '<b>17 种临时增益</b>：关卡中砖块会不定期掉落增益胶囊，接住后生效数秒，只在当前关卡有效——球体分裂、球体巨化、延展挡板、时停、弹幕屏障……增益按局势出现：砖墙逼近警戒线时多为输出型，护盾见底时多为修复型。图鉴新增「增益」页。',
+          '<b>难度等级</b>：开局可选标准 / 进阶 / 困难 / 噩梦 / 深渊五档，难度越高得分倍率越高；高难度会出现吞球的湮灭砖，深渊难度每 16 秒抹掉一个多余的球。',
+          '<b>在线排行榜</b>：对局结束后成绩自动上传，可设置昵称；修复超长分数挤没昵称、数字从中间折行的问题。',
+          '<b>新手说明</b>：首次进入自动弹出，六页图文讲解规则、护盾与强化；之后可在主菜单随时回看。',
+          '<b>界面语言</b>：新增中文、English、日本語、한국어 四种界面语言，默认中文，可在设置中切换。',
+          '<b>手机端优化</b>：竖屏专属布局与紧凑卡片，适配刘海屏与安全区；帧率不足时自动降低画质，暂停、选强化等静止画面降低刷新率以减少发热；修复部分设备上音效几乎全灭的问题。设置页新增性能诊断。',
+        ],
+      },
+      {
+        version: '0.1.0',
+        date: '2026-11-25',
+        title: '初版上线',
+        notes: [
+          '越打越离谱的肉鸽打砖块：15 个扇区的闯关模式与无尽模式，39 种强化、元素反应、3 个多部件 BOSS，以及本地战绩排行。',
+        ],
+      },
+    ] as ChangelogEntry[],
   },
   scorecard: {
     report: 'RUN REPORT · 战绩报告',

@@ -11,6 +11,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:toy": "tsc --noEmit && node scripts/build-toy.mjs",
+    "build:wechat": "tsc --noEmit && node scripts/build-wechat.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

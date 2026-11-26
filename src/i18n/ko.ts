@@ -58,6 +58,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     statComboBonus: '콤보 보너스',
     statCrit: '치명타율',
     buffs: '파워업',
+    pauseAria: '일시정지',
   },
   starter: {
     title: '초기 프로토콜 선택',

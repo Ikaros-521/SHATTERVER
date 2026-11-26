@@ -62,8 +62,21 @@ describe('clampToyScore', () => {
   it('rounds to the platform integer', () => {
     expect(clampToyScore(1234.6)).toBe(1235);
   });
-  it('caps at the documented ceiling', () => {
-    expect(clampToyScore(99_000_000)).toBe(16_777_215);
+  it('keeps realistic scores unchanged', () => {
+    expect(clampToyScore(9_999_999.4)).toBe(9_999_999);
+    expect(clampToyScore(16_777_215)).toBeGreaterThan(10_000_000);
+  });
+  it('compresses the deep tail instead of clamping everything to one ceiling', () => {
+    const deep = [99_000_000, 1e9, 9e9, 1e12, 1e18, 1e24].map((s) => clampToyScore(s));
+    for (let i = 1; i < deep.length; i++) expect(deep[i]!).toBeGreaterThan(deep[i - 1]!);
+    for (const value of deep) {
+      expect(value).toBeGreaterThan(10_000_000);
+      expect(value).toBeLessThanOrEqual(16_777_215);
+    }
+  });
+  it('clamps the unbounded extreme to the ceiling', () => {
+    expect(clampToyScore(1e30)).toBe(16_777_215);
+    expect(clampToyScore(1e33)).toBe(16_777_215);
   });
   it('never goes below zero', () => {
     expect(clampToyScore(-5)).toBe(0);
@@ -127,9 +140,9 @@ describe('ToyBoards', () => {
   it('submits a clamped score to the requested board', async () => {
     const sdk = new FakeSdk();
     const client = new ToyBoards(sdk);
-    const result = await client.submit(2, 99_000_000.7);
+    const result = await client.submit(2, 12_345.6);
     expect(result.ok).toBe(true);
-    expect(sdk.submits).toEqual([{ board: 2, score: 16_777_215 }]);
+    expect(sdk.submits).toEqual([{ board: 2, score: 12_346 }]);
   });
   it('turns a rejected submit into a typed failure', async () => {
     const sdk = new FakeSdk();

@@ -15,7 +15,9 @@
  *   through {@link loadToySdk} rather than bundled — this project ships no runtime npm
  *   dependencies — and only inside a Toy, so no other host ever requests it.
  *
- * Scores are clamped to the platform's ±16 777 215 integer range before leaving this file.
+ * Scores are mapped onto the platform's ±16 777 215 integer range before leaving this file —
+ * unchanged for every realistic run, log-compressed beyond that so deep endless runs keep
+ * ranking against each other instead of piling up at the ceiling ({@link clampToyScore}).
  */
 import { t } from '../core/i18n';
 
@@ -98,8 +100,33 @@ export const TOY_BOARDS = {
 /** The platform's documented score ceiling; scores are integers and never exceed this. */
 const TOY_SCORE_LIMIT = 16_777_215;
 
+/**
+ * Board values pass through unchanged up to here — with {@link import('./game/config').SCORE_SCALE}
+ * applied that covers everything a human can reach (the endless ceiling only binds around
+ * level 50) — and are log-compressed above it so deeper runs keep ranking against each other.
+ */
+const TOY_LINEAR_MAX = 10_000_000;
+
+/**
+ * Score magnitude the log segment is sized for, after scaling. Roughly a level-400 raw score;
+ * anything beyond clamps to the limit, and only there can scores still tie.
+ */
+const TOY_COMPRESSED_MAX = 1e30;
+
+/**
+ * Maps a run score onto the platform's 0..16 777 215 integer range.
+ *
+ * Identity below {@link TOY_LINEAR_MAX} keeps the board number equal to the in-game score for
+ * every realistic run; a strictly increasing log segment above it compresses arbitrarily deep
+ * endless scores into the remaining headroom, so distinct runs still sort apart instead of all
+ * clamping to one shared ceiling. Monotonic over the whole domain, constant time.
+ */
 export function clampToyScore(score: number): number {
-  return Math.max(0, Math.min(TOY_SCORE_LIMIT, Math.round(score)));
+  const s = Math.max(0, score);
+  if (s <= TOY_LINEAR_MAX) return Math.round(s);
+  if (s >= TOY_COMPRESSED_MAX) return TOY_SCORE_LIMIT;
+  const perNat = (TOY_SCORE_LIMIT - TOY_LINEAR_MAX) / Math.log(TOY_COMPRESSED_MAX / TOY_LINEAR_MAX);
+  return Math.min(TOY_SCORE_LIMIT, Math.round(TOY_LINEAR_MAX + perNat * Math.log(s / TOY_LINEAR_MAX)));
 }
 
 export type ToyFailureKind = 'rate-limited' | 'not-logged-in' | 'unsupported' | 'invalid' | 'error';

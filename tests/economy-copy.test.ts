@@ -4,6 +4,7 @@ import { ja } from '../src/i18n/ja';
 import { ko } from '../src/i18n/ko';
 import { zh } from '../src/i18n/zh';
 import { PROTOCOLS, SUPPLIES } from '../src/game/economy/catalog';
+import { SKINS } from '../src/render/skins';
 
 /**
  * The shop adds a lot of player-facing copy at once; this is the tutorial test's pattern applied
@@ -49,6 +50,13 @@ describe('shop copy stays inside the platform review vocabulary', () => {
     }
     for (const supply of SUPPLIES) {
       walk({ name: supply.name, desc: supply.desc, en: supply.en }, `supply.${supply.id}`);
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it('the skins module\u2019s canonical names and descriptions are clean', () => {
+    for (const skin of SKINS) {
+      walk({ name: skin.name, desc: skin.desc, en: skin.en }, `skin.${skin.id}`);
     }
     expect(hits).toEqual([]);
   });

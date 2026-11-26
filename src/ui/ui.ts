@@ -51,6 +51,7 @@ import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
+import { applyBgSkin, SKINS, defaultBallSkin, type SkinKind } from '../render/skins';
 import { Changelog, changelogUnseen } from './changelog';
 import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
@@ -75,6 +76,10 @@ export interface UiActions {
   buyProtocol(id: string): boolean;
   /** Spends 星尘 on a supply. False when unknown, owned, or unaffordable. */
   buySupply(id: string): boolean;
+  /** Spends 星尘 on a cosmetic skin. False when unknown, owned, or unaffordable. */
+  buySkin(id: string): boolean;
+  /** Equips an owned skin of the kind; null clears back to the stock look. False when not owned. */
+  equipSkin(id: string | null, kind: SkinKind): boolean;
   /** Points the menu/results nudge at a catalog item, or clears the nudge when it is the same one. */
   toggleWishlist(id: string): void;
   /** Toggles a supply in the carried loadout. False when unowned or the earned slots are full. */
@@ -177,7 +182,7 @@ export class UI implements HudHost {
   private difficulty: DifficultyId;
   private codexTab = 'upgrades';
   private historyTab: 'campaign' | 'endless' = 'campaign';
-  private shopTab: 'protocols' | 'supplies' | 'progress' = 'protocols';
+  private shopTab: 'protocols' | 'supplies' | 'skins' | 'progress' = 'protocols';
   private accent = DEFAULT_ACCENT;
   /** Levels of the run currently on screen, for tooltips. */
   private levels: Record<string, number> = {};
@@ -291,7 +296,13 @@ export class UI implements HudHost {
       if (!tab?.dataset.tab) return;
       this.audio.ui('uiClick');
       this.shopTab =
-        tab.dataset.tab === 'supplies' ? 'supplies' : tab.dataset.tab === 'progress' ? 'progress' : 'protocols';
+        tab.dataset.tab === 'supplies'
+          ? 'supplies'
+          : tab.dataset.tab === 'skins'
+            ? 'skins'
+            : tab.dataset.tab === 'progress'
+              ? 'progress'
+              : 'protocols';
       this.renderShop();
     });
 
@@ -724,6 +735,7 @@ export class UI implements HudHost {
     body.scrollTop = 0;
     if (this.shopTab === 'protocols') body.append(...this.protocolCards());
     else if (this.shopTab === 'supplies') body.append(...this.supplyCards());
+    else if (this.shopTab === 'skins') body.append(...this.skinCards());
     else body.append(...this.progressRows());
   }
 
@@ -795,6 +807,65 @@ export class UI implements HudHost {
     return [header, ...cards];
   }
 
+  /** The cosmetic shelf: the free stock ball look, four ball skins, one backdrop theme. */
+  private skinCards(): HTMLElement[] {
+    const econ = this.save.economy;
+    const classicEquipped = econ.skinBall === null;
+    const classic = this.shopItem({
+      id: defaultBallSkin,
+      color: 0xe6faff,
+      glyph: `skin:${defaultBallSkin}`,
+      name: t('shop.skin.classic.name'),
+      en: 'CLASSIC',
+      desc: t('shop.skin.classic.desc'),
+      price: 0,
+      owned: true,
+      ownedLabel: t('shop.owned'),
+      onBuy: () => false,
+      wishable: false,
+      onEquip: () => this.actions.equipSkin(null, 'ball'),
+      equipped: classicEquipped,
+      equipLabel: classicEquipped ? t('shop.equipped') : t('shop.equip'),
+    });
+    const cards = SKINS.map((skin) => {
+      const owned = econ.skins.includes(skin.id);
+      // Ball skins wear their glow; the backdrop theme previews itself on the first chapter.
+      const color =
+        skin.kind === 'ball'
+          ? skin.colors.glow
+          : applyBgSkin(CHAPTERS[0]!.bg, CHAPTERS[0]!.accent, skin).accent;
+      const equippedBall = skin.kind === 'ball' && econ.skinBall === skin.id;
+      const equippedBg = skin.kind === 'bg' && econ.skinBg === skin.id;
+      const equipped = equippedBall || equippedBg;
+      return this.shopItem({
+        id: skin.id,
+        color,
+        glyph: `skin:${skin.id}`,
+        name: t(`shop.skin.${skin.id}.name`),
+        en: skin.en,
+        desc: t(`shop.skin.${skin.id}.desc`),
+        price: skin.price,
+        owned,
+        ownedLabel: t('shop.owned'),
+        onBuy: () => this.actions.buySkin(skin.id),
+        wishable: false,
+        onEquip: owned
+          ? () =>
+              skin.kind === 'ball'
+                ? this.actions.equipSkin(skin.id, 'ball')
+                : this.actions.equipSkin(equipped ? null : skin.id, 'bg')
+          : undefined,
+        equipped,
+        equipLabel: !owned
+          ? t('shop.equip')
+          : skin.kind === 'bg'
+            ? t(equipped ? 'shop.unequip' : 'shop.equip')
+            : t(equipped ? 'shop.equipped' : 'shop.equip'),
+      });
+    });
+    return [classic, ...cards];
+  }
+
   private progressRows(): HTMLElement[] {
     const econ = this.save.economy;
     const head = el(
@@ -864,7 +935,7 @@ export class UI implements HudHost {
     return [title, ...rows];
   }
 
-  /** One catalog row: glyph, copy, and a buy button — or the owned mark, or a carry toggle. */
+  /** One catalog row: glyph, copy, and a buy button — or the owned mark, a carry or an equip toggle. */
   private shopItem(opts: {
     id: string;
     color: number;
@@ -880,6 +951,12 @@ export class UI implements HudHost {
     carried?: boolean;
     onTrial?: () => void;
     trialed?: boolean;
+    /** False hides the wishlist button (skins have their own shelf, no nudge). */
+    wishable?: boolean;
+    /** Renders the equip toggle; the closure returns false for "not owned". */
+    onEquip?: () => boolean;
+    equipped?: boolean;
+    equipLabel?: string;
   }): HTMLElement {
     const econ = this.save.economy;
     const affordable = econ.stardust >= opts.price;
@@ -914,7 +991,7 @@ export class UI implements HudHost {
               el('span', { text: t('shop.buy') }),
               el('span', { class: 'cost', text: t('shop.stardustLine', { n: formatNumber(opts.price) }) }),
             ),
-        opts.owned
+        opts.owned || opts.wishable === false
           ? null
           : el(
               'button',
@@ -936,6 +1013,13 @@ export class UI implements HudHost {
                 type: 'button',
               },
               el('span', { text: t(opts.carried ? 'shop.carried' : 'shop.carry') }),
+            )
+          : null,
+        opts.onEquip
+          ? el(
+              'button',
+              { class: `shop-equip${opts.equipped ? ' on' : ''}`, type: 'button' },
+              el('span', { text: opts.equipLabel ?? t('shop.equip') }),
             )
           : null,
       ),
@@ -961,6 +1045,12 @@ export class UI implements HudHost {
     const carry = card.querySelector<HTMLButtonElement>('.shop-carry');
     carry?.addEventListener('click', () => {
       opts.onCarry?.();
+      this.renderShop();
+    });
+    const equip = card.querySelector<HTMLButtonElement>('.shop-equip');
+    equip?.addEventListener('click', () => {
+      if (opts.onEquip && !opts.onEquip()) this.audio.ui('deny');
+      else this.audio.ui('uiClick');
       this.renderShop();
     });
     return card;
@@ -1031,7 +1121,8 @@ export class UI implements HudHost {
     // The badge marks something new to spend on: the unpaid first gift, or any affordable item.
     const affordable =
       PROTOCOLS.some((p) => !econ.protocols.includes(p.id) && econ.stardust >= p.price) ||
-      SUPPLIES.some((s) => !econ.supplies.includes(s.id) && econ.stardust >= s.price);
+      SUPPLIES.some((s) => !econ.supplies.includes(s.id) && econ.stardust >= s.price) ||
+      SKINS.some((s) => !econ.skins.includes(s.id) && econ.stardust >= s.price);
     const badge = byId('shop-badge');
     badge.hidden = !(affordable || !econ.firstGift);
     if (!badge.hidden) setText(badge, econ.firstGift ? t('shop.menuBadge') : t('shop.giftBadge'));

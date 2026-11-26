@@ -3438,3 +3438,20 @@ button.sigil-tile:hover {
   font-size: 12.5px;
   white-space: nowrap;
 }
+
+/* Cosmetic skins: the equip toggle beside the owned mark (ball skins) or the buy button (themes). */
+.shop-equip {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 12px;
+  white-space: nowrap;
+}
+
+.shop-equip.on {
+  color: var(--gold);
+  border-color: var(--gold);
+}

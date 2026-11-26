@@ -16,12 +16,29 @@ import {
 } from './shaders/instances';
 import type { Fx } from './fx';
 import { PK_RING, PK_SHARD, PK_STREAK } from './particles';
+import { ballCoreColor } from './skins';
 
 export interface SceneInfo {
   /** 0..1: how close the brick field is to the danger line. */
   danger: number;
   /** 0..1: intensity of the "crowd is going wild" state, driven by combo and overdrive. */
   energy: number;
+}
+
+/**
+ * Draw-time colour override for the equipped ball skin (see `render/skins`). Purely cosmetic: the
+ * simulation's ball colours are untouched, only what these draw calls read. The per-ball states
+ * that carry gameplay information (a Split twin, a phasing ball, an empowered ball) keep their
+ * own colours, as do the movement buffs; everything else — the default ball, its comet tail and
+ * its hot core — wears the skin.
+ */
+export interface BallSkinOverride {
+  /** Halo, bloom and launch fan. */
+  glow: number;
+  /** The comet-tail ribbon. */
+  trail: number;
+  /** The hot centre, 0xRRGGBB; scaled into the stock HDR tones at draw time. */
+  core: number;
 }
 
 function hash(n: number): number {
@@ -52,20 +69,29 @@ function rainbow(time: number): number {
 /** Temporary buffs that move the ball, most telling first. */
 const BALL_TINTS: readonly BuffId[] = ['storm', 'ghost', 'giant', 'rage', 'homing', 'turbo', 'deadeye'];
 
+/** The stock hot-core HDR tones; a ball skin's own core replaces them, scaled to the same levels. */
+const CORE_SOFT: readonly [number, number, number] = [1.9, 1.9, 2.1];
+const CORE_HOT: readonly [number, number, number] = [3.4, 3.4, 3.6];
+
 /**
- * Colour of a ball's glow: whatever temporary buff is carrying it, otherwise the flashiest
- * element the build owns.
+ * Colour of the temporary movement buff carrying the ball, if any — most telling first. These
+ * outrank a skin, because they are gameplay feedback.
  */
-function ballTint(world: World, accent: number, time: number): number {
+function buffTint(world: World, time: number): number | null {
   for (const id of BALL_TINTS) {
     if (world.hasBuff(id)) return id === 'storm' ? rainbow(time) : BUFF_MAP[id].color;
   }
+  return null;
+}
+
+/** Colour of the flashiest element the build owns, or null when the build has none showing. */
+function elementTint(world: World): number | null {
   const s = world.live;
   if (s.voidChance > 0 || s.singularity) return 0xb06bff;
   if (s.fire > 0 || s.solarDps > 0) return 0xff8a3d;
   if (s.frost > 0) return 0x9be8ff;
   if (s.shock > 0) return 0xffe14d;
-  return accent;
+  return null;
 }
 
 function brickFlags(brick: Brick): number {
@@ -202,7 +228,14 @@ function drawPaddle(pen: Pen, world: World, accent: number, time: number): void 
   }
 }
 
-function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): void {
+function drawBalls(
+  pen: Pen,
+  world: World,
+  fx: Fx,
+  tint: number,
+  time: number,
+  skin?: BallSkinOverride | null,
+): void {
   const s = world.live;
   const intro = world.state === 'intro';
   const phasing = world.hasBuff('ghost');
@@ -212,6 +245,7 @@ function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): 
     const r = ball.radius;
     const alpha = (ball.ghost ? 0.42 : 1) * (ball.child ? clamp(ball.ttl / 0.6, 0, 1) : 1);
     // Twins of a Split keep the buff's cyan; everything else is tinted by what is carrying it.
+    const special = ball.clone || ball.child || ball.ghost || ball.emp > 0;
     const color = ball.clone
       ? 0x4dd8ff
       : ball.child
@@ -221,6 +255,11 @@ function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): 
           : ball.emp > 0
             ? 0xffd24a
             : tint;
+    // A normal ball wearing a skin trails in the skin's own colour; everything else follows the tint.
+    const trailColor = special || !skin ? color : skin.trail;
+    // The hot centre: the skin's core scaled to the stock HDR tones, stock white otherwise.
+    const coreSoft = special || !skin ? CORE_SOFT : ballCoreColor(skin.core, 1.9);
+    const coreHot = special || !skin ? CORE_HOT : ballCoreColor(skin.core, 3.5);
     if (alpha <= 0.01) continue;
 
     if (ball.docked) {
@@ -249,7 +288,7 @@ function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): 
           (ay + by) / 2,
           length / 2 + size,
           size,
-          color,
+          trailColor,
           alpha * (1 - k) * (1 - k),
           0.3,
           Math.atan2(dy, dx),
@@ -274,8 +313,8 @@ function drawBalls(pen: Pen, world: World, fx: Fx, tint: number, time: number): 
     // Balls are the protagonists: a wide halo, a saturated bloom and a hot white core.
     pen.light(ball.x, ball.y, rx * 5.4 * banked, ry * 5.4 * banked, color, 0.3 * alpha, 0.12, rot);
     pen.light(ball.x, ball.y, rx * 2.8 * banked, ry * 2.8 * banked, color, 0.95 * alpha, 0.45, rot);
-    pen.light(ball.x, ball.y, rx * 1.75, ry * 1.75, [1.9, 1.9, 2.1], alpha, 0.8, rot);
-    pen.light(ball.x, ball.y, rx * 1.3, ry * 1.3, [3.4, 3.4, 3.6], alpha, 0.96, rot);
+    pen.light(ball.x, ball.y, rx * 1.75, ry * 1.75, coreSoft, alpha, 0.8, rot);
+    pen.light(ball.x, ball.y, rx * 1.3, ry * 1.3, coreHot, alpha, 0.96, rot);
 
     if (s.solarDps > 0 && !ball.ghost) {
       pen.disc(ball.x, ball.y, s.solarRadius, 0xff6b1a, 0.16, 0.1);
@@ -580,6 +619,7 @@ export function drawScene(
   chapter: ChapterDef,
   time: number,
   out: SceneInfo,
+  ballSkin?: BallSkinOverride | null,
 ): void {
   const accent = chapter.accent;
   fx.accent = accent;
@@ -597,7 +637,9 @@ export function drawScene(
   out.energy = clamp(world.combo / 400, 0, 1) * 0.7 + (world.odActive ? 0.6 : 0);
 
   const playing = world.state === 'playing' || world.state === 'intro' || world.state === 'clearing';
-  const tint = ballTint(world, accent, time);
+  // Movement buffs outrank the skin (they are feedback), the skin outranks the build's elements.
+  const buff = buffTint(world, time);
+  const tint = buff ?? (ballSkin ? ballSkin.glow : elementTint(world) ?? accent);
 
   drawArena(pen, accent, out, time, playing);
 
@@ -609,7 +651,7 @@ export function drawScene(
   drawZones(pen, world, time);
   drawTransients(pen, fx, time);
   if (world.live.aegis && world.state !== 'dead') drawAegis(pen, time);
-  drawBalls(pen, world, fx, tint, time);
+  drawBalls(pen, world, fx, tint, time, ballSkin);
   drawHazards(pen, world, time);
   drawParticles(pen, fx);
   if (world.timeStop > 0) drawTimeStop(pen, time);

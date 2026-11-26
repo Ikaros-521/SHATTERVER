@@ -15,6 +15,7 @@
 import { clamp } from '../core/math';
 import { randomSeed } from '../core/rng';
 import type { SaveData } from '../core/storage';
+import type { AudioDirector } from '../audio/director';
 import { ARENA_W } from '../game/config';
 import { CHAPTERS } from '../game/levels/definitions';
 import { difficultyOf, type DifficultyId } from '../game/difficulty';
@@ -39,6 +40,7 @@ export interface WorldCallbacks {
 export class WorldBinding {
   readonly session: Session;
   private readonly fx: Fx;
+  private readonly audio: AudioDirector | null;
   private readonly renderer: Renderer;
   private layout: Layout;
   /** Filled in by `drawScene` every frame (danger/energy); the shell only owns the object. */
@@ -58,6 +60,8 @@ export class WorldBinding {
     private readonly cb: WorldCallbacks,
     /** Debug hooks: the self-playing paddle and a deep start, for reaching drafts quickly. */
     options: { bot?: boolean; level?: number } = {},
+    /** The shell's audio director, when the platform can make sound; effects and BGM attach here. */
+    audio?: AudioDirector | null,
   ) {
     this.session = new Session(mode, randomSeed(), {
       starter,
@@ -67,6 +71,7 @@ export class WorldBinding {
       level: options.level,
     });
     const settings = save.settings;
+    this.audio = audio ?? null;
     this.fx = new Fx(particleCapacity('high'), {
       shake: settings.shake,
       flashes: settings.flashes,
@@ -77,6 +82,7 @@ export class WorldBinding {
 
     this.wires.push(
       this.fx.attach(this.session.world),
+      ...(this.audio ? [this.audio.attach(this.session.world)] : []),
       this.session.events.on('draft', () => this.cb.onDraft()),
       this.session.events.on('phase', ({ phase }) => {
         if (phase === 'over' || phase === 'won') this.cb.onEnding(phase === 'won');
@@ -90,6 +96,8 @@ export class WorldBinding {
     const world = this.session.world;
     const timeScale = this.fx.update(dt, world);
     if (this.session.phase !== 'draft') this.session.update(dt * timeScale);
+    // The music sequencer feeds off this; 'quiet' keeps it from ramping up mid-draft.
+    this.audio?.update(this.session.phase === 'draft' ? 'quiet' : 'play', world, false);
 
     const chapter = CHAPTERS[world.level.chapter] ?? CHAPTERS[0];
     const view = this.fx.camera.view(this.layout);

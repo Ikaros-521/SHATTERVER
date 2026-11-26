@@ -20,6 +20,7 @@ import { DEFAULT_THEME } from '../ui/canvas/theme';
 import { GL } from '../render/gl';
 import { loadSave, storeSave, type SaveData, type Settings } from '../core/storage';
 import { setLang, type Lang } from '../core/i18n';
+import { AudioDirector } from '../audio/director';
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
 import type { Starter } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
@@ -81,6 +82,10 @@ function boot(): void {
   const surface = new CanvasSurface(ctx, width, height, DEFAULT_THEME.font);
   const ui = new CanvasUi({ surface, theme: DEFAULT_THEME });
   const layer = new UITextureLayer(wrap, uiCanvas);
+  // The audio stack: synthesized BGM and SFX through WeChat's WebAudio shim or the browser's
+  // AudioContext (see `audio/page.ts`). Silent until the first touch unlocks it.
+  const audio = new AudioDirector();
+  audio.setVolumes(save.settings.music, save.settings.sfx);
 
   let current: ShellScreen = { kind: 'menu' };
   /** The live run, when one is on the screen. The shell owns the rAF it advances in. */
@@ -273,6 +278,9 @@ function boot(): void {
     update: (patch: Partial<Settings>): void => {
       Object.assign(save.settings, patch);
       storeSave(save);
+      if (patch.music !== undefined || patch.sfx !== undefined) {
+        audio.setVolumes(save.settings.music, save.settings.sfx);
+      }
       rebuild();
     },
     setLanguage: (lang: Lang): void => {
@@ -375,6 +383,8 @@ function boot(): void {
       height,
       dpr,
       worldCallbacks(true),
+      {},
+      audio,
     );
     current = { kind: 'run' };
     // The previous screen's tree stays installed but is not composited during a run.
@@ -406,6 +416,7 @@ function boot(): void {
       dpr,
       worldCallbacks((level ?? 1) <= 1),
       { bot, level },
+      audio,
     );
     current = { kind: 'run' };
     ui.markDirty();
@@ -417,6 +428,8 @@ function boot(): void {
     rebuild,
     world: () => world,
     debugStart: makeWorld,
+    audioStatus: () => audio.status,
+    audio,
   };
 
   // Run-screen gesture state: a short still tap fires overdrive, a second tap pauses, a drag
@@ -460,6 +473,8 @@ function boot(): void {
   wx.onTouchStart((event) => {
     const touch = event.touches[0];
     if (!touch) return;
+    // The user gesture that unlocks audio: any first touch, on any screen.
+    audio.unlock();
     if (current.kind === 'run' && !paused) {
       // The pause button is the only tap target; everything else steers the paddle.
       const rect = pauseButtonRect(width);

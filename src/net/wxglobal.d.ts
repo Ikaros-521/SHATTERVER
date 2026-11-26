@@ -57,6 +57,11 @@ interface WxMinGame {
   onTouchStart(callback: (event: WxTouchEvent) => void): void;
   onTouchMove(callback: (event: WxTouchEvent) => void): void;
   onTouchEnd(callback: (event: WxTouchEvent) => void): void;
+  /** The minigame's WebAudio shim (base library 2.19+); the audio engine probes for it. */
+  createWebAudioContext?(): AudioContext;
+  /** App foreground/background transitions — the minigame's visibilitychange. */
+  onShow?(callback: () => void): void;
+  onHide?(callback: () => void): void;
 }
 
 declare const wx: WxMinGame;

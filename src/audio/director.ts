@@ -1,6 +1,7 @@
 import { clamp } from '../core/math';
 import type { World, WorldEvents } from '../game/world';
 import { AudioEngine, type AudioStatus } from './engine';
+import { pageHidden } from './page';
 import { Music } from './music';
 import { comboPitch, playSfx, type Sfx } from './sfx';
 
@@ -65,10 +66,10 @@ export class AudioDirector {
     // The sequencer must be fed even when requestAnimationFrame is throttled — notification banners
     // and app switches on phones starve rAF, and a starved sequencer is an audible stutter in the
     // BGM. A slow timer tops the schedule up; when rAF runs normally the extra ticks find the
-    // horizon already full and do nothing. A hidden tab is left alone: its timers are throttled to
+    // horizon already full and do nothing. A hidden page is left alone: its timers are throttled to
     // about once a second, which would turn the music into bursts.
-    window.setInterval(() => {
-      if (!document.hidden && this.engine.ready) this.music.update();
+    setInterval(() => {
+      if (!pageHidden() && this.engine.ready) this.music.update();
     }, 180);
   }
 

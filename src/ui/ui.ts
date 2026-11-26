@@ -1136,6 +1136,8 @@ export class UI implements HudHost {
     const protocol = PROTOCOL_MAP[wish];
     const price = protocol?.price ?? (isSupplyId(wish) ? SUPPLY_MAP[wish].price : 0);
     if (!price || econ.protocols.includes(wish) || econ.supplies.includes(wish)) return null;
+    // Affordable already: the shop badge carries the nudge; a 还差 0 counter is only noise.
+    if (econ.stardust >= price) return null;
     const name = protocol ? starterName(protocol) : t(`shop.supply.${wish}.name`);
     return t('shop.wishLine', { name, n: Math.max(0, price - econ.stardust) });
   }

@@ -345,6 +345,18 @@ export const en: UiDict & { content: ContentOverrides } = {
     menuAria: 'Release notes',
     versions: [
       {
+        version: '0.5.0',
+        date: '2026-11-26',
+        title: 'Daily loops, skins, the Wildcard, and Stardust across devices',
+        notes: [
+          '<b>Daily loop</b>: the first run of each day pays double Stardust, and three daily missions settle themselves — new ones every day, visible on the shop\u2019s progress tab.',
+          '<b>Skins</b>: a new shop shelf — four ball skins (Startrail, Molten, Aurora, Deep Space) and one background theme, Neon Arcade, all generated procedurally; switch between them and the classic look any time.',
+          '<b>The Wildcard</b>: the shop\u2019s headline protocol — choose two Common or Rare upgrades yourself and write your own opening.',
+          '<b>Supply trials</b>: try any supply you do not own for one free run before exchanging for it.',
+          '<b>Stardust across devices</b>: inside the B站 Toy, the wallet mirrors itself through the platform\u2019s cloud storage, so a new device picks up where you left off (Toy environment only; everywhere else is unchanged).',
+        ],
+      },
+      {
         version: '0.4.0',
         date: '2026-11-26',
         title: 'Stardust Shop: earn Stardust by playing, exchange it for protocols and supplies',

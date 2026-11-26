@@ -8,3 +8,4 @@ promo/
 .hyperframes/
 covers/
 *.zip
+.zcode/

@@ -34,6 +34,16 @@ import { FANOUT_BOARDS } from '../net/cloud';
 import { buildMenuModel } from './menumodel';
 import { cloudBoardTree, type CloudBoardState } from './screens/cloudboard';
 import { codexTree, type CodexTab } from './screens/codex';
+import { shopTree, type ShopTab } from './screens/shop';
+import {
+  buyProtocol,
+  buySkin,
+  buySupply,
+  equipSkin,
+  setTrialSupply,
+  toggleLoadout,
+  toggleWishlist,
+} from './shopactions';
 import { tutorialTree } from './screens/tutorial';
 import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
@@ -58,6 +68,7 @@ type ShellScreen =
   | { kind: 'results' }
   | { kind: 'settings' }
   | { kind: 'codex'; tab: CodexTab }
+  | { kind: 'shop'; tab: ShopTab }
   | { kind: 'tutorial'; page: number }
   | ({ kind: 'cloud' } & CloudBoardState);
 
@@ -165,6 +176,55 @@ function boot(): void {
           surface,
         ),
       );
+    } else if (current.kind === 'shop') {
+      ui.setTree(
+        shopTree(
+          save,
+          { tab: current.tab },
+          {
+            back: (): void => {
+              current = { kind: 'menu' };
+              rebuild();
+            },
+            setTab: (tab: ShopTab): void => {
+              if (current.kind !== 'shop') return;
+              current = { kind: 'shop', tab };
+              rebuild();
+            },
+            buyProtocol: (id: string): void => {
+              buyProtocol(save, id);
+              rebuild();
+            },
+            buySupply: (id: string): void => {
+              buySupply(save, id);
+              rebuild();
+            },
+            buySkin: (id: string): void => {
+              buySkin(save, id);
+              rebuild();
+            },
+            equipSkin: (id: string | null, kind): void => {
+              equipSkin(save, id, kind);
+              rebuild();
+            },
+            toggleWishlist: (id: string): void => {
+              toggleWishlist(save, id);
+              rebuild();
+            },
+            toggleLoadout: (id: string): void => {
+              toggleLoadout(save, id);
+              rebuild();
+            },
+            setTrial: (id: string): void => {
+              setTrialSupply(save, id);
+              rebuild();
+            },
+          },
+          width,
+          height,
+          surface,
+        ),
+      );
     } else if (current.kind === 'tutorial') {
       ui.setTree(
         tutorialTree(
@@ -202,11 +262,6 @@ function boot(): void {
     }
   };
 
-  const stub =
-    (name: string): (() => void) =>
-    (): void => {
-      console.log('not ported yet:', name);
-    };
   const menuActions: MenuActions = {
     campaign: (): void => {
       current = { kind: 'starter', mode: 'campaign', difficulty: save.settings.difficulty };
@@ -216,7 +271,10 @@ function boot(): void {
       current = { kind: 'starter', mode: 'endless', difficulty: save.settings.difficulty };
       rebuild();
     },
-    shop: stub('shop'),
+    shop: (): void => {
+      current = { kind: 'shop', tab: 'protocols' };
+      rebuild();
+    },
     tutorial: (): void => {
       current = { kind: 'tutorial', page: 0 };
       rebuild();

@@ -44,6 +44,22 @@ export interface Records {
   history: RunRecord[];
 }
 
+/** One run's 星尘 payout, quoted on the results screen. */
+export interface EconomyPayout {
+  /** The raw run share, before the daily soft cap. */
+  earned: number;
+  /** The run share actually paid. */
+  runPaid: number;
+  /** True when the daily cap halved part of the run share. */
+  halved: boolean;
+  gift: number;
+  firstUse: number;
+  milestones: number;
+  /** How many milestones settled with this run (they may be zero even when the reward is not). */
+  milestoneCount: number;
+  total: number;
+}
+
 /** One finished run, as shown on the leaderboard and the share card. */
 export interface RunRecord {
   mode: 'campaign' | 'endless';

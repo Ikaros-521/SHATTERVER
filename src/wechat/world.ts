@@ -5,7 +5,7 @@
  * shared screen canvas, effects, the pointer→paddle mapping and the run lifecycle (drafts and
  * the finish timer). Everything the DOM App routes through its UI — banners, HUD frames, the
  * pause screen — is deferred here: drafts are auto-picked after a short beat (logged), and a
- * finished run reports once through {@link WorldCallbacks.onFinish} so the shell can return to
+ * finished run reports once through {@link WorldCallbacks.onEnding} so the shell can return to
  * the menu. The real canvas screens replace these shims as they are ported.
  *
  * The shell owns the rAF; each {@link frame} call advances the simulation and renders the world
@@ -27,13 +27,14 @@ import { Renderer } from '../render/renderer';
 import { drawScene, type SceneInfo } from '../render/scene';
 
 export interface WorldCallbacks {
-  /** The run is over (timer after the final phase); the shell should show the menu again. */
-  onFinish(): void;
+  /**
+   * The final phase just landed (`won` says which way). The shell waits a short beat on real
+   * time — not on the frame loop, which may be paused on an overlay screen — and then settles.
+   */
+  onEnding(won: boolean): void;
   /** A draft came up; the shell shows its draft screen and drives `pick`/`reroll`/`skip`. */
   onDraft(): void;
 }
-
-const FINISH_DELAY = 1.1;
 
 export class WorldBinding {
   readonly session: Session;
@@ -42,8 +43,6 @@ export class WorldBinding {
   private layout: Layout;
   /** Filled in by `drawScene` every frame (danger/energy); the shell only owns the object. */
   private readonly info: SceneInfo = { danger: 0, energy: 0 };
-  private resultsTimer = -1;
-  private finished = false;
   /** Unlisten hooks for the session/world wires, dropped on dispose. */
   private readonly wires: (() => void)[] = [];
 
@@ -80,7 +79,7 @@ export class WorldBinding {
       this.fx.attach(this.session.world),
       this.session.events.on('draft', () => this.cb.onDraft()),
       this.session.events.on('phase', ({ phase }) => {
-        if (phase === 'over' || phase === 'won') this.resultsTimer = FINISH_DELAY;
+        if (phase === 'over' || phase === 'won') this.cb.onEnding(phase === 'won');
       }),
     );
     this.session.start();
@@ -88,16 +87,6 @@ export class WorldBinding {
 
   /** Advances the simulation and renders one frame. `dt` in seconds, clamped by the caller. */
   frame(dt: number, timeSeconds: number): void {
-    if (this.finished) return;
-    if (this.resultsTimer > 0) {
-      this.resultsTimer -= dt;
-      if (this.resultsTimer <= 0) {
-        this.finished = true;
-        this.cb.onFinish();
-        return;
-      }
-    }
-
     const world = this.session.world;
     const timeScale = this.fx.update(dt, world);
     if (this.session.phase !== 'draft') this.session.update(dt * timeScale);

@@ -23,11 +23,14 @@ import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/c
 import type { Starter } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
 import { UPGRADES } from '../game/upgrades/defs';
+import { settleFinishedRun } from '../game/finish';
 import type { DifficultyId } from '../game/difficulty';
 import type { RunMode } from '../game/run';
+import { WeChatChannel } from '../net/wechatchannel';
 import { buildMenuModel } from './menumodel';
 import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
+import { resultsTree, type ResultsModel } from './screens/results';
 import { starterTree } from './screens/starter';
 import { WorldBinding } from './world';
 import { UITextureLayer } from './uitexture';
@@ -40,7 +43,8 @@ type ShellScreen =
   | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId }
   | ({ kind: 'history' } & HistoryState)
   | { kind: 'run' }
-  | { kind: 'draft' };
+  | { kind: 'draft' }
+  | { kind: 'results' };
 
 function boot(): void {
   const sys = wx.getSystemInfoSync();
@@ -70,6 +74,13 @@ function boot(): void {
   /** The live run, when one is on the screen. The shell owns the rAF it advances in. */
   let world: WorldBinding | null = null;
   let lastTime = 0;
+  /** The last scored run's choices, for the results screen's retry. */
+  let lastRun: { mode: RunMode; starter: Starter; difficulty: DifficultyId } | null = null;
+  let resultsModel: ResultsModel | null = null;
+  // The WeChat cloud channel, this package's own leaderboard backend. In the browser harness
+  // `wx.cloud` is absent and every submit resolves to the offline wording — which is exactly
+  // the degradation a dead network gets on device.
+  const cloud = new WeChatChannel();
 
   const rebuild = (): void => {
     if (current.kind === 'menu') {
@@ -107,6 +118,8 @@ function boot(): void {
           surface,
         ),
       );
+    } else if (current.kind === 'results' && resultsModel) {
+      ui.setTree(resultsTree(resultsModel, resultsActions, width, surface));
     }
   };
 
@@ -174,23 +187,7 @@ function boot(): void {
     },
     start: (starter: Starter): void => {
       if (current.kind !== 'starter') return;
-      const { mode, difficulty } = current;
-      // The game world takes the screen canvas over: menus yield, the run renders full-screen.
-      world = new WorldBinding(screen, save, mode, starter, difficulty, width, height, dpr, {
-        onFinish: (): void => {
-          world?.dispose();
-          world = null;
-          current = { kind: 'menu' };
-          rebuild();
-        },
-        onDraft: (): void => {
-          current = { kind: 'draft' };
-          rebuild();
-        },
-      });
-      current = { kind: 'run' };
-      // The menu tree stays installed but is not composited during a run; force a repaint on return.
-      ui.markDirty();
+      startRunFor(current.mode, starter, current.difficulty);
     },
   };
   const draftActions = {
@@ -217,6 +214,83 @@ function boot(): void {
       ui.markDirty();
     } else rebuild();
   };
+  const resultsActions = {
+    /** The results screen's retry replays the very choices of the run just settled. */
+    retry: (): void => {
+      if (!lastRun) return;
+      startRunFor(lastRun.mode, lastRun.starter, lastRun.difficulty);
+    },
+    menu: (): void => {
+      current = { kind: 'menu' };
+      rebuild();
+    },
+  };
+
+  /** The shell's half of the WorldBinding conversation: drafts yield, the finish settles. */
+  const worldCallbacks = (scoring: boolean) => ({
+    onDraft: (): void => {
+      current = { kind: 'draft' };
+      rebuild();
+    },
+    onEnding: (won: boolean): void => {
+      // The beat before settlement runs on real time: the shell may be showing any screen
+      // (a draft the run ended from included), and the frame loop does not advance there.
+      setTimeout(() => {
+        const finished = world;
+        if (!finished) return;
+        // Records, 星尘, the stored entry and its rank — the shared game rule (`game/finish.ts`).
+        const result = settleFinishedRun(save, finished.session, won, scoring, lastRun?.starter.id ?? null);
+        finished.dispose();
+        world = null;
+        resultsModel = {
+          won,
+          record: result.record,
+          fresh: result.fresh,
+          rank: result.rank,
+          payout: result.payout,
+          uploadLine: null,
+          uploadOk: false,
+        };
+        current = { kind: 'results' };
+        ui.markDirty();
+        rebuild();
+        if (result.record) {
+          // The mirror goes out while the results screen is up; its one line updates on settle.
+          void cloud.finishRun(result.record).then((outcome) => {
+            if (resultsModel && current.kind === 'results') {
+              resultsModel.uploadLine = outcome.message;
+              resultsModel.uploadOk = outcome.ok;
+              rebuild();
+            }
+          });
+        }
+      }, 1100);
+    },
+  });
+
+  /** Starts a scoring run: the world takes the screen canvas over, menus yield. */
+  const startRunFor = (mode: RunMode, starter: Starter, difficulty: DifficultyId): void => {
+    if (world) {
+      world.dispose();
+      world = null;
+    }
+    lastRun = { mode, starter, difficulty };
+    resultsModel = null;
+    world = new WorldBinding(
+      screen,
+      save,
+      mode,
+      starter,
+      difficulty,
+      width,
+      height,
+      dpr,
+      worldCallbacks(true),
+    );
+    current = { kind: 'run' };
+    // The previous screen's tree stays installed but is not composited during a run.
+    ui.markDirty();
+  };
 
   rebuild();
   // Debug/automation handle, same spirit as the DOM build's `__shatterverse`.
@@ -230,6 +304,8 @@ function boot(): void {
     const grants: Record<string, number> = {};
     for (const def of rng.shuffle([...UPGRADES]).slice(0, rng.int(9, 13))) grants[def.id] = rng.int(1, 2);
     const starter: Starter = { id: 'debug', name: '', en: '', desc: '', color: 0, grants, crystals: 0 };
+    // The debug run's results screen gets a working retry too: replay the same shape of run.
+    lastRun = { mode: 'endless', starter, difficulty: save.settings.difficulty };
     world = new WorldBinding(
       screen,
       save,
@@ -239,18 +315,7 @@ function boot(): void {
       width,
       height,
       dpr,
-      {
-        onFinish: (): void => {
-          world?.dispose();
-          world = null;
-          current = { kind: 'menu' };
-          rebuild();
-        },
-        onDraft: (): void => {
-          current = { kind: 'draft' };
-          rebuild();
-        },
-      },
+      worldCallbacks((level ?? 1) <= 1),
       { bot, level },
     );
     current = { kind: 'run' };

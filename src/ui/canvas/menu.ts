@@ -12,7 +12,18 @@
  */
 
 import { t } from '../../core/i18n';
-import { button, label, panel, scroll, spacer, type Widget } from './widgets';
+import type { TextMeasurer } from './text';
+import { uniformMeasurer } from './text';
+import {
+  button,
+  label,
+  layoutWidget,
+  panel,
+  scroll,
+  spacer,
+  type ScrollWidget,
+  type Widget,
+} from './widgets';
 
 export interface MenuModel {
   /** The footer records line, ready to show (`menu.recordsEmpty` when nothing yet). */
@@ -36,9 +47,6 @@ export interface MenuActions {
   settings(): void;
 }
 
-/** Reserved footer height, so the scroll viewport can be sized to fill the rest. */
-export const MENU_FOOTER_H = 78;
-
 /** The entries' English captions; shared by all four languages, same as the DOM build. */
 const CAPTIONS = {
   campaign: 'CAMPAIGN · 15 SECTORS',
@@ -53,9 +61,16 @@ const CAPTIONS = {
 
 /**
  * Builds the menu tree for a surface `width` px wide and `height` px tall. The returned root is
- * laid out to exactly that frame; hand it straight to `CanvasUi.setTree`.
+ * laid out to exactly that frame; hand it straight to `CanvasUi.setTree`. `m` is the measuring
+ * text source — pass the surface so the two-pass viewport fit uses the real font metrics.
  */
-export function menuTree(actions: MenuActions, model: MenuModel, width: number, height: number): Widget {
+export function menuTree(
+  actions: MenuActions,
+  model: MenuModel,
+  width: number,
+  height: number,
+  m: TextMeasurer = uniformMeasurer(1),
+): Widget {
   const pad = Math.max(18, Math.min(28, width * 0.04));
   const entrySize = 17;
 
@@ -89,14 +104,26 @@ export function menuTree(actions: MenuActions, model: MenuModel, width: number, 
     footerRows.push(label(model.wishText, { size: 12, color: 'gold', alpha: 0.85 }));
   if (model.stardustText !== '') footerRows.push(label(model.stardustText, { size: 12, color: 'gold' }));
 
-  return panel(
-    [
-      scroll(content, Math.max(120, height - MENU_FOOTER_H)),
-      spacer(6),
-      panel(footerRows, { padding: pad, gap: 3, bg: false, stroke: false }),
-    ],
-    { padding: 0, gap: 0, bg: false, stroke: false },
-  );
+  const build = (viewportH: number): Widget =>
+    panel(
+      [
+        scroll(content, viewportH),
+        spacer(6),
+        panel(footerRows, { padding: pad, gap: 3, bg: false, stroke: false }),
+      ],
+      { padding: 0, gap: 0, bg: false, stroke: false },
+    );
+
+  // Two-pass layout: the footer's height varies with the data (records line, wishlist, 星尘), so
+  // the scroll viewport is fitted to whatever everything around it actually measures — never
+  // estimated. `overhead` is the probe's whole layout minus the viewport itself.
+  const probe = build(height);
+  layoutWidget(probe, 0, 0, width, m);
+  const probeScroller = (probe as { children: Widget[] }).children[0] as ScrollWidget;
+  const overhead = probe.h - probeScroller.viewportH;
+  const root = build(Math.max(120, height - overhead));
+  layoutWidget(root, 0, 0, width, m);
+  return root;
 
   function entry(
     index: string,

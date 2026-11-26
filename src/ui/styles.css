@@ -3351,3 +3351,77 @@ button.sigil-tile:hover {
     right: 12px;
   }
 }
+
+/* Today's missions, at the top of the shop's progress tab. */
+.shop-daily-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0;
+}
+
+.shop-daily-head > span:first-child {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.shop-daily {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(10, 14, 24, 0.5);
+}
+
+.shop-daily.done {
+  border-color: var(--gold);
+}
+
+.shop-daily-mark {
+  flex: 0 0 18px;
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.shop-daily-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop-daily-body h4 {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.shop-daily.done .shop-daily-body h4 {
+  color: var(--gold);
+}
+
+.shop-daily-bar {
+  margin-top: 5px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.shop-daily-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold);
+  transition: width 0.25s ease;
+}
+
+.shop-daily-reward {
+  margin-left: auto;
+  color: var(--gold);
+  font-size: 12.5px;
+  white-space: nowrap;
+}

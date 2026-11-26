@@ -513,6 +513,7 @@ export const zh = {
     earnedGift: '首局礼 +{n}',
     earnedFirstUse: '首次选用 +{n}',
     earnedMilestone: '里程碑 +{n}',
+    earnedDaily: '今日任务 +{n}',
     earnedHalved: '今日对局星尘已达上限，超出部分减半',
     progressLine: '已达成 {n} / {total}',
     progressNote: '里程碑自动入账；首次选用一种强化时发放奖励。星尘只来自对局，仅在本机保存。',
@@ -557,6 +558,20 @@ export const zh = {
       bricks10k: '击碎 10000｜累计击碎 10000 块砖',
       bricks100k: '击碎 100000｜累计击碎 100000 块砖',
     },
+    daily: {
+      kills: '击碎 {n} 块砖',
+      perfects: '完美接球 {n}',
+      overdrives: '释放超载 {n}',
+      reactions: '触发元素反应 {n}',
+      bosses: '击败 BOSS {n}',
+      flawless: '无伤过关 {n}',
+      swift: '迅速清关 {n}',
+      runs: '出击 {n} 局',
+      win: '通关任意难度 {n} 次',
+      combo: '单局连击达到 {n}',
+    },
+    dailyTitle: '今日任务',
+    dailyNote: '每天三个任务，达成即入账，次日刷新。',
   },
 };
 

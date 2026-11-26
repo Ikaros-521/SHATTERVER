@@ -1,6 +1,7 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isSupplyId } from '../game/economy/catalog';
+import { DAILY_MISSION_MAP, isDailyMissionId } from '../game/economy/dailies';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
 import { APP_VERSION } from './version';
@@ -79,6 +80,24 @@ export interface EconomyCounters {
   swift: number;
 }
 
+/** One daily mission's progress inside `EconomyState.daily`. */
+export interface DailyMissionState {
+  id: string;
+  progress: number;
+  done: boolean;
+}
+
+/** The per-day loop: the first-run double and the day's three missions (see economy/dailies). */
+export interface DailyState {
+  /** Local day key this state belongs to (`YYYY-MM-DD`), for the lazy daily reset. */
+  date: string;
+  /** True once the day's first scoring run has had its run share doubled. */
+  doubled: boolean;
+  /** Scoring runs settled today. */
+  runs: number;
+  missions: DailyMissionState[];
+}
+
 /**
  * Everything the 星尘商店 owns: the wallet, what has been bought and carried, milestone progress
  * and the aggregate counters the milestones read. Earned only by playing — nothing here can be
@@ -106,6 +125,8 @@ export interface EconomyState {
   dailyDate: string;
   /** Run earnings counted against today's soft cap; one-time rewards bypass it. */
   dailyRunCoins: number;
+  /** The daily loop: first-run double and the day's missions (`game/economy/dailies`). */
+  daily: DailyState;
   /** Best combo ever, so combo milestones survive the 50-run history cap. */
   bestCombo: number;
   /** Campaign wins per difficulty tier; first-clear milestones read this. */
@@ -169,6 +190,7 @@ export const DEFAULT_ECONOMY: EconomyState = {
   firstGift: false,
   dailyDate: '',
   dailyRunCoins: 0,
+  daily: { date: '', doubled: false, runs: 0, missions: [] },
   bestCombo: 0,
   winsByDifficulty: {},
   winsByStarter: {},
@@ -187,6 +209,7 @@ export function defaultEconomy(): EconomyState {
     winsByDifficulty: {},
     winsByStarter: {},
     counters: { ...DEFAULT_ECONOMY.counters },
+    daily: { ...DEFAULT_ECONOMY.daily, missions: [] },
   };
 }
 
@@ -253,6 +276,27 @@ function parseEconomy(raw: unknown): EconomyState | null {
   economy.firstGift = e.firstGift === true;
   economy.dailyDate = typeof e.dailyDate === 'string' ? e.dailyDate.slice(0, 10) : '';
   economy.dailyRunCoins = num(e.dailyRunCoins);
+  // The daily loop state: keep the well-formed fields, rebuild the rest. An empty date (or a
+  // mission set that no longer matches its day's draw) re-rolls onto today at the next settle,
+  // so a mangled entry can only cost today's progress, never the wallet.
+  if (e.daily && typeof e.daily === 'object') {
+    const d = e.daily as Partial<DailyState>;
+    economy.daily.date = typeof d.date === 'string' ? d.date.slice(0, 10) : '';
+    economy.daily.doubled = d.doubled === true;
+    economy.daily.runs = num(d.runs);
+    if (Array.isArray(d.missions)) {
+      for (const entry of d.missions) {
+        if (!entry || typeof entry !== 'object') continue;
+        const m = entry as Partial<DailyMissionState>;
+        if (!isDailyMissionId(m.id)) continue;
+        economy.daily.missions.push({
+          id: m.id,
+          progress: Math.min(num(m.progress), DAILY_MISSION_MAP[m.id].target),
+          done: m.done === true,
+        });
+      }
+    }
+  }
   economy.bestCombo = num(e.bestCombo);
   count(e.winsByDifficulty, economy.winsByDifficulty as Record<string, number>);
   count(e.winsByStarter, economy.winsByStarter);

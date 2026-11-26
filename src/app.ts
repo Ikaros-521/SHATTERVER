@@ -36,6 +36,7 @@ import {
   runCoins,
 } from './game/economy/coins';
 import { SWIFT_SECONDS, settleMilestones } from './game/economy/milestones';
+import { advanceDaily, doubleFirstRun, rollDaily } from './game/economy/dailies';
 import {
   buffName,
   buffShort,
@@ -891,10 +892,12 @@ export class App implements UiActions {
 
   /**
    * Settles the finished run's 星尘 payout: the run share through the daily soft cap, then the
-   * one-time rewards — the first-run gift, first uses of upgrade kinds, newly reached milestones.
-   * Run aggregates fold in before the milestones settle, so a difficulty first-cleared on this
-   * very run pays on this very run. The balance and the lifetime total move together at the end.
-   * Debug runs and fixed-seed runs pay nothing.
+   * one-time rewards — the first-run gift, first uses of upgrade kinds, newly reached milestones
+   * and the day's missions. The day's first scoring run doubles its share before the cap; mission
+   * rewards bypass the cap like every other one-time reward. Run aggregates fold in before the
+   * milestones settle, so a difficulty first-cleared on this very run pays on this very run. The
+   * balance and the lifetime total move together at the end. Debug runs and fixed-seed runs pay
+   * nothing.
    */
   private settleEconomy(run: Run, won: boolean): EconomyPayout | null {
     if (!this.scoring) return null;
@@ -910,7 +913,13 @@ export class App implements UiActions {
       econ.dailyDate = date;
       econ.dailyRunCoins = 0;
     }
-    const runPaid = applyDailyHalving(earned.total, econ.dailyRunCoins);
+    // The daily loop re-arms on the same day key as the soft cap: a date change re-draws the
+    // missions, zeroes their progress and re-arms the first-run double.
+    rollDaily(econ, date);
+    // The day's first scoring run has its run share doubled, before the cap — the doubled value
+    // is what counts against the room. One-time rewards below never pass through this.
+    const share = doubleFirstRun(econ, earned.total);
+    const runPaid = applyDailyHalving(share, econ.dailyRunCoins);
     econ.dailyRunCoins += runPaid;
 
     econ.bestCombo = Math.max(econ.bestCombo, run.maxCombo);
@@ -942,17 +951,21 @@ export class App implements UiActions {
       gift = FIRST_GIFT;
     }
     const settled = settleMilestones(this.save.records, econ);
-    const total = runPaid + gift + firstUse + settled.reward;
+    // Daily missions fold after the counters and settle like milestones: no claim step, and the
+    // reward bypasses the soft cap — one-time by nature, capped by the daily reset itself.
+    const daily = advanceDaily(econ, run, won);
+    const total = runPaid + gift + firstUse + settled.reward + daily.missionReward;
     econ.stardust += total;
     econ.lifetime += total;
     return {
-      earned: earned.total,
+      earned: share,
       runPaid,
-      halved: runPaid < earned.total,
+      halved: runPaid < share,
       gift,
       firstUse,
       milestones: settled.reward,
       milestoneCount: settled.earned.length,
+      missions: daily.missionReward,
       total,
     };
   }

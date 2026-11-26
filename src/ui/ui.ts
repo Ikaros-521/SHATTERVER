@@ -43,6 +43,8 @@ import {
   supplyCost,
 } from '../game/economy/catalog';
 import { MILESTONES } from '../game/economy/milestones';
+import { DAILY_MISSION_REWARD, dailyMissionsFor } from '../game/economy/dailies';
+import { dayKey } from '../game/economy/coins';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
 import { RARITY_INFO, RARITY_ORDER, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
@@ -127,7 +129,7 @@ const SCREENS: ScreenId[] = [
 
 /** One run's 星尘 payout, quoted on the results screen. */
 export interface EconomyPayout {
-  /** The raw run share, before the daily soft cap. */
+  /** The raw run share, before the daily soft cap. Doubled on the day's first scoring run. */
   earned: number;
   /** The run share actually paid. */
   runPaid: number;
@@ -138,6 +140,8 @@ export interface EconomyPayout {
   milestones: number;
   /** How many milestones settled with this run (they may be zero even when the reward is not). */
   milestoneCount: number;
+  /** Daily missions this run completed; their reward bypasses the daily cap. */
+  missions: number;
   total: number;
 }
 
@@ -620,6 +624,7 @@ export class UI implements HudHost {
       if (payout.gift > 0) parts.push(t('shop.earnedGift', { n: payout.gift }));
       if (payout.firstUse > 0) parts.push(t('shop.earnedFirstUse', { n: payout.firstUse }));
       if (payout.milestones > 0) parts.push(t('shop.earnedMilestone', { n: payout.milestones }));
+      if (payout.missions > 0) parts.push(t('shop.earnedDaily', { n: payout.missions }));
       const wish = this.wishlistLine();
       dust.hidden = false;
       dust.replaceChildren(
@@ -806,7 +811,47 @@ export class UI implements HudHost {
         el('span', { class: 'shop-ms-reward', text: t('shop.stardustLine', { n: milestone.reward }) }),
       );
     });
-    return [head, ...rows];
+    return [...this.dailyRows(), head, ...rows];
+  }
+
+  /**
+   * Today's missions, at the top of the progress tab. The state is only written when a run
+   * settles, so a shop opened before the first run of the day shows the fresh draw with zeroed
+   * progress instead of yesterday's leftovers — the draw is deterministic, so this always agrees
+   * with what `settleEconomy` will roll.
+   */
+  private dailyRows(): HTMLElement[] {
+    const econ = this.save.economy;
+    const today = dayKey();
+    const live = econ.daily.date === today;
+    const title = el(
+      'div',
+      { class: 'shop-daily-head' },
+      el('span', { text: t('shop.dailyTitle') }),
+      el('span', { class: 'shop-progress-note', text: t('shop.dailyNote') }),
+    );
+    const rows = dailyMissionsFor(today).map((mission) => {
+      const state = live ? econ.daily.missions.find((m) => m.id === mission.id) : undefined;
+      const progress = Math.min(state?.progress ?? 0, mission.target);
+      const done = state?.done ?? false;
+      return el(
+        'div',
+        { class: `shop-daily${done ? ' done' : ''}` },
+        el('span', { class: 'shop-daily-mark', text: done ? '✓' : '' }),
+        el(
+          'div',
+          { class: 'shop-daily-body' },
+          el('h4', { text: t(`shop.daily.${mission.id}`, { n: `${progress}/${mission.target}` }) }),
+          el(
+            'div',
+            { class: 'shop-daily-bar' },
+            el('span', { style: `width:${Math.min(100, (progress / mission.target) * 100).toFixed(1)}%` }),
+          ),
+        ),
+        el('span', { class: 'shop-daily-reward', text: t('shop.stardustLine', { n: DAILY_MISSION_REWARD }) }),
+      );
+    });
+    return [title, ...rows];
   }
 
   /** One catalog row: glyph, copy, and a buy button — or the owned mark, or a carry toggle. */

@@ -33,6 +33,8 @@ import type { BoardInfo } from '../net/cheddaboards';
 import { FANOUT_BOARDS } from '../net/cloud';
 import { buildMenuModel } from './menumodel';
 import { cloudBoardTree, type CloudBoardState } from './screens/cloudboard';
+import { codexTree, type CodexTab } from './screens/codex';
+import { tutorialTree } from './screens/tutorial';
 import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
 import { pauseTree, type PauseActions } from './screens/pause';
@@ -55,6 +57,8 @@ type ShellScreen =
   | { kind: 'draft' }
   | { kind: 'results' }
   | { kind: 'settings' }
+  | { kind: 'codex'; tab: CodexTab }
+  | { kind: 'tutorial'; page: number }
   | ({ kind: 'cloud' } & CloudBoardState);
 
 function boot(): void {
@@ -141,6 +145,49 @@ function boot(): void {
       ui.setTree(pauseTree(pauseActions, width, height, surface));
     } else if (current.kind === 'settings') {
       ui.setTree(settingsTree(save, settingsActions, width, height, surface));
+    } else if (current.kind === 'codex') {
+      ui.setTree(
+        codexTree(
+          { tab: current.tab, discovered: new Set(save.records.discovered) },
+          {
+            back: (): void => {
+              current = { kind: 'menu' };
+              rebuild();
+            },
+            setTab: (tab: CodexTab): void => {
+              if (current.kind !== 'codex') return;
+              current = { kind: 'codex', tab };
+              rebuild();
+            },
+          },
+          width,
+          height,
+          surface,
+        ),
+      );
+    } else if (current.kind === 'tutorial') {
+      ui.setTree(
+        tutorialTree(
+          current.page,
+          {
+            close: (): void => {
+              // Any exit marks the deck seen — the same rule the DOM overlay applies.
+              save.settings.tutorialSeen = true;
+              storeSave(save);
+              current = { kind: 'menu' };
+              rebuild();
+            },
+            goto: (page: number): void => {
+              if (current.kind !== 'tutorial') return;
+              current = { kind: 'tutorial', page };
+              rebuild();
+            },
+          },
+          width,
+          height,
+          surface,
+        ),
+      );
     } else if (current.kind === 'cloud') {
       ui.setTree(
         cloudBoardTree(
@@ -170,8 +217,14 @@ function boot(): void {
       rebuild();
     },
     shop: stub('shop'),
-    tutorial: stub('tutorial'),
-    codex: stub('codex'),
+    tutorial: (): void => {
+      current = { kind: 'tutorial', page: 0 };
+      rebuild();
+    },
+    codex: (): void => {
+      current = { kind: 'codex', tab: 'upgrades' };
+      rebuild();
+    },
     settings: (): void => {
       current = { kind: 'settings' };
       rebuild();

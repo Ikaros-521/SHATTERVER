@@ -2,41 +2,20 @@ import { FrameTimes } from './core/frametimes';
 import { applyDom, setLang, t } from './core/i18n';
 import { clamp } from './core/math';
 import { hashString, randomSeed, RNG } from './core/rng';
-import {
-  addRunRecord,
-  loadSave,
-  runRank,
-  storeSave,
-  type RunRecord,
-  type SaveData,
-  type Settings,
-} from './core/storage';
+import { loadSave, runRank, storeSave, type RunRecord, type SaveData, type Settings } from './core/storage';
 import { AudioDirector } from './audio/director';
 import { ARENA_W } from './game/config';
 import { difficultyOf, type DifficultyId } from './game/difficulty';
+import { settleFinishedRun } from './game/finish';
 import { BUFF_MAP, isBuffId } from './game/buffs/defs';
 import { buffColor } from './game/buffs/present';
 import { UPGRADE_MAP } from './game/upgrades/defs';
 import { CHAPTERS, COMBO_TIERS, REACTIONS } from './game/levels/definitions';
-import type { Run, RunMode } from './game/run';
+import type { RunMode } from './game/run';
 import { Session } from './game/session';
 import { STARTERS, type Starter } from './game/starters';
-import {
-  PROTOCOL_MAP,
-  SUPPLY_MAP,
-  isSupplyId,
-  slotLimit,
-  supplyCost,
-} from './game/economy/catalog';
-import {
-  FIRST_GIFT,
-  FIRST_USE_REWARD,
-  applyDailyHalving,
-  dayKey,
-  runCoins,
-} from './game/economy/coins';
-import { SWIFT_SECONDS, settleMilestones } from './game/economy/milestones';
-import { advanceDaily, doubleFirstRun, rollDaily } from './game/economy/dailies';
+import { PROTOCOL_MAP, SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from './game/economy/catalog';
+import { settleMilestones } from './game/economy/milestones';
 import {
   buffName,
   buffShort,
@@ -70,10 +49,11 @@ import { CLOUD_CONFIG, cloudEnabled } from './net/config';
 import { loadIdentity, storeIdentity } from './net/identity';
 import type { Leaderboard } from './net/leaderboard';
 import { isToyEnvironment, loadToySdk } from './net/toy';
+import { WeChatChannel } from './net/wechatchannel';
 import { ToyChannel } from './net/toychannel';
 import { mergeWallet } from './net/toywallet';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
-import { UI, type EconomyPayout, type PerfInfo, type UiActions } from './ui/ui';
+import { UI, type PerfInfo, type UiActions } from './ui/ui';
 
 /** Minimum spacing between redraws of a screen where nothing moves (paused, drafting, over). */
 const IDLE_FRAME_MS = 66;
@@ -157,6 +137,16 @@ function createToyChannel(): ToyChannel {
   // the submit that ends a run.
   void loadToySdk();
   return new ToyChannel();
+}
+
+/**
+ * Builds the WeChat channel when the game runs as a 微信小游戏 (`isWeChatRuntime`). The backend is
+ * the project's own 微信云开发 function (see `docs/wechat-cloud-leaderboard.md`), reached through
+ * `wx.cloud` with no request domain. Identity is a silent server-side openid and the nickname is
+ * the player's own input, so this channel owns the rename flow on that platform.
+ */
+function createWeChatChannel(): WeChatChannel {
+  return new WeChatChannel();
 }
 
 /**
@@ -332,10 +322,26 @@ export class App implements UiActions {
       storeSave(this.save);
     }
     this.canvas = canvas;
-    const toy = isToyEnvironment();
-    // `__TOY__` is a build-time constant for the platform package: it forces the Toy channel and
-    // lets the bundler drop the Chedda client (no third-party service in that package).
-    this.cloud = __TOY__ ? createToyChannel() : toy || cloudEnabled() ? (toy ? createToyChannel() : createCloud()) : null;
+    // `__WECHAT__` and `__TOY__` are build-time constants: each platform package keeps exactly one
+    // channel, and the bundler drops the other clients from that package entirely. The branches
+    // run on real flags at runtime only in the web build — the WeChat runtime has no `location`,
+    // so `isToyEnvironment()` must never be called there (and is dead code in that package).
+    let cloud: Leaderboard | null;
+    if (__WECHAT__) {
+      cloud = createWeChatChannel();
+    } else {
+      const toy = isToyEnvironment();
+      // `__TOY__` forces the Toy channel and lets the bundler drop the Chedda client (no
+      // third-party service in that package).
+      cloud = __TOY__
+        ? createToyChannel()
+        : toy || cloudEnabled()
+          ? toy
+            ? createToyChannel()
+            : createCloud()
+          : null;
+    }
+    this.cloud = cloud;
     // Start where the player asked — unless this device has already proven that is too much.
     const wanted = tierOf(this.save.settings.quality);
     const learned = this.save.device;
@@ -933,146 +939,25 @@ export class App implements UiActions {
   }
 
   private finishRun(won: boolean): void {
-    const run = this.session.run;
-    const records = this.save.records;
-    const fresh: string[] = [];
-    if (!this.scoring) {
-      this.lastFresh = [];
-      this.audio.setMusicDuck(0.5, 0.8);
-      this.ui.showResults(this.session, won, fresh, null, null);
-      return;
-    }
-    // A loss on level N "reached" N; a win cleared the last level.
-    const reached = won ? run.level : run.levelsCleared + 1;
-    const best = run.mode === 'campaign' ? 'bestCampaign' : 'bestEndless';
-    if (reached > records[best]) {
-      records[best] = reached;
-      fresh.push('level');
-    }
-    const score = Math.round(run.score);
-    if (score > records.bestScore) {
-      records.bestScore = score;
-      fresh.push('score');
-    }
-    if (won) records.wins++;
-    records.bricks += run.kills;
-    // The run's 星尘 settles here, after the records absorbed this run: a milestone this run
-    // just earned has to pay on this very results screen.
-    const payout = this.settleEconomy(run, won);
-    // Local leaderboard: every scoring run lands in the history, and its rank is what the
-    // results screen and share card quote.
-    const world = this.session.world;
-    const record: RunRecord = {
-      mode: run.mode,
-      difficulty: run.difficulty,
-      score,
-      level: reached,
-      code: run.mode === 'campaign' ? world.level.code : String(run.level),
-      name: world.level.name,
-      combo: run.maxCombo,
-      damage: Math.round(run.totalDamage),
-      kills: run.kills,
-      time: run.time,
-      won,
-      date: Date.now(),
-      seed: run.seed,
-      build: { ...run.upgrades },
-    };
-    addRunRecord(records, record);
-    storeSave(this.save);
-    this.pushWallet();
-    this.lastFresh = fresh;
-    this.audio.setMusicDuck(0.5, 0.8);
-    const sameMode = records.history.filter((entry) => entry.mode === run.mode);
-    this.ui.showResults(
+    // Records, 星尘 settlement, the stored entry and its rank live in `game/finish.ts` — game
+    // rule shared verbatim with the WeChat shell, so the two platforms cannot drift on payout.
+    // The Toy wallet mirror syncs right after the save absorbs this run (pushWallet, main's
+    // addition), then the results screen comes up.
+    const result = settleFinishedRun(
+      this.save,
       this.session,
       won,
-      fresh,
-      { rank: runRank(sameMode, score), total: sameMode.length },
-      payout,
+      this.scoring,
+      this.lastRun?.starter.id ?? null,
     );
-    this.lastCloudRecord = record;
-    void this.submitRun(record);
-  }
-
-  /**
-   * Settles the finished run's 星尘 payout: the run share through the daily soft cap, then the
-   * one-time rewards — the first-run gift, first uses of upgrade kinds, newly reached milestones
-   * and the day's missions. The day's first scoring run doubles its share before the cap; mission
-   * rewards bypass the cap like every other one-time reward. Run aggregates fold in before the
-   * milestones settle, so a difficulty first-cleared on this very run pays on this very run. The
-   * balance and the lifetime total move together at the end. Debug runs and fixed-seed runs pay
-   * nothing.
-   */
-  private settleEconomy(run: Run, won: boolean): EconomyPayout | null {
-    if (!this.scoring) return null;
-    const econ = this.save.economy;
-    // A fixed seed replays the same good run forever: it earns no stardust (the weekly seeded
-    // challenge, when it comes, will carry its own exemption).
-    if (this.save.settings.seed.trim()) return null;
-    const score = Math.round(run.score);
-    const campaignWon = won && run.mode === 'campaign';
-    const earned = runCoins(run.time, score, campaignWon);
-    const date = dayKey();
-    if (econ.dailyDate !== date) {
-      econ.dailyDate = date;
-      econ.dailyRunCoins = 0;
+    if (result.record) this.pushWallet();
+    this.lastFresh = result.fresh;
+    this.audio.setMusicDuck(0.5, 0.8);
+    this.ui.showResults(this.session, won, result.fresh, result.rank, result.payout);
+    if (result.record) {
+      this.lastCloudRecord = result.record;
+      void this.submitRun(result.record);
     }
-    // The daily loop re-arms on the same day key as the soft cap: a date change re-draws the
-    // missions, zeroes their progress and re-arms the first-run double.
-    rollDaily(econ, date);
-    // The day's first scoring run has its run share doubled, before the cap — the doubled value
-    // is what counts against the room. One-time rewards below never pass through this.
-    const share = doubleFirstRun(econ, earned.total);
-    const runPaid = applyDailyHalving(share, econ.dailyRunCoins);
-    econ.dailyRunCoins += runPaid;
-
-    econ.bestCombo = Math.max(econ.bestCombo, run.maxCombo);
-    if (campaignWon) {
-      const tier = run.difficulty;
-      econ.winsByDifficulty[tier] = (econ.winsByDifficulty[tier] ?? 0) + 1;
-      const starterId = this.lastRun?.starter.id;
-      if (starterId) econ.winsByStarter[starterId] = (econ.winsByStarter[starterId] ?? 0) + 1;
-    }
-    econ.counters.perfects += run.perfects;
-    econ.counters.capsules += run.capsules;
-    econ.counters.overdrives += run.overdrives;
-    econ.counters.reactions += run.reactionTriggers;
-    econ.counters.bosses += run.bosses;
-    for (const level of run.history) {
-      if (level.damageTaken <= 0) econ.counters.flawless++;
-      if (level.time > 0 && level.time < SWIFT_SECONDS) econ.counters.swift++;
-    }
-    let firstUse = 0;
-    for (const [id, level] of Object.entries(run.upgrades)) {
-      if (level > 0 && !econ.firstUsed[id]) {
-        econ.firstUsed[id] = true;
-        firstUse += FIRST_USE_REWARD;
-      }
-    }
-    let gift = 0;
-    if (!econ.firstGift) {
-      econ.firstGift = true;
-      gift = FIRST_GIFT;
-    }
-    const settled = settleMilestones(this.save.records, econ);
-    // Daily missions fold after the counters and settle like milestones: no claim step, and the
-    // reward bypasses the soft cap — one-time by nature, capped by the daily reset itself.
-    const daily = advanceDaily(econ, run, won);
-    const total = runPaid + gift + firstUse + settled.reward + daily.missionReward;
-    econ.stardust += total;
-    econ.lifetime += total;
-    return {
-      earned: share,
-      runPaid,
-      halved: runPaid < share,
-      gift,
-      firstUse,
-      milestones: settled.reward,
-      milestoneCount: settled.earned.length,
-      missions: daily.missionReward,
-      total,
-    };
   }
 
   /**
@@ -1478,7 +1363,16 @@ export class App implements UiActions {
       ? { a: skinned.bg[0], b: skinned.bg[1], c: skinned.bg[2], accent: skinned.accent }
       : { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
     this.renderer.pen.reset();
-    drawScene(this.renderer.pen, world, this.fx, chapter, time, this.info, this.ballSkin(), this.paddleSkin());
+    drawScene(
+      this.renderer.pen,
+      world,
+      this.fx,
+      chapter,
+      time,
+      this.info,
+      this.ballSkin(),
+      this.paddleSkin(),
+    );
     this.renderer.render({ layout: this.layout, time, palette, view, post: this.fx.post, info: this.info });
   }
 

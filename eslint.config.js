@@ -2,8 +2,9 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  // promo/ is local, gitignored tooling (Node scripts for recording promo clips).
-  { ignores: ['dist/**', 'dist-verify/**', 'node_modules/**', 'promo/**', '.hyperframes/**'] },
+  // promo/ is local, gitignored tooling (Node scripts for recording promo clips). wechat/ is the
+  // server-side cloud-function deployment unit (CommonJS, `wx-server-sdk`) — not game source.
+  { ignores: ['dist/**', 'dist-verify/**', 'node_modules/**', 'promo/**', '.hyperframes/**', 'wechat/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

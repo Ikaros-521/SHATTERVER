@@ -1,4 +1,5 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
+import { wxStorageRead, wxStorageWrite } from './wxstorage';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isSupplyId } from '../game/economy/catalog';
 import { DAILY_MISSION_MAP, isDailyMissionId } from '../game/economy/dailies';
@@ -44,6 +45,24 @@ export interface Records {
   discovered: string[];
   /** Finished runs, newest first, trimmed to HISTORY_CAP. The local leaderboard is derived from this. */
   history: RunRecord[];
+}
+
+/** One run's 星尘 payout, quoted on the results screen. */
+export interface EconomyPayout {
+  /** The raw run share, before the daily soft cap. Doubled on the day's first scoring run. */
+  earned: number;
+  /** The run share actually paid. */
+  runPaid: number;
+  /** True when the daily cap halved part of the run share. */
+  halved: boolean;
+  gift: number;
+  firstUse: number;
+  milestones: number;
+  /** How many milestones settled with this run (they may be zero even when the reward is not). */
+  milestoneCount: number;
+  /** Daily missions this run completed; their reward bypasses the daily cap. */
+  missions: number;
+  total: number;
 }
 
 /** One finished run, as shown on the leaderboard and the share card. */
@@ -348,7 +367,7 @@ export function loadSave(): SaveData {
   const save = defaultSave();
   let raw: unknown;
   try {
-    const stored = localStorage.getItem(KEY);
+    const stored = __WECHAT__ ? wxStorageRead(KEY) : localStorage.getItem(KEY);
     // Obfuscated blobs decode here. A null decode means "not one of ours" — a missing key or a
     // pre-obfuscation plaintext save — and falls through to the JSON below. A blob that fails its
     // checksum (tampered or corrupted) also decodes to null, and the plaintext parse then throws,
@@ -457,7 +476,10 @@ export function runRank(history: RunRecord[], score: number): number {
 
 export function storeSave(save: SaveData): void {
   try {
-    localStorage.setItem(KEY, encodeSave(JSON.stringify(save)));
+    // Obfuscated on every platform: the WeChat package stores through the same codec.
+    const blob = encodeSave(JSON.stringify(save));
+    if (__WECHAT__) wxStorageWrite(KEY, blob);
+    else localStorage.setItem(KEY, blob);
   } catch {
     // Storage can be unavailable (private mode, quota). The game works fine without persistence.
   }

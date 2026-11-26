@@ -16,7 +16,13 @@
  */
 
 import { t } from '../core/i18n';
-import { BLOCKED_SUBSTRINGS, BLOCKED_WHOLE, RESERVED_PREFIXES, RESERVED_SEGMENTS } from './blocklist';
+import {
+  BLOCKED_CJK,
+  BLOCKED_SUBSTRINGS,
+  BLOCKED_WHOLE,
+  RESERVED_PREFIXES,
+  RESERVED_SEGMENTS,
+} from './blocklist';
 
 export const NICKNAME_MIN = 3;
 export const NICKNAME_MAX = 16;
@@ -143,6 +149,12 @@ const MAX_SCAN = 64;
 export function isBlockedName(raw: string): boolean {
   const text = cleanNickname(raw).slice(0, MAX_SCAN);
   if (text.length === 0) return false;
+
+  // The WeChat channel accepts Chinese nicknames: the CJK terms are matched by direct
+  // containment on the normalised text — no folding, that machinery is ASCII-only by design.
+  for (const term of BLOCKED_CJK) {
+    if (text.includes(term)) return true;
+  }
 
   const folded = reduce(text, true);
   const squashed = collapse(folded);

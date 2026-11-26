@@ -189,12 +189,13 @@ describe('audio director time-stop cutoff', () => {
   /** A director whose sequencer interval is captured instead of looping. */
   function bootDirector(): { director: AudioDirector; cutoffs: Array<[number, number]> } {
     const ticks: Array<() => void> = [];
-    vi.stubGlobal('window', {
-      setInterval: (fn: () => void): number => {
-        ticks.push(fn);
-        return 0;
-      },
+    // The heartbeat runs on the global timer since the WeChat adaptation; the document stub keeps
+    // `pageHidden()` on the DOM branch, and onShow/onShow listeners stay unregistered.
+    vi.stubGlobal('setInterval', (fn: () => void): number => {
+      ticks.push(fn);
+      return 0;
     });
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext, setTimeout });
     vi.stubGlobal('document', { addEventListener: () => {}, hidden: false });
     const director = new AudioDirector();
     const cutoffs: Array<[number, number]> = [];

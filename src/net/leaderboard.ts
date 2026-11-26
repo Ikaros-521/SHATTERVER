@@ -2,10 +2,12 @@
  * The surface the game and the leaderboard screen use, independent of which service backs it.
  *
  * Environment detection picks the channel once, at startup: inside a Bilibili Toy the page runs
- * {@link ./toychannel.ts | ToyChannel} against the platform's boards, everywhere else it runs the
- * CheddaBoards-backed `Cloud`. Nothing downstream branches on the service — it branches on
- * `kind` only where the two genuinely differ (the nickname UI, which the Toy channel does not
- * have because identity is the platform's).
+ * {@link ./toychannel.ts | ToyChannel} against the platform's boards, inside a WeChat minigame
+ * {@link ./wechatchannel.ts | WeChatChannel} against the project's own 微信云开发 function, and
+ * everywhere else it runs the CheddaBoards-backed `Cloud`. Nothing downstream branches on the
+ * service — it branches on `kind` only where they genuinely differ (the nickname UI, which the Toy
+ * channel lacks because identity is the platform's, and which the WeChat channel owns because
+ * identity there is a silent openid plus a name the player types).
  */
 
 import type { RunRecord } from '../core/storage';
@@ -15,7 +17,7 @@ import type { WalletMirror } from './toywallet';
 
 export interface Leaderboard {
   /** Which backing service this is. */
-  readonly kind: 'chedda' | 'toy';
+  readonly kind: 'chedda' | 'toy' | 'wechat';
   /** Debug/automation handle; on Toy this is a placeholder, not a real id. */
   readonly playerId: string;
   /** The name the board shows. Empty until known; on Toy it is the player's B站 nickname. */

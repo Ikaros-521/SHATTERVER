@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-verify/
+dist-wechat/
 *.local
 .vite/
 coverage/
@@ -8,4 +9,8 @@ promo/
 .hyperframes/
 covers/
 *.zip
+<<<<<<< HEAD
 .zcode/
+=======
+project.private.config.json
+>>>>>>> feat/wechat-port

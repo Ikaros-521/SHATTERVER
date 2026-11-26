@@ -145,6 +145,7 @@ export const zh = {
     whereEndless: '第 {level} 关',
     chipLatest: '最新',
     metaRow: '{where} · 连击 {combo} · 伤害 {damage} · {time} · {date}',
+    stats: '连击 {combo} · 伤害 {damage} · {time} · {date}',
   },
   cloud: {
     title: '云端排行榜',

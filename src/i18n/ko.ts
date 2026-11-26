@@ -120,6 +120,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     whereEndless: '제{level}단',
     chipLatest: '최신',
     metaRow: '{where} · 콤보 {combo} · 피해 {damage} · {time} · {date}',
+    stats: '콤보 {combo} · 피해 {damage} · {time} · {date}',
   },
   cloud: {
     title: '클라우드 랭킹',
@@ -1136,7 +1137,8 @@ export const ko: UiDict & { content: ContentOverrides } = {
     earnedDaily: '데일리 임무 +{n}',
     earnedHalved: '오늘의 판 스타더스트가 상한에 도달했습니다. 초과분은 절반으로 지급됩니다',
     progressLine: '{n} / {total} 달성',
-    progressNote: '마일스톤은 자동으로 정산됩니다. 첫 선택 보너스는 업그레이드를 처음 선택할 때 지급됩니다. 스타더스트는 판에서만 얻으며 이 기기에만 저장됩니다.',
+    progressNote:
+      '마일스톤은 자동으로 정산됩니다. 첫 선택 보너스는 업그레이드를 처음 선택할 때 지급됩니다. 스타더스트는 판에서만 얻으며 이 기기에만 저장됩니다.',
     supply: {
       cache: { name: '크리스탈 상자', desc: '크리스털 +40을 들고 시작.' },
       precharge: { name: '사전 충전', desc: '매 스테이지 시작 시 오버드라이브가 절반.' },

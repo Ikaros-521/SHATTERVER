@@ -120,6 +120,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     whereEndless: 'Level {level}',
     chipLatest: 'NEW',
     metaRow: '{where} · combo {combo} · damage {damage} · {time} · {date}',
+    stats: 'combo {combo} · damage {damage} · {time} · {date}',
   },
   cloud: {
     title: 'Cloud board',
@@ -1166,14 +1167,18 @@ export const en: UiDict & { content: ContentOverrides } = {
     earnedDaily: 'Daily missions +{n}',
     earnedHalved: 'Today\u2019s run stardust hit the cap; the rest pays half',
     progressLine: '{n} / {total} reached',
-    progressNote: 'Milestones settle on their own; first-use rewards pay the first time you take an upgrade. Stardust comes only from runs and stays on this device.',
+    progressNote:
+      'Milestones settle on their own; first-use rewards pay the first time you take an upgrade. Stardust comes only from runs and stays on this device.',
     supply: {
       cache: { name: 'Crystal Cache', desc: 'Start with 40 more crystals.' },
       precharge: { name: 'Pre-Charge', desc: 'Every sector opens with half the Overdrive meter.' },
       spare: { name: 'Spare Shield', desc: 'Maximum shield +1.' },
       reroll: { name: 'Free Reroll', desc: 'The first reroll of every draft is free.' },
       headstart: { name: 'Head Start', desc: 'Take one extra upgrade before the first sector.' },
-      secondwind: { name: 'Second Wind', desc: 'The first time the shield breaks, restore 2 shield (once per run).' },
+      secondwind: {
+        name: 'Second Wind',
+        desc: 'The first time the shield breaks, restore 2 shield (once per run).',
+      },
       trial: 'Trial',
       trialOn: 'On trial',
     },

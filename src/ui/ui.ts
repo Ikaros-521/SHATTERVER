@@ -1,7 +1,7 @@
 import type { AudioDirector } from '../audio/director';
 import { applyDom, isLang, t } from '../core/i18n';
 import { formatNumber, formatScore, formatTime, mixHex } from '../core/math';
-import type { SaveData, Settings } from '../core/storage';
+import type { EconomyPayout, SaveData, Settings } from '../core/storage';
 import { APP_VERSION } from '../core/version';
 import {
   bossName,
@@ -134,23 +134,9 @@ const SCREENS: ScreenId[] = [
   'shop',
 ];
 
-/** One run's 星尘 payout, quoted on the results screen. */
-export interface EconomyPayout {
-  /** The raw run share, before the daily soft cap. Doubled on the day's first scoring run. */
-  earned: number;
-  /** The run share actually paid. */
-  runPaid: number;
-  /** True when the daily cap halved part of the run share. */
-  halved: boolean;
-  gift: number;
-  firstUse: number;
-  milestones: number;
-  /** How many milestones settled with this run (they may be zero even when the reward is not). */
-  milestoneCount: number;
-  /** Daily missions this run completed; their reward bypasses the daily cap. */
-  missions: number;
-  total: number;
-}
+/** One run's 星尘 payout, quoted on the results screen. Lives in `core/storage` next to the save
+ * shape it settles into; the game rule (`game/finish.ts`) and the WeChat shell share it. */
+export type { EconomyPayout } from '../core/storage';
 
 export interface BannerOptions {
   title: string;
@@ -858,7 +844,9 @@ export class UI implements HudHost {
       const owned = econ.skins.includes(skin.id);
       // Ball and paddle skins wear their glow; the backdrop theme previews itself on chapter one.
       const color =
-        skin.kind === 'bg' ? applyBgSkin(CHAPTERS[0]!.bg, CHAPTERS[0]!.accent, skin).accent : skin.colors.glow;
+        skin.kind === 'bg'
+          ? applyBgSkin(CHAPTERS[0]!.bg, CHAPTERS[0]!.accent, skin).accent
+          : skin.colors.glow;
       const equipped =
         (skin.kind === 'ball' && econ.skinBall === skin.id) ||
         (skin.kind === 'paddle' && econ.skinPaddle === skin.id) ||

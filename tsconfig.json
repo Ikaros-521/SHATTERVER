@@ -16,5 +16,12 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "vite.config.ts", "vite.toy.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "vite.config.ts",
+    "vite.toy.config.ts",
+    "vite.wechat.config.ts",
+    "vitest.config.ts"
+  ]
 }

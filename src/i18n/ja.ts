@@ -120,6 +120,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     whereEndless: '第{level}層',
     chipLatest: '新着',
     metaRow: '{where} · コンボ {combo} · ダメージ {damage} · {time} · {date}',
+    stats: 'コンボ {combo} · ダメージ {damage} · {time} · {date}',
   },
   cloud: {
     title: 'クラウドランキング',
@@ -1150,7 +1151,8 @@ export const ja: UiDict & { content: ContentOverrides } = {
     earnedDaily: 'デイリー任務 +{n}',
     earnedHalved: '本日の対戦スターダストは上限に達しました。超過分は半分になります',
     progressLine: '達成 {n} / {total}',
-    progressNote: 'マイルストーンは自動で記帳されます。初採用ボーナスはアップグレードを初めて選んだ時に支給。スターダストは対戦からのみ入手され、この端末にのみ保存されます。',
+    progressNote:
+      'マイルストーンは自動で記帳されます。初採用ボーナスはアップグレードを初めて選んだ時に支給。スターダストは対戦からのみ入手され、この端末にのみ保存されます。',
     supply: {
       cache: { name: 'クリスタル箱', desc: 'クリスタル +40 を持って開始。' },
       precharge: { name: '先行チャージ', desc: '毎ステージ開始時、オーバードライブが半分。' },

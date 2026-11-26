@@ -74,6 +74,18 @@ describe('blocked handles', () => {
     }
   });
 
+  it('catches the CJK list for the WeChat channel, inside longer handles too', () => {
+    for (const name of ['傻逼', '草泥马', '大傻逼一号', '婊子', '卧槽', '肏蛋大师', '约炮达人', '色情狂']) {
+      expect(isBlockedName(name), name).toBe(true);
+    }
+  });
+
+  it('leaves innocent Chinese handles playable', () => {
+    for (const name of ['碎界玩家', '赤铁矿带', '弹幕爱好者', '多多益善']) {
+      expect(isBlockedName(name), name).toBe(false);
+    }
+  });
+
   it('catches the usual bypasses', () => {
     for (const name of [
       'f_u_c_k', // separators

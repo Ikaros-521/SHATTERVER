@@ -6,6 +6,8 @@
  * music bus and a generated reverb) and exposes two primitives, `tone` and `noise`.
  */
 
+import { audioContextFactory, onPageVisible } from './page';
+
 export interface ToneOptions {
   type?: OscillatorType;
   freq: number;
@@ -96,19 +98,19 @@ export class AudioEngine {
   unlock(): void {
     try {
       if (!this.ctx) {
-        const Ctor: typeof AudioContext | undefined =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctor) return;
-        const ctx = new Ctor();
+        const create = audioContextFactory();
+        if (!create) return;
+        const ctx: AudioContext = create();
         this.ctx = ctx;
         this.buildGraph(ctx);
         this.watchdog(ctx);
       }
       // 'interrupted' (iOS: phone call, alarm banner) is a third state; resume covers it too.
       if (this.ctx.state !== 'running') void this.ctx.resume();
-    } catch {
-      // Audio is optional. If the browser refuses, the game simply plays silently.
+    } catch (error) {
+      // Audio is optional. If the browser refuses, the game simply plays silently — but the
+      // reason is worth one line, because a silent failure looks exactly like a mute setting.
+      console.warn('audio unlock failed:', error);
       this.ctx = null;
     }
   }
@@ -122,12 +124,12 @@ export class AudioEngine {
   private watchdog(ctx: AudioContext): void {
     ctx.addEventListener('statechange', () => {
       if (ctx.state === 'running') return;
-      window.setTimeout(() => {
+      setTimeout(() => {
         if (this.ctx === ctx && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
       }, 150);
     });
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+    onPageVisible(() => {
+      if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
     });
   }
 

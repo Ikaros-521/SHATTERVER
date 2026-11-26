@@ -21,7 +21,6 @@ import { difficultyOf, type DifficultyId } from '../game/difficulty';
 import { Session } from '../game/session';
 import type { Starter } from '../game/starters';
 import type { RunMode } from '../game/run';
-import type { UpgradeDef } from '../game/upgrades/types';
 import { Fx, particleCapacity } from '../render/fx';
 import { computeLayout, type Layout } from '../render/layout';
 import { Renderer } from '../render/renderer';
@@ -30,11 +29,10 @@ import { drawScene, type SceneInfo } from '../render/scene';
 export interface WorldCallbacks {
   /** The run is over (timer after the final phase); the shell should show the menu again. */
   onFinish(): void;
-  /** A draft came up; `choose` picks the option the shell decided on. */
-  onDraft(options: UpgradeDef[], choose: (id: string) => void): void;
+  /** A draft came up; the shell shows its draft screen and drives `pick`/`reroll`/`skip`. */
+  onDraft(): void;
 }
 
-const AUTO_DRAFT_DELAY = 0.6;
 const FINISH_DELAY = 1.1;
 
 export class WorldBinding {
@@ -45,8 +43,6 @@ export class WorldBinding {
   /** Filled in by `drawScene` every frame (danger/energy); the shell only owns the object. */
   private readonly info: SceneInfo = { danger: 0, energy: 0 };
   private resultsTimer = -1;
-  private draftTimer = -1;
-  private draftChoices: UpgradeDef[] = [];
   private finished = false;
   /** Unlisten hooks for the session/world wires, dropped on dispose. */
   private readonly wires: (() => void)[] = [];
@@ -61,11 +57,15 @@ export class WorldBinding {
     height: number,
     dpr: number,
     private readonly cb: WorldCallbacks,
+    /** Debug hooks: the self-playing paddle and a deep start, for reaching drafts quickly. */
+    options: { bot?: boolean; level?: number } = {},
   ) {
     this.session = new Session(mode, randomSeed(), {
       starter,
       difficulty: difficultyOf(difficultyId),
       supplies: save.economy.loadout,
+      bot: options.bot ?? false,
+      level: options.level,
     });
     const settings = save.settings;
     this.fx = new Fx(particleCapacity('high'), {
@@ -78,11 +78,7 @@ export class WorldBinding {
 
     this.wires.push(
       this.fx.attach(this.session.world),
-      this.session.events.on('draft', (info) => {
-        this.draftChoices = info.options;
-        this.draftTimer = AUTO_DRAFT_DELAY;
-        this.cb.onDraft(info.options, (id) => this.session.choose(id));
-      }),
+      this.session.events.on('draft', () => this.cb.onDraft()),
       this.session.events.on('phase', ({ phase }) => {
         if (phase === 'over' || phase === 'won') this.resultsTimer = FINISH_DELAY;
       }),
@@ -93,16 +89,6 @@ export class WorldBinding {
   /** Advances the simulation and renders one frame. `dt` in seconds, clamped by the caller. */
   frame(dt: number, timeSeconds: number): void {
     if (this.finished) return;
-    if (this.draftTimer > 0) {
-      this.draftTimer -= dt;
-      if (this.draftTimer <= 0 && this.draftChoices.length > 0) {
-        // The auto-pilot pick until the draft screen is ported: first option, logged loudly.
-        const pick = this.draftChoices[0] as UpgradeDef;
-        console.log('auto-draft:', pick.id);
-        this.session.choose(pick.id);
-        this.draftChoices = [];
-      }
-    }
     if (this.resultsTimer > 0) {
       this.resultsTimer -= dt;
       if (this.resultsTimer <= 0) {

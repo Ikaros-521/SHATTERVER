@@ -57,6 +57,9 @@ export interface LabelWidget extends Base {
   text: string;
   size: number;
   color: ColorKey;
+  /** A finished `rgba()` string that wins over `color` — for data-driven colours (rarity tiers,
+   *  difficulty tiers) that no fixed palette key can name. */
+  colorOverride?: string;
   align: Align;
   alpha: number;
   weight: string;
@@ -67,6 +70,7 @@ export interface ParagraphWidget extends Base {
   text: string;
   size: number;
   color: ColorKey;
+  colorOverride?: string;
   align: Align;
   /** Line height as a multiple of `size`. */
   lineHeight: number;
@@ -86,6 +90,8 @@ export interface ButtonWidget extends Base {
   subSize: number;
   trailingSize: number;
   variant: 'primary' | 'ghost' | 'danger';
+  /** Overrides the variant's stroke colour (rarity-tinted cards); fill/text stay from the variant. */
+  strokeOverride?: string;
   disabled: boolean;
   /** Horizontal padding around the label; height comes from the touch-target floor. */
   paddingH: number;
@@ -155,6 +161,7 @@ export function label(
   opts: {
     size?: number;
     color?: ColorKey;
+    colorOverride?: string;
     align?: Align;
     alpha?: number;
     weight?: string;
@@ -165,6 +172,7 @@ export function label(
     text,
     size: opts.size ?? 15,
     color: opts.color ?? 'ink',
+    colorOverride: opts.colorOverride,
     align: opts.align ?? 'left',
     alpha: opts.alpha ?? 1,
     weight: opts.weight ?? '400',
@@ -177,13 +185,20 @@ export function label(
 
 export function paragraph(
   text: string,
-  opts: { size?: number; color?: ColorKey; align?: Align; lineHeight?: number } = {},
+  opts: {
+    size?: number;
+    color?: ColorKey;
+    colorOverride?: string;
+    align?: Align;
+    lineHeight?: number;
+  } = {},
 ): ParagraphWidget {
   return {
     kind: 'paragraph',
     text,
     size: opts.size ?? 15,
     color: opts.color ?? 'ink',
+    colorOverride: opts.colorOverride,
     align: opts.align ?? 'left',
     lineHeight: opts.lineHeight ?? 1.45,
     x: 0,
@@ -207,6 +222,7 @@ export function button(
     sub?: string;
     trailing?: string;
     stretch?: boolean;
+    strokeOverride?: string;
   } = {},
 ): ButtonWidget {
   const size = opts.size ?? 16;
@@ -217,6 +233,7 @@ export function button(
     trailing: opts.trailing,
     stretch: opts.stretch ?? false,
     size,
+    strokeOverride: opts.strokeOverride,
     subSize: Math.max(10, Math.round(size * 0.62)),
     trailingSize: Math.max(10, Math.round(size * 0.72)),
     variant: opts.variant ?? 'ghost',
@@ -357,8 +374,8 @@ export function forEachWidget(w: Widget, visit: (widget: Widget) => void): void 
 
 // ───────────────────────────── drawing ─────────────────────────────
 
-function colorOf(theme: Theme, key: ColorKey): string {
-  return rgba(theme.colors[key], 1);
+function colorOf(theme: Theme, key: ColorKey, override?: string): string {
+  return override ?? rgba(theme.colors[key], 1);
 }
 
 function buttonColors(
@@ -407,7 +424,7 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
     case 'label':
       s.text(w.text, labelX(w), w.y, {
         size: w.size,
-        color: colorOf(theme, w.color),
+        color: colorOf(theme, w.color, w.colorOverride),
         align: w.align,
         alpha: w.alpha,
         weight: w.weight,
@@ -420,7 +437,7 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
       for (const line of lines) {
         s.text(line, paragraphX(w), ly, {
           size: w.size,
-          color: colorOf(theme, w.color),
+          color: colorOf(theme, w.color, w.colorOverride),
           align: w.align,
         });
         ly += lineHeight;
@@ -432,7 +449,7 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
       const alpha = w.disabled ? 0.4 : 1;
       s.box(w.x, w.y, w.w, w.h, {
         fill: colors.fill,
-        stroke: colors.stroke,
+        stroke: w.strokeOverride ?? colors.stroke,
         strokeW: 1,
         radius: theme.radius,
       });

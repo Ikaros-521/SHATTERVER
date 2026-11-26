@@ -21,9 +21,12 @@ import { GL } from '../render/gl';
 import { loadSave, storeSave, type SaveData } from '../core/storage';
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
 import type { Starter } from '../game/starters';
+import { RNG, randomSeed } from '../core/rng';
+import { UPGRADES } from '../game/upgrades/defs';
 import type { DifficultyId } from '../game/difficulty';
 import type { RunMode } from '../game/run';
 import { buildMenuModel } from './menumodel';
+import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
 import { starterTree } from './screens/starter';
 import { WorldBinding } from './world';
@@ -36,7 +39,8 @@ type ShellScreen =
   | { kind: 'menu' }
   | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId }
   | ({ kind: 'history' } & HistoryState)
-  | { kind: 'run' };
+  | { kind: 'run' }
+  | { kind: 'draft' };
 
 function boot(): void {
   const sys = wx.getSystemInfoSync();
@@ -83,6 +87,26 @@ function boot(): void {
       );
     } else if (current.kind === 'history') {
       ui.setTree(historyTree(save, { tab: current.tab }, historyActions, width, height, surface));
+    } else if (current.kind === 'draft') {
+      const session = world?.session;
+      if (!session) return;
+      ui.setTree(
+        draftTree(
+          {
+            intro: session.run.level === 1 && session.rerolls === 0 && session.phase === 'draft',
+            code: session.world.level.code,
+            options: session.draft,
+            levels: session.draft.map((def) => session.run.upgrades[def.id] ?? 0),
+            crystals: session.run.crystals,
+            rerollCost: session.rerollCost,
+            skipReward: session.skipReward,
+          },
+          draftActions,
+          width,
+          height,
+          surface,
+        ),
+      );
     }
   };
 
@@ -159,9 +183,9 @@ function boot(): void {
           current = { kind: 'menu' };
           rebuild();
         },
-        onDraft: (options, choose) => {
-          console.log('draft:', options.map((option) => option.id).join('/'));
-          void choose;
+        onDraft: (): void => {
+          current = { kind: 'draft' };
+          rebuild();
         },
       });
       current = { kind: 'run' };
@@ -169,14 +193,76 @@ function boot(): void {
       ui.markDirty();
     },
   };
+  const draftActions = {
+    pick: (id: string): void => {
+      if (!world || current.kind !== 'draft') return;
+      world.session.choose(id);
+      leaveDraftIfDone();
+    },
+    reroll: (): void => {
+      if (!world || current.kind !== 'draft') return;
+      world.session.reroll();
+      rebuild(); // the roll changed; crystals may have moved
+    },
+    skip: (): void => {
+      if (!world || current.kind !== 'draft') return;
+      world.session.skip();
+      leaveDraftIfDone();
+    },
+  };
+  /** A settled draft hands control back to the live world; a re-rolled one stays on the screen. */
+  const leaveDraftIfDone = (): void => {
+    if (world && world.session.phase !== 'draft') {
+      current = { kind: 'run' };
+      ui.markDirty();
+    } else rebuild();
+  };
 
   rebuild();
   // Debug/automation handle, same spirit as the DOM build's `__shatterverse`.
+  const makeWorld = (bot: boolean, level: number): void => {
+    if (world) {
+      world.dispose();
+      world = null;
+    }
+    // A demo-style random build, so the debug run can actually clear sectors and reach drafts.
+    const rng = new RNG(randomSeed());
+    const grants: Record<string, number> = {};
+    for (const def of rng.shuffle([...UPGRADES]).slice(0, rng.int(9, 13))) grants[def.id] = rng.int(1, 2);
+    const starter: Starter = { id: 'debug', name: '', en: '', desc: '', color: 0, grants, crystals: 0 };
+    world = new WorldBinding(
+      screen,
+      save,
+      'endless',
+      starter,
+      save.settings.difficulty,
+      width,
+      height,
+      dpr,
+      {
+        onFinish: (): void => {
+          world?.dispose();
+          world = null;
+          current = { kind: 'menu' };
+          rebuild();
+        },
+        onDraft: (): void => {
+          current = { kind: 'draft' };
+          rebuild();
+        },
+      },
+      { bot, level },
+    );
+    current = { kind: 'run' };
+    ui.markDirty();
+  };
   (globalThis as { __shell?: unknown }).__shell = {
     ui,
     save,
     screen: () => current,
     rebuild,
+    world: () => world,
+    debugStart: makeWorld,
   };
 
   wx.onTouchStart((event) => {

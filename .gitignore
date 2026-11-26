@@ -9,8 +9,5 @@ promo/
 .hyperframes/
 covers/
 *.zip
-<<<<<<< HEAD
 .zcode/
-=======
 project.private.config.json
->>>>>>> feat/wechat-port

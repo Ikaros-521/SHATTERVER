@@ -45,6 +45,25 @@ pnpm format         # Prettier
 
 浏览器要求：支持 **WebGL2** 并开启硬件加速（Chrome / Edge / Firefox 最新版均可）。不支持时会显示明确的提示页。
 
+### 两条构建线（别混）
+
+| 命令             | 产物               | 用途                                                                                                  |
+| ---------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `pnpm build`     | 网页版             | 部署 GitHub Pages / 自托管；带 SEO（canonical、og、llms.txt、sitemap）与 CheddaBoards 云榜、sourcemap |
+| `pnpm build:toy` | **B站 Toy 提审包** | 只用于打包提交 Toy 审核                                                                               |
+
+`build:toy` 与网页版的区别：`__TOY__` 编译期常量让 Chedda 客户端被整体剔除（包内无第三方服务与品牌）、云榜只走平台榜（「全球榜」tab 消失）、不产出 sourcemap，并删除 `llms.txt` / `robots.txt` / `sitemap.xml` / `og-cover.png` 与 index.html 里所有站外地址（canonical / og:url / og:image / twitter:image / JSON-LD）。
+
+> **提审用哪条线？** 永远是 `pnpm build:toy`。站外链接和第三方品牌是 Toy 审核的驳回项，普通 `pnpm build` 的产物拿去提审会被拒。两条线共用 `dist/`，后跑的覆盖先跑的——提审前用 `pnpm check:package` 确认当前 dist 是 Toy 合规包（对着网页版产物跑会直接报错）。
+
+```bash
+pnpm build:toy      # 生成 Toy 合规包
+pnpm check:package  # 扫描 dist/：敏感词、夸大表达、站外域名、web-only 产物
+pnpm test           # 全量测试
+```
+
+三项全绿后 zip `dist/` 提交。审核红线细节见 [AGENTS.md](AGENTS.md)。
+
 ## 操作
 
 | 操作                                | 说明                                              |

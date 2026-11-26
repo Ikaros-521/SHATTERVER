@@ -114,10 +114,12 @@ describe('blocked handles', () => {
     expect(isBlockedName('badass')).toBe(false); // `ass` is a whole-only term, so this passes
   });
 
-  it('catches Chinese terms if a non-ASCII name ever reaches the filter', () => {
-    expect(isBlockedName('赌博之星')).toBe(true);
-    expect(isBlockedName('法轮功')).toBe(true);
-    expect(isBlockedName('碎界玩家')).toBe(false);
+  it('rejects non-ASCII handles at the charset step, before the blocklist is consulted', () => {
+    for (const name of ['赌博之星', '法轮功', '碎界玩家']) {
+      const check = checkNickname(name);
+      expect(check.ok, name).toBe(false);
+      if (!check.ok) expect(check.problem, name).toBe('charset');
+    }
   });
 });
 

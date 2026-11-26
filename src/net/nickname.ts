@@ -7,21 +7,16 @@
  *    everything else with a permanent 400. Chinese, emoji and spaces cannot be sent at all, so the
  *    input has to say that plainly instead of letting the player type a name and hit a wall.
  * 2. **This game's rule.** A name that passes the platform can still be abusive, illegal or
- *    politically unpublishable. `isBlockedName` catches those, including the usual bypasses
- *    (`f_u_c_k`, `sh1t`, `fuuuck`, fullwidth and zero-width tricks).
+ *    otherwise unpublishable. `isBlockedName` catches those, including the usual bypasses
+ *    (`f_u_c_k`, `sh1t`, `fuuuck`, fullwidth and zero-width tricks). The list is ASCII-only: a
+ *    non-ASCII handle never gets past the charset rule above, so it is rejected before this runs.
  *
  * Everything here is pure and synchronous, so the input can validate on every keystroke and the
  * submit path never has to trust a name it did not check itself.
  */
 
 import { t } from '../core/i18n';
-import {
-  BLOCKED_CJK,
-  BLOCKED_SUBSTRINGS,
-  BLOCKED_WHOLE,
-  RESERVED_PREFIXES,
-  RESERVED_SEGMENTS,
-} from './blocklist';
+import { BLOCKED_SUBSTRINGS, BLOCKED_WHOLE, RESERVED_PREFIXES, RESERVED_SEGMENTS } from './blocklist';
 
 export const NICKNAME_MIN = 3;
 export const NICKNAME_MAX = 16;
@@ -148,12 +143,6 @@ const MAX_SCAN = 64;
 export function isBlockedName(raw: string): boolean {
   const text = cleanNickname(raw).slice(0, MAX_SCAN);
   if (text.length === 0) return false;
-
-  // Chinese handles are not accepted by the platform today, but the same filter guards them.
-  if (!isAsciiOnly(text)) {
-    const cjk = text.normalize('NFKC').toLowerCase();
-    if (BLOCKED_CJK.some((term) => cjk.includes(term))) return true;
-  }
 
   const folded = reduce(text, true);
   const squashed = collapse(folded);

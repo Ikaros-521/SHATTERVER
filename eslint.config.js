@@ -19,4 +19,11 @@ export default tseslint.config(
     files: ['tests/**/*.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },
+  {
+    // Repo tooling: plain Node ESM scripts (no bundler), so Node globals apply.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { Buffer: 'readonly', console: 'readonly', process: 'readonly', __dirname: 'readonly' },
+    },
+  },
 );

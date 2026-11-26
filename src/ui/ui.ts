@@ -365,7 +365,12 @@ export class UI implements HudHost {
     const records = this.save.records;
     const parts: string[] = [];
     if (records.bestCampaign > 0) {
-      const boss = Math.floor(records.bestCampaign / 5);
+      const bestEntry = records.history.find(
+        (entry) => entry.mode === 'campaign' && entry.level === records.bestCampaign,
+      );
+      const boss = Math.floor(
+        bestEntry && !bestEntry.won ? (records.bestCampaign - 1) / 5 : records.bestCampaign / 5,
+      );
       parts.push(
         t('menu.recordCampaignDepth', { n: records.bestCampaign }) +
           (records.bestCampaign >= CAMPAIGN_LENGTH ? '' : t('menu.recordBossNote', { n: boss })),
@@ -727,6 +732,12 @@ export class UI implements HudHost {
 
   showSettings(): void {
     this.returnTo = this.current === 'pause' ? 'pause' : 'menu';
+    this.syncSettingsControls();
+    this.show('settings');
+  }
+
+  /** Fills the seven controls from the save. Language-neutral values: a switch only re-fills these. */
+  private syncSettingsControls(): void {
     const s = this.save.settings;
     byId<HTMLSelectElement>('set-language').value = s.language;
     byId<HTMLInputElement>('set-music').value = String(s.music);
@@ -735,7 +746,6 @@ export class UI implements HudHost {
     byId<HTMLInputElement>('set-flash').checked = s.flashes;
     byId<HTMLSelectElement>('set-quality').value = s.quality;
     byId<HTMLInputElement>('set-seed').value = s.seed;
-    this.show('settings');
   }
 
   /** Performance readout in settings: frame-rate figures plus the render step actually in effect. */
@@ -1208,7 +1218,7 @@ export class UI implements HudHost {
         this.cloudPanel?.applyLanguage();
         break;
       case 'settings':
-        this.showSettings();
+        this.syncSettingsControls();
         break;
       default:
         break; // In play or on the static pause screen: swept markup + the next HUD frame suffice.

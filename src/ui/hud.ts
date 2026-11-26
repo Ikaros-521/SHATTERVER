@@ -1,5 +1,5 @@
 import { t } from '../core/i18n';
-import { comboTierLabel, reactionName, tagName, upgradeName } from '../i18n/content';
+import { bossName, comboTierLabel, levelName, reactionName, tagName, upgradeName } from '../i18n/content';
 import { formatNumber, formatScore } from '../core/math';
 import { COMBO_TIME } from '../game/config';
 import { COMBO_TIERS, REACTIONS } from '../game/levels/definitions';
@@ -99,12 +99,12 @@ export class HUD {
     this.progressTrack.classList.toggle('is-boss', boss !== null);
     if (boss) {
       this.put(this.levelCode, boss.def.en);
-      this.put(this.levelName, boss.def.name);
+      this.put(this.levelName, bossName(boss.def));
       this.progressTrack.dataset.phase = boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase });
       setWidth(this.progress, boss.hp / boss.maxHp);
     } else {
       this.put(this.levelCode, world.level.code);
-      this.put(this.levelName, world.level.name);
+      this.put(this.levelName, levelName(world.level.chapter, world.level.name));
       this.progressTrack.dataset.phase = '';
       setWidth(this.progress, 1 - world.brickCount() / Math.max(1, world.brickTotal));
     }
@@ -197,6 +197,11 @@ export class HUD {
     this.maxLivesDrawn = -1;
     this.odHint.hidden = true;
     this.buffs.reset();
+    // The signatures alone would leave the last run's chips on screen, since an empty build makes
+    // the same '' signature. Clear the panels the signatures feed, so a new run starts bare.
+    this.rebuildBuild({});
+    this.reactions.replaceChildren();
+    this.reactions.hidden = true;
   }
 
   /** An icon tile for one owned upgrade. Shared by the HUD build panel and the results screen. */

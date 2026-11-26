@@ -234,3 +234,82 @@ describe('release-notes marker', () => {
     }
   });
 });
+
+describe('obfuscated storage', () => {
+  /** Replaces one base64 character with a different valid one, keeping the blob well-formed. */
+  function flipChar(blob: string, at: number): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    return (
+      blob.slice(0, at) + alphabet[(alphabet.indexOf(blob[at]) + 7) % alphabet.length] + blob.slice(at + 1)
+    );
+  }
+
+  it('stores the save obfuscated and reads it back untouched', () => {
+    const save = defaultSave();
+    save.economy.stardust = 4321;
+    save.economy.lifetime = 12_345;
+    save.records.bestScore = 987_654;
+    save.economy.protocols = ['bulwark'];
+    addRunRecord(save.records, record({ name: '测试扇区' }));
+    storeSave(save);
+    const raw = store.get(KEY) ?? '';
+    expect(raw.startsWith('SVX1:')).toBe(true);
+    // Not plaintext: neither the wallet nor the field names may survive into the blob.
+    expect(() => JSON.parse(raw)).toThrow();
+    expect(raw).not.toContain('stardust');
+    expect(raw).not.toContain('4321');
+    expect(raw).not.toContain('987654');
+    expect(raw).not.toContain('测试扇区');
+    const again = loadSave();
+    expect(again.economy.stardust).toBe(4321);
+    expect(again.economy.lifetime).toBe(12_345);
+    expect(again.records.bestScore).toBe(987_654);
+    expect(again.economy.protocols).toEqual(['bulwark']);
+    expect(again.records.history[0]?.name).toBe('测试扇区');
+  });
+
+  it('writes each save differently, so identical states never store identical blobs', () => {
+    const raw = JSON.stringify({ version: 2, settings: {}, records: {}, economy: { stardust: 7 } });
+    store.set(KEY, raw);
+    const first = loadSave();
+    storeSave(first);
+    const a = store.get(KEY);
+    storeSave(first);
+    expect(store.get(KEY)).not.toBe(a);
+  });
+
+  it('still reads a pre-obfuscation plaintext save, then re-writes it obfuscated', () => {
+    store.set(
+      KEY,
+      JSON.stringify({
+        version: 2,
+        settings: { music: 0.4 },
+        records: { bestScore: 777 },
+        economy: { stardust: 55 },
+      }),
+    );
+    const save = loadSave();
+    expect(save.economy.stardust).toBe(55);
+    expect(save.records.bestScore).toBe(777);
+    expect(save.settings.music).toBe(0.4);
+    storeSave(save);
+    expect(store.get(KEY)?.startsWith('SVX1:')).toBe(true);
+    expect(loadSave().economy.stardust).toBe(55);
+  });
+
+  it('a tampered blob reads as a fresh save instead of applying the edit', () => {
+    const save = defaultSave();
+    save.economy.stardust = 4321;
+    save.records.bestScore = 999_999;
+    storeSave(save);
+    const raw = store.get(KEY) ?? '';
+    // One flip inside the header breaks the keystream; one deep in the payload breaks the
+    // checksum. Both must land on the same path as any other corrupted save.
+    for (const at of [8, raw.length - 10]) {
+      store.set(KEY, flipChar(raw, at));
+      const fresh = loadSave();
+      expect(fresh.economy.stardust).toBe(0);
+      expect(fresh.records.bestScore).toBe(0);
+    }
+  });
+});

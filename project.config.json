@@ -1,4 +1,5 @@
 {
+  "description": "碎界 SHATTERVERSE — 微信小游戏。代码目录为 dist-wechat/(pnpm build:wechat 产出)。",
   "setting": {
     "es6": true,
     "postcss": true,
@@ -13,12 +14,20 @@
     },
     "useCompilerPlugins": false
   },
-  "compileType": "miniprogram",
+  "compileType": "game",
+  "libVersion": "3.18.1",
+  "miniprogramRoot": "dist-wechat/",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "node_modules"
+      }
+    ],
     "include": []
   },
   "appid": "wx5588bc462a82a60f",
+  "projectname": "shatterverse-wechat",
   "editorSetting": {}
 }

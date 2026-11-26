@@ -59,7 +59,8 @@ describe('isToyEnvironment', () => {
 });
 
 describe('clampToyScore', () => {
-  // Every campaign run a bot finishes, and standard endless through level 21, is stored as scored.
+  // Every campaign run a bot finishes, and capped standard endless until about level 27, is stored
+  // as scored.
   const AS_SCORED_UP_TO = 16_000_000;
 
   it('stores a score that fits exactly as the game awarded it', () => {

@@ -10,7 +10,7 @@ import {
   PADDLE_Y,
   WALL,
 } from '../src/game/config';
-import { applyDamage, basePower } from '../src/game/combat';
+import { applyDamage, ballPower, basePower, explode, onBallHitBrick } from '../src/game/combat';
 import type { Ball, Brick } from '../src/game/entities';
 import { buildLevel } from '../src/game/levels/generator';
 import { createRun } from '../src/game/run';
@@ -534,6 +534,44 @@ describe('world: combat systems', () => {
     expect(core!.dead).toBe(false);
     expect(core!.hp).toBeCloseTo(core!.maxHp * 0.15 - 1);
     expect(executed).toBe(1);
+  });
+});
+
+describe('world: fire pools', () => {
+  it('keeps the default pool at explosion-scaled power and lets callers state it explicitly', () => {
+    const world = makeWorld({ explosive: 5, meltdown: 1 }, { bot: false, balls: 1 }); // explosionDamage = 2.5
+    clearCourt(world);
+    world.pools.length = 0;
+
+    explode(world, 360, 300, 110, 100, 0xff5c2b, 'normal');
+    expect(world.pools).toHaveLength(1);
+    expect(world.pools[0]!.power, '100 / 2.5 — the kill-explosion default is unchanged').toBe(40);
+
+    world.pools.length = 0;
+    explode(world, 360, 300, 110, 100, 0xff5c2b, 'normal', 100);
+    expect(world.pools).toHaveLength(1);
+    expect(world.pools[0]!.power, 'an explicit poolPower passes through untouched').toBe(100);
+  });
+
+  it('leaves venom-reaction pools at full attack power, whatever the 爆裂核心 level', () => {
+    const world = makeWorld({ fire: 1, poison: 1, explosive: 5, meltdown: 1 }, { bot: false, balls: 1 });
+    // Park the whole field, then keep one tanky brick at centre court so only the reaction can fire.
+    clearCourt(world);
+    const brick = world.bricks.find((b) => b.type !== 'eraser')!;
+    brick.x = 360;
+    brick.baseY = 300;
+    brick.y = 300;
+    brick.hp = 1_000_000; // the contact must not kill: a death here would spawn a pool of its own
+    const ball = world.balls[0]!;
+    ball.docked = true;
+    const power = ballPower(world, ball);
+    expect(power).toBeGreaterThan(0);
+
+    // One synthetic contact drives the real venom path: poison lands, then burn reacts with it.
+    onBallHitBrick(world, ball, brick, 0, -1, brick.x, brick.y);
+
+    expect(world.pools, 'the venom blast leaves exactly one pool').toHaveLength(1);
+    expect(world.pools[0]!.power, 'pool power = attack power, not power / explosionDamage').toBe(power);
   });
 });
 

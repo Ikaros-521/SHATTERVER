@@ -243,7 +243,7 @@ function applyStatus(world: World, brick: Brick, kind: 'burn' | 'frost' | 'poiso
     react(world, brick, 'venom');
     brick.burnT = 0;
     brick.poisonT = 0;
-    explode(world, brick.x, brick.y, 110, power, 0x8dff5a, 'normal');
+    explode(world, brick.x, brick.y, 110, power, 0x8dff5a, 'normal', power);
   };
 
   if (kind === 'burn') {
@@ -304,7 +304,16 @@ function chainLightning(world: World, origin: Brick, power: number): void {
   // Overload: lightning discharging through a brick that is already burning detonates it.
   if (origin.burnT > 0 && origin.reactCd <= 0) {
     react(world, origin, 'overload');
-    explode(world, origin.x, origin.y, OVERLOAD_RADIUS, power * OVERLOAD_DAMAGE, 0xffe14d, 'normal');
+    explode(
+      world,
+      origin.x,
+      origin.y,
+      OVERLOAD_RADIUS,
+      power * OVERLOAD_DAMAGE,
+      0xffe14d,
+      'normal',
+      power * OVERLOAD_DAMAGE,
+    );
   }
   for (const { brick } of targets.slice(0, jumps)) {
     world.events.emit('bolt', { x0: origin.x, y0: origin.y, x1: brick.x, y1: brick.y, color });
@@ -313,7 +322,16 @@ function chainLightning(world: World, origin: Brick, power: number): void {
     if (superconduct) applyStatus(world, brick, 'frost', power);
     if (!brick.dead && brick.burnT > 0 && brick.reactCd <= 0) {
       react(world, brick, 'overload');
-      explode(world, brick.x, brick.y, OVERLOAD_RADIUS, power * OVERLOAD_DAMAGE, 0xffe14d, 'normal');
+      explode(
+        world,
+        brick.x,
+        brick.y,
+        OVERLOAD_RADIUS,
+        power * OVERLOAD_DAMAGE,
+        0xffe14d,
+        'normal',
+        power * OVERLOAD_DAMAGE,
+      );
     }
   }
 }
@@ -385,7 +403,14 @@ export function processDeath(world: World, brick: Brick, ctx: DamageCtx): void {
     spawnHole(world, brick.x, brick.y, power);
 }
 
-/** Radial damage with no falloff — every brick inside takes the full amount. */
+/**
+ * Radial damage with no falloff — every brick inside takes the full amount.
+ *
+ * `dmg` is not always power × explosionDamage (venom bursts and overload blasts pass raw power
+ * or a fixed fraction), so callers whose damage is not already explosion-scaled pass `poolPower`
+ * to state the fire-pool strength directly; the default keeps the kill-explosion behaviour of
+ * dividing by `explosionDamage`.
+ */
 export function explode(
   world: World,
   x: number,
@@ -394,6 +419,7 @@ export function explode(
   dmg: number,
   color: number,
   kind: ExplosionKind,
+  poolPower?: number,
 ): void {
   const s = world.live;
   let reach = radius * s.explosionRadiusMult;
@@ -426,7 +452,7 @@ export function explode(
       y,
       r: reach * 0.85,
       life: 2,
-      power: dmg / Math.max(0.01, s.explosionDamage),
+      power: poolPower ?? dmg / Math.max(0.01, s.explosionDamage),
       tick: 0,
       dead: false,
     });

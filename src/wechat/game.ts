@@ -30,9 +30,11 @@ import { WeChatChannel } from '../net/wechatchannel';
 import { buildMenuModel } from './menumodel';
 import { draftTree } from './screens/draft';
 import { historyTree, type HistoryState } from './screens/history';
+import { pauseTree, type PauseActions } from './screens/pause';
 import { resultsTree, type ResultsModel } from './screens/results';
 import { starterTree } from './screens/starter';
 import { WorldBinding } from './world';
+import { drawHud, hudSignature, pauseButtonRect } from './hud';
 import { UITextureLayer } from './uitexture';
 
 const DPR_CAP = 2;
@@ -43,6 +45,7 @@ type ShellScreen =
   | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId }
   | ({ kind: 'history' } & HistoryState)
   | { kind: 'run' }
+  | { kind: 'pause' }
   | { kind: 'draft' }
   | { kind: 'results' };
 
@@ -65,6 +68,8 @@ function boot(): void {
   const ctx = uiCanvas.getContext('2d');
   if (!ctx) throw new Error('2D context is not available');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // A non-null alias in this scope: TS does not carry the narrowing into `frame`'s closure.
+  const hudCtx: CanvasRenderingContext2D = ctx;
 
   const surface = new CanvasSurface(ctx, width, height, DEFAULT_THEME.font);
   const ui = new CanvasUi({ surface, theme: DEFAULT_THEME });
@@ -120,6 +125,8 @@ function boot(): void {
       );
     } else if (current.kind === 'results' && resultsModel) {
       ui.setTree(resultsTree(resultsModel, resultsActions, width, surface));
+    } else if (current.kind === 'pause') {
+      ui.setTree(pauseTree(pauseActions, width, height, surface));
     }
   };
 
@@ -211,6 +218,7 @@ function boot(): void {
   const leaveDraftIfDone = (): void => {
     if (world && world.session.phase !== 'draft') {
       current = { kind: 'run' };
+      hudSig = ''; // the draft screen replaced the HUD texture; force the overlay repaint
       ui.markDirty();
     } else rebuild();
   };
@@ -330,23 +338,106 @@ function boot(): void {
     debugStart: makeWorld,
   };
 
+  // Run-screen gesture state: a short still tap fires overdrive, a second tap pauses, a drag
+  // steers the paddle. Everything else goes to the widget tree of the current screen.
+  let tapDownX = 0;
+  let tapDownY = 0;
+  let tapDownAt = 0;
+  let tapDragged = false;
+  let lastTapAt = 0;
+  let paused = false;
+  /** The HUD overlay's content hash; '' forces the next repaint+upload. */
+  let hudSig = '';
+  let lastDamage = 0;
+  let dps = 0;
+
+  const resumeRun = (): void => {
+    paused = false;
+    current = { kind: 'run' };
+    hudSig = '';
+    ui.markDirty();
+  };
+  const pauseRun = (): void => {
+    if (current.kind !== 'run' || !world) return;
+    paused = true;
+    world.releasePointer();
+    current = { kind: 'pause' };
+    rebuild();
+  };
+  const pauseActions: PauseActions = {
+    resume: resumeRun,
+    abandon: (): void => {
+      paused = false;
+      // Walking away forfeits the run: no settlement, no submit — the DOM's 放弃本局 rule.
+      world?.dispose();
+      world = null;
+      current = { kind: 'menu' };
+      rebuild();
+    },
+  };
+
   wx.onTouchStart((event) => {
     const touch = event.touches[0];
     if (!touch) return;
-    if (current.kind === 'run') world?.pointer(touch.clientX);
-    else ui.pointerDown(touch.clientX, touch.clientY);
+    if (current.kind === 'run' && !paused) {
+      // The pause button is the only tap target; everything else steers the paddle.
+      const rect = pauseButtonRect(width);
+      if (touch.clientX >= rect.x && touch.clientX <= rect.x + rect.w && touch.clientY <= rect.h + 10) {
+        tapDragged = true; // a press on the button is never an overdrive tap
+        pauseRun();
+        return;
+      }
+      tapDownX = touch.clientX;
+      tapDownY = touch.clientY;
+      tapDownAt = Date.now();
+      tapDragged = false;
+      world?.pointer(touch.clientX);
+      return;
+    }
+    if (current.kind === 'pause') {
+      // The pause card is widget-driven.
+      ui.pointerDown(touch.clientX, touch.clientY);
+      return;
+    }
+    ui.pointerDown(touch.clientX, touch.clientY);
   });
   wx.onTouchMove((event) => {
     const touch = event.touches[0];
     if (!touch) return;
-    if (current.kind === 'run') world?.pointer(touch.clientX);
-    else ui.pointerMove(touch.clientX, touch.clientY);
+    if (current.kind === 'run' && !paused) {
+      if (Math.hypot(touch.clientX - tapDownX, touch.clientY - tapDownY) > 6) tapDragged = true;
+      world?.pointer(touch.clientX);
+      return;
+    }
+    if (current.kind === 'pause') {
+      ui.pointerMove(touch.clientX, touch.clientY);
+      return;
+    }
+    ui.pointerMove(touch.clientX, touch.clientY);
   });
   wx.onTouchEnd((event) => {
     const touch = event.changedTouches[0];
     if (!touch) return;
-    if (current.kind === 'run') world?.releasePointer();
-    else ui.pointerUp(touch.clientX, touch.clientY);
+    if (current.kind === 'run' && !paused) {
+      world?.releasePointer();
+      // A still, quick tap is the overdrive trigger (the touch replacement for the DOM's click
+      // on the od prompt); a second tap inside the double-tap window pauses the run.
+      if (!tapDragged && Date.now() - tapDownAt < 300) {
+        if (Date.now() - lastTapAt < 320) {
+          lastTapAt = 0;
+          pauseRun();
+        } else {
+          lastTapAt = Date.now();
+          world?.session.world.tryOverdrive();
+        }
+      }
+      return;
+    }
+    if (current.kind === 'pause') {
+      ui.pointerUp(touch.clientX, touch.clientY);
+      return;
+    }
+    ui.pointerUp(touch.clientX, touch.clientY);
   });
 
   const bg = DEFAULT_THEME.colors.bg;
@@ -356,8 +447,22 @@ function boot(): void {
     const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
     lastTime = now;
     if (current.kind === 'run' && world) {
-      // The run owns the whole screen: world renders itself, no UI texture this frame.
+      // The run renders itself, then the HUD overlay composites on top — its texture uploads
+      // only when a displayed value changed (score ticks on hits, ~10 Hz, not per frame).
       world.frame(dt, now / 1000);
+      const session = world.session;
+      const dealt = Math.max(0, session.world.totalDamage - lastDamage);
+      lastDamage = session.world.totalDamage;
+      dps += (dealt / Math.max(dt, 1e-4) - dps) * (1 - Math.exp(-dt / 0.5));
+      const sig = hudSignature(session, dps);
+      if (sig !== hudSig) {
+        hudSig = sig;
+        drawHud(hudCtx, width, height, session, dps, DEFAULT_THEME.font);
+        layer.upload();
+      }
+      wrap.bind(null);
+      wrap.gl.viewport(0, 0, wrap.gl.drawingBufferWidth, wrap.gl.drawingBufferHeight);
+      layer.draw();
       requestAnimationFrame(frame);
       return;
     }

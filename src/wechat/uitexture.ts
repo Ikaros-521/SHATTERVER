@@ -56,6 +56,11 @@ export class UITextureLayer {
   /** Draws the quad into the currently bound framebuffer (the screen, in the shell). */
   draw(): void {
     const wrap = this.wrap;
+    const gl = wrap.gl;
+    // The HUD canvas is mostly transparent; without blending its empty pixels would punch
+    // holes straight through the world rendered beneath.
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     wrap.gl.useProgram(this.program);
     wrap.texture(this.program, 'uTex', this.tex);
     wrap.fullscreen();

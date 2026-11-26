@@ -4,6 +4,14 @@ export const PK_LIGHT = 0;
 export const PK_SHARD = 1;
 export const PK_RING = 2;
 export const PK_STREAK = 3;
+// Theme kinds (`render/themes`): sprites drawn from the alpha-blended batch, so they sit beneath
+// the play field's light rather than on top of it.
+export const PK_PETAL = 4;
+export const PK_BUBBLE = 5;
+export const PK_LEAF = 6;
+export const PK_BLOSSOM = 7;
+/** A firefly: a point of light that blinks on its own rhythm. `rot` is its phase. */
+export const PK_FIRE = 8;
 
 export interface Particle {
   alive: boolean;

@@ -1163,7 +1163,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
       trial: '体験',
       trialOn: '体験中',
     },
-    skinGroup: { ball: 'ボールスキン', paddle: 'パドルスキン', bg: '背景テーマ' },
+    skinGroup: { themes: 'テーマセット', ball: 'ボールスキン', paddle: 'パドルスキン', bg: '背景テーマ' },
     skin: {
       classic: { name: 'オリジナル', desc: '最初の白いボール、飾りなし。' },
       startrail: { name: '星軌', desc: '冷たい白青の尾跡。夜空を走る星のように。' },
@@ -1175,6 +1175,43 @@ export const ja: UiDict & { content: ContentOverrides } = {
       frostline: { name: '霜線', desc: 'パドルスキン：氷青の鋼体、霜のごとく冷たく。' },
       duskveil: { name: '暮帷', desc: 'パドルスキン：夕暮れの紫が一枚の板に降りる。' },
       neon: { name: 'ネオン回廊', desc: '背景テーマ：章ごとの配色をネオンにずらす。' },
+      sakura_paddle: {
+        name: '桜の魔法扇',
+        desc: 'パドルテーマ：桃色の光の扇面、両端に桜の扇骨。動くと花びらが舞い落ちる。',
+      },
+      sakura_ball: {
+        name: '桜コア',
+        desc: 'ボールテーマ：淡い光環をまとった桃白の核。尾跡が花びらになって舞う。',
+      },
+      sakura_bg: {
+        name: '夜桜の庭',
+        desc: '背景テーマ：月の下の庭。遠い山、石灯籠、小さな橋、静かに舞う桜。',
+      },
+      ocean_paddle: {
+        name: '海神の水流',
+        desc: 'パドルテーマ：集まった水の光。両端の水流が巻き上がり、動くと泡がこぼれる。',
+      },
+      ocean_ball: {
+        name: '深海水晶',
+        desc: 'ボールテーマ：透明な水の膜に包まれた青い水晶。泡の尾跡を引いて進む。',
+      },
+      ocean_bg: { name: '深海遺跡', desc: '背景テーマ：差し込む光の中、眠る海底神殿と珊瑚、海草。' },
+      forest_paddle: { name: '精霊の枝', desc: 'パドルテーマ：しなる魔法の枝。両側に葉、中央に命の宝石。' },
+      forest_ball: {
+        name: '命の宝石',
+        desc: 'ボールテーマ：内側をエネルギーが流れる緑の宝石。蛍があとを追う。',
+      },
+      forest_bg: { name: '魔法の森', desc: '背景テーマ：古木、蔦、滝。木漏れ日が差し、蛍が漂う森。' },
+    },
+    theme: {
+      buySet: 'セットで交換',
+      complete: 'セットを完成させる',
+      wear: 'セットで装備',
+      worn: 'セット装備中',
+      part: { paddle: 'パドル', ball: 'ボール', bg: '背景' },
+      sakura: { name: '桜ファンタジー', desc: '桃と紫の夜桜の庭。桜の魔法扇、桜コア、そして満月。' },
+      ocean: { name: '深海ファンタジー', desc: '青と青緑の海底の夢。海神の水流、深海水晶、眠る遺跡。' },
+      forest: { name: '森のファンタジー', desc: '緑の癒しの森。精霊の枝、命の宝石、光あふれる空地。' },
     },
     ms: {
       perfect: '初パーフェクトキャッチ｜パドル中央でボールを受け止める',

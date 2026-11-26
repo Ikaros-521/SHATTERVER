@@ -1149,7 +1149,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
       trial: '체험',
       trialOn: '체험 중',
     },
-    skinGroup: { ball: '공 스킨', paddle: '패들 스킨', bg: '배경 테마' },
+    skinGroup: { themes: '테마 세트', ball: '공 스킨', paddle: '패들 스킨', bg: '배경 테마' },
     skin: {
       classic: { name: '기본색', desc: '처음의 흰 공, 꾸밈 없음.' },
       startrail: { name: '성궤', desc: '차가운 백청색 꼬리, 밤하늘을 가르는 별처럼.' },
@@ -1161,6 +1161,52 @@ export const ko: UiDict & { content: ContentOverrides } = {
       frostline: { name: '서리선', desc: '패들 스킨: 얼음빛 강철 판면, 서리처럼 차갑게.' },
       duskveil: { name: '황혼막', desc: '패들 스킨: 해질녘 보랏빛이 한 판에 내려앉습니다.' },
       neon: { name: '네온 회랑', desc: '배경 테마: 챕터마다 색을 네온으로 이동.' },
+      sakura_paddle: {
+        name: '벚꽃 부채',
+        desc: '패들 테마: 분홍빛 부채면, 양끝에 벚꽃 부채살. 움직이면 꽃잎이 흩날려요.',
+      },
+      sakura_ball: {
+        name: '벚꽃 코어',
+        desc: '공 테마: 옅은 광륜을 두른 분홍빛 코어. 꼬리가 꽃잎되어 흩날려요.',
+      },
+      sakura_bg: {
+        name: '밤벚꽃 정원',
+        desc: '배경 테마: 달 아래 정원. 먼 산, 돌등롱, 작은 다리, 느긋하게 흩날리는 벚꽃.',
+      },
+      ocean_paddle: {
+        name: '해신의 물살',
+        desc: '패들 테마: 응집된 물의 기운. 양끝 물살이 말려 올라가고, 움직이면 거품이 피어올라요.',
+      },
+      ocean_ball: {
+        name: '심해 수정',
+        desc: '공 테마: 투명한 물막에 싸인 파란 수정. 거품 꼬리를 끌고 나아가요.',
+      },
+      ocean_bg: { name: '심해 유적', desc: '배경 테마: 내리쬐는 빛줄기 속 잠든 해저 신전, 산호, 해초.' },
+      forest_paddle: {
+        name: '정령 나뭇가지',
+        desc: '패들 테마: 휘어진 마법 나뭇가지. 양옆에 잎, 한가운데 생명 보석.',
+      },
+      forest_ball: {
+        name: '생명 보석',
+        desc: '공 테마: 안에서 기운이 흐르는 초록 보석. 반딧불이 뒤따라와요.',
+      },
+      forest_bg: {
+        name: '마법의 숲',
+        desc: '배경 테마: 오래된 나무, 덩굴, 폭포. 나뭇잎 사이 햇살, 떠다니는 반딧불.',
+      },
+    },
+    theme: {
+      buySet: '세트 교환',
+      complete: '세트 완성',
+      wear: '세트 적용',
+      worn: '세트 적용됨',
+      part: { paddle: '패들', ball: '공', bg: '배경' },
+      sakura: {
+        name: '벚꽃 판타지',
+        desc: '분홍과 보라빛 밤벚꽃 정원. 벚꽃 부채, 벚꽃 코어, 그리고 보름달.',
+      },
+      ocean: { name: '심해 판타지', desc: '파랑과 청록빛 심해의 꿈. 해신의 물살, 심해 수정, 잠든 유적.' },
+      forest: { name: '숲의 판타지', desc: '초록빛 치유의 숲. 정령 나뭇가지, 생명 보석, 빛 가득한 숲터.' },
     },
     ms: {
       perfect: '첫 퍼펙트 캐치｜패들 정중앙으로 공을 받아내기',

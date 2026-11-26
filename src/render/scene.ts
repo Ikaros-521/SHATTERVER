@@ -14,9 +14,22 @@ import {
   FLAG_FROST,
   FLAG_METAL,
 } from './shaders/instances';
+import { SHAPE_BLOSSOM, SHAPE_BUBBLE, SHAPE_LEAF, SHAPE_PETAL } from './shaders/sprites';
+
 import type { Fx } from './fx';
-import { PK_RING, PK_SHARD, PK_STREAK } from './particles';
+import {
+  PK_BLOSSOM,
+  PK_BUBBLE,
+  PK_FIRE,
+  PK_LEAF,
+  PK_PETAL,
+  PK_RING,
+  PK_SHARD,
+  PK_STREAK,
+  type Particle,
+} from './particles';
 import { ballCoreColor } from './skins';
+import type { ThemeOverlay } from './themes/types';
 
 export interface SceneInfo {
   /** 0..1: how close the brick field is to the danger line. */
@@ -39,6 +52,11 @@ export interface BallSkinOverride {
   trail: number;
   /** The hot centre, 0xRRGGBB; scaled into the stock HDR tones at draw time. */
   core: number;
+  /**
+   * Scale of the stock wide halo and saturated bloom. A recolouring skin leaves it at 1; a
+   * theme whose ball is a crystal dials the glow down so its facets stay visible.
+   */
+  halo?: readonly [number, number];
 }
 
 /**
@@ -204,6 +222,7 @@ function drawPaddle(
   accent: number,
   time: number,
   skin?: PaddleSkinOverride | null,
+  theme?: ThemeOverlay | null,
 ): void {
   const p = world.paddle;
   // The live block, so the paddle draws its buffs too: the emitters of a laser capsule, its magnet.
@@ -214,14 +233,20 @@ function drawPaddle(
   const ready = world.energy >= 100 && !world.odActive;
   const flicker = 0.5 + 0.5 * Math.sin(time * 22);
 
-  // Thruster wash underneath; a paddle skin recolours it and the body, nothing else here.
-  pen.light(p.x, p.y + 8, hw * 1.3, 22 + 6 * flicker, skin ? skin.glow : accent, 0.5 + p.flash * 0.6, 0.3);
-  // Overdrive keeps its own body flash: it is feedback, the skin only owns the resting look.
-  pen.surface(p.x, p.y, hw, hh, world.odActive ? 0xc8fbff : skin ? skin.body : 0xe6faff, {
-    radius: hh,
-    flash: p.flash,
-    halo: 0.4 + (ready ? 0.5 * flicker : 0),
-  });
+  if (theme) {
+    // A theme draws the collision box and its own ornament around it. Everything after this
+    // (the meter, the emitters, the buff tints) is feedback and stays the scene's to draw.
+    theme.paddle(pen, world);
+  } else {
+    // Thruster wash underneath; a paddle skin recolours it and the body, nothing else here.
+    pen.light(p.x, p.y + 8, hw * 1.3, 22 + 6 * flicker, skin ? skin.glow : accent, 0.5 + p.flash * 0.6, 0.3);
+    // Overdrive keeps its own body flash: it is feedback, the skin only owns the resting look.
+    pen.surface(p.x, p.y, hw, hh, world.odActive ? 0xc8fbff : skin ? skin.body : 0xe6faff, {
+      radius: hh,
+      flash: p.flash,
+      halo: 0.4 + (ready ? 0.5 * flicker : 0),
+    });
+  }
   // A capsule that stretched the paddle leaves its colour running along the edges.
   if (world.hasBuff('wide'))
     pen.stroke(p.x, p.y, hw + 3, hh + 3, BUFF_MAP.wide.color, 2, 0.55 + 0.3 * flicker, hh + 3);
@@ -254,6 +279,7 @@ function drawBalls(
   tint: number,
   time: number,
   skin?: BallSkinOverride | null,
+  theme?: ThemeOverlay | null,
 ): void {
   const s = world.live;
   const intro = world.state === 'intro';
@@ -317,6 +343,14 @@ function drawBalls(
 
     const speed = Math.hypot(ball.vx, ball.vy);
     const rot = Math.atan2(ball.vy, ball.vx);
+
+    // A theme's ball body and accents go in first: the glow layers below are additive, so they
+    // light it from on top whatever order the batches go out in.
+    if (theme && !special) theme.ball(pen, ball);
+    // A theme may ask for less of the stock glow, so a crystal keeps its facets.
+    const haloWide = special ? 1 : (skin?.halo?.[0] ?? 1);
+    const haloBloom = special ? 1 : (skin?.halo?.[1] ?? 1);
+
     // Speed stretch along the motion, and a flatten against whatever was just bounced off.
     const motion = clamp((speed - 700) / 3200, 0, 0.4);
     const squash = ball.squash;
@@ -330,8 +364,17 @@ function drawBalls(
     else if (phasing && !ball.child) pen.ring(ball.x, ball.y, r * 1.45, 1.8, 0xe6d0ff, 0.7 * alpha);
 
     // Balls are the protagonists: a wide halo, a saturated bloom and a hot white core.
-    pen.light(ball.x, ball.y, rx * 5.4 * banked, ry * 5.4 * banked, color, 0.3 * alpha, 0.12, rot);
-    pen.light(ball.x, ball.y, rx * 2.8 * banked, ry * 2.8 * banked, color, 0.95 * alpha, 0.45, rot);
+    pen.light(ball.x, ball.y, rx * 5.4 * banked, ry * 5.4 * banked, color, 0.3 * alpha * haloWide, 0.12, rot);
+    pen.light(
+      ball.x,
+      ball.y,
+      rx * 2.8 * banked,
+      ry * 2.8 * banked,
+      color,
+      0.95 * alpha * haloBloom,
+      0.45,
+      rot,
+    );
     pen.light(ball.x, ball.y, rx * 1.75, ry * 1.75, coreSoft, alpha, 0.8, rot);
     pen.light(ball.x, ball.y, rx * 1.3, ry * 1.3, coreHot, alpha, 0.96, rot);
 
@@ -512,19 +555,32 @@ function drawTransients(pen: Pen, fx: Fx, time: number): void {
   }
 }
 
-function drawParticles(pen: Pen, fx: Fx): void {
-  for (const p of fx.particles.pool) {
+/** 0xRRGGBB of a particle's colour, darkened to `shade` of itself. */
+function particleColor(p: Particle, shade = 1): number {
+  const r = Math.round(clamp(p.r * shade, 0, 1) * 255);
+  const g = Math.round(clamp(p.g * shade, 0, 1) * 255);
+  const b = Math.round(clamp(p.b * shade, 0, 1) * 255);
+  return (r << 16) | (g << 8) | b;
+}
+
+/** A particle's size at this point of its life. */
+function particleSize(p: Particle, t: number): number {
+  return p.size + (p.sizeEnd - p.size) * (1 - t);
+}
+
+/**
+ * Draws every live particle of one pool. Shared by the gameplay FX and the theme layer, so a
+ * particle kind is drawn in exactly one place whichever pool it came from.
+ */
+export function drawParticlePool(pen: Pen, pool: readonly Particle[], time: number): void {
+  for (const p of pool) {
     if (!p.alive) continue;
     const t = p.life / p.maxLife;
     switch (p.kind) {
       case PK_SHARD: {
         // Fragments shrink and darken as they expire.
         const size = p.size * (0.45 + 0.55 * t);
-        const shade = 0.45 + 0.55 * t;
-        const r = Math.round(clamp(p.r * shade, 0, 1) * 255);
-        const g = Math.round(clamp(p.g * shade, 0, 1) * 255);
-        const b = Math.round(clamp(p.b * shade, 0, 1) * 255);
-        pen.surface(p.x, p.y, size * 0.5, size * 0.22, (r << 16) | (g << 8) | b, {
+        pen.surface(p.x, p.y, size * 0.5, size * 0.22, particleColor(p, 0.45 + 0.55 * t), {
           rot: p.rot,
           radius: 1.2,
           alpha: Math.min(1, t * 4),
@@ -533,7 +589,7 @@ function drawParticles(pen: Pen, fx: Fx): void {
         break;
       }
       case PK_RING: {
-        const radius = Math.max(p.size + (p.sizeEnd - p.size) * (1 - t), 0.5);
+        const radius = Math.max(particleSize(p, t), 0.5);
         // Big rings cover far more pixels than small ones, so they are dimmer per pixel: same energy, same screen.
         const glow = clamp(2.4 - radius / 260, 0.8, 2.4);
         pen.ring(
@@ -561,8 +617,91 @@ function drawParticles(pen: Pen, fx: Fx): void {
         );
         break;
       }
+      // ── theme kinds: sprites, so they shrink and tumble rather than merely fade ──
+      case PK_PETAL: {
+        // A petal narrows as it turns edge-on, on its own rhythm.
+        const size = particleSize(p, t);
+        const flip = 0.35 + 0.65 * Math.abs(Math.cos(time * 4.2 + p.rot * 3));
+        pen.sprite(
+          SHAPE_PETAL,
+          p.x,
+          p.y,
+          size,
+          size * 0.58 * flip,
+          p.rot,
+          particleColor(p),
+          p.alpha * Math.min(1, (1 - t) * 6) * t,
+          {
+            p0: 0.6,
+            p1: 0.22,
+          },
+        );
+        break;
+      }
+      case PK_LEAF:
+        pen.sprite(
+          SHAPE_LEAF,
+          p.x,
+          p.y,
+          particleSize(p, t),
+          particleSize(p, t) * 0.44,
+          p.rot,
+          particleColor(p),
+          p.alpha * Math.min(1, (1 - t) * 6) * t,
+          {
+            p0: 0.5,
+            p1: 0.8,
+          },
+        );
+        break;
+      case PK_BUBBLE: {
+        const size = particleSize(p, t);
+        // A bubble does not fade so much as thin: its rim stays, its light goes.
+        pen.sprite(
+          SHAPE_BUBBLE,
+          p.x,
+          p.y,
+          size,
+          size,
+          0,
+          particleColor(p),
+          p.alpha * Math.min(1, (1 - t) * 5),
+          { p0: 0.09, p1: 0.9 * t },
+        );
+        break;
+      }
+      case PK_BLOSSOM: {
+        const size = particleSize(p, t);
+        pen.sprite(
+          SHAPE_BLOSSOM,
+          p.x,
+          p.y,
+          size,
+          size,
+          p.rot,
+          particleColor(p),
+          p.alpha * Math.min(1, (1 - t) * 6) * t,
+          { p0: 5, p1: 1 },
+        );
+        break;
+      }
+      case PK_FIRE: {
+        // A firefly blinks on its own rhythm; `rot` is its phase.
+        const blink = 0.25 + 0.75 * Math.pow(0.5 + 0.5 * Math.sin(time * 9 + p.rot * 5), 2);
+        const size = particleSize(p, t);
+        pen.haze(
+          p.x,
+          p.y,
+          size,
+          size,
+          [p.r * p.intensity, p.g * p.intensity, p.b * p.intensity],
+          p.alpha * blink * Math.min(1, (1 - t) * 5),
+          0.6,
+        );
+        break;
+      }
       default: {
-        const size = p.size + (p.sizeEnd - p.size) * (1 - t);
+        const size = particleSize(p, t);
         pen.light(
           p.x,
           p.y,
@@ -575,6 +714,10 @@ function drawParticles(pen: Pen, fx: Fx): void {
       }
     }
   }
+}
+
+function drawParticles(pen: Pen, fx: Fx, time: number): void {
+  drawParticlePool(pen, fx.particles.pool, time);
 
   for (const flare of fx.flares) {
     const t = clamp(flare.life / flare.maxLife, 0, 1);
@@ -630,6 +773,14 @@ function drawTimeStop(pen: Pen, time: number): void {
  *
  * Order matters within each blend mode: surfaces first (painted over by later ones), then all
  * the additive light in back-to-front layers, then text on top of everything.
+ *
+ * `theme` is the cosmetic theme layer, when any part of one is worn. The scene hands it three
+ * moments — before the bricks, at the paddle, at each ordinary ball — and it draws into the
+ * same batches as everything else.
+ *
+ * `frameAccent` replaces the chapter's accent while a theme's background is worn: the arena's
+ * frame, and the feedback that has no colour of its own (a bounce's ring and sparks), take the
+ * scene's colour instead of the chapter's. Gameplay feedback that carries meaning keeps its own.
  */
 export function drawScene(
   pen: Pen,
@@ -640,12 +791,14 @@ export function drawScene(
   out: SceneInfo,
   ballSkin?: BallSkinOverride | null,
   paddleSkin?: PaddleSkinOverride | null,
+  theme?: ThemeOverlay | null,
+  frameAccent?: number | null,
 ): void {
-  const accent = chapter.accent;
+  const accent = frameAccent ?? chapter.accent;
   fx.accent = accent;
 
   if (!world) {
-    drawParticles(pen, fx);
+    drawParticles(pen, fx, time);
     return;
   }
 
@@ -659,21 +812,25 @@ export function drawScene(
   const playing = world.state === 'playing' || world.state === 'intro' || world.state === 'clearing';
   // Movement buffs outrank the skin (they are feedback), the skin outranks the build's elements.
   const buff = buffTint(world, time);
-  const tint = buff ?? (ballSkin ? ballSkin.glow : elementTint(world) ?? accent);
+  const tint = buff ?? (ballSkin ? ballSkin.glow : (elementTint(world) ?? accent));
 
   drawArena(pen, accent, out, time, playing);
 
   // ── surfaces (alpha blended) ──
+  // A theme's drifting layer and its particles go down first, beneath everything: the sprites
+  // of them into the batch under the surfaces, their lights into the surface batch ahead of the
+  // bricks. Whatever follows paints over them.
+  if (theme) theme.under(pen.under, world);
   drawBricks(pen, world, time);
-  if (world.state !== 'dead') drawPaddle(pen, world, accent, time, paddleSkin);
+  if (world.state !== 'dead') drawPaddle(pen, world, accent, time, paddleSkin, theme);
 
   // ── light (additive) ──
   drawZones(pen, world, time);
   drawTransients(pen, fx, time);
   if (world.live.aegis && world.state !== 'dead') drawAegis(pen, time);
-  drawBalls(pen, world, fx, tint, time, ballSkin);
+  drawBalls(pen, world, fx, tint, time, ballSkin, theme);
   drawHazards(pen, world, time);
-  drawParticles(pen, fx);
+  drawParticles(pen, fx, time);
   if (world.timeStop > 0) drawTimeStop(pen, time);
 
   // ── text ──

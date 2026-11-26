@@ -1147,12 +1147,17 @@ export const ko: UiDict & { content: ContentOverrides } = {
       trial: '체험',
       trialOn: '체험 중',
     },
+    skinGroup: { ball: '공 스킨', paddle: '패들 스킨', bg: '배경 테마' },
     skin: {
       classic: { name: '기본색', desc: '처음의 흰 공, 꾸밈 없음.' },
       startrail: { name: '성궤', desc: '차가운 백청색 꼬리, 밤하늘을 가르는 별처럼.' },
       molten: { name: '용금', desc: '금빛 주황 빛이 공을 감쌉니다.' },
       aurora: { name: '오로라', desc: '청보라 그러데이션 빛과 꼬리.' },
       deepspace: { name: '딥스페이스', desc: '짙은 푸른 빛 바탕에 밝은 은빛 핵.' },
+      classicPaddle: { name: '기본 패들', desc: '초기의 차가운 흰 패들, 꾸밈 없음.' },
+      emberfall: { name: '잔불', desc: '패들 스킨: 탄황빛 판면에 아직 식지 않은 온기.' },
+      frostline: { name: '서리선', desc: '패들 스킨: 얼음빛 강철 판면, 서리처럼 차갑게.' },
+      duskveil: { name: '황혼막', desc: '패들 스킨: 해질녘 보랏빛이 한 판에 내려앉습니다.' },
       neon: { name: '네온 회랑', desc: '배경 테마: 챕터마다 색을 네온으로 이동.' },
     },
     ms: {

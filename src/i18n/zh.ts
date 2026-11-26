@@ -544,12 +544,17 @@ export const zh = {
       trial: '试用',
       trialOn: '试用中',
     },
+    skinGroup: { ball: '球体涂装', paddle: '弹板涂装', bg: '背景主题' },
     skin: {
       classic: { name: '原色', desc: '最初的白色球体，不加任何修饰。' },
       startrail: { name: '星轨', desc: '冷白青的拖尾，像一颗星划过夜空。' },
       molten: { name: '熔金', desc: '金橙色的辉光包裹球体。' },
       aurora: { name: '极光', desc: '青紫渐变的辉光与拖尾。' },
       deepspace: { name: '深空', desc: '深蓝的辉光底色，衬出亮银核心。' },
+      classicPaddle: { name: '原色弹板', desc: '出厂的冷白弹板，不加任何修饰。' },
+      emberfall: { name: '余烬', desc: '弹板涂装：碳橙的板身带着未散的余温。' },
+      frostline: { name: '霜线', desc: '弹板涂装：冰蓝钢体，冷冽如霜。' },
+      duskveil: { name: '暮帷', desc: '弹板涂装：暮色的紫落在一块板上。' },
       neon: { name: '霓虹回廊', desc: '背景主题：每章的底色与强调色做霓虹偏移。' },
     },
     ms: {

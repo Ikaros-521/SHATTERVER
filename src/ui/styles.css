@@ -3208,6 +3208,16 @@ button.sigil-tile:hover {
   color: var(--ink-dim);
 }
 
+/* Group heading on the skin shelf: ball looks, paddle looks, the backdrop theme. */
+.shop-skin-head {
+  margin: 14px 0 2px;
+  padding-left: 4px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
 .shop-gate {
   border: 1px dashed var(--line);
   border-radius: 999px;

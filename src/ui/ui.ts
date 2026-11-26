@@ -51,7 +51,7 @@ import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
 import { tierLabel, type Tier } from '../render/governor';
 import type { Layout } from '../render/layout';
-import { applyBgSkin, SKINS, defaultBallSkin, type SkinKind } from '../render/skins';
+import { applyBgSkin, SKINS, defaultBallSkin, defaultPaddleSkin, type SkinKind } from '../render/skins';
 import { Changelog, changelogUnseen } from './changelog';
 import { CloudPanel } from './cloud';
 import { byId, el, hexCss, keep, scoreEl, setText } from './dom';
@@ -814,35 +814,55 @@ export class UI implements HudHost {
   }
 
   /** The cosmetic shelf: the free stock ball look, four ball skins, one backdrop theme. */
+  /** The cosmetic shelf: ball looks, paddle looks and the backdrop theme, in labelled groups. */
   private skinCards(): HTMLElement[] {
     const econ = this.save.economy;
-    const classicEquipped = econ.skinBall === null;
-    const classic = this.shopItem({
-      id: defaultBallSkin,
-      color: 0xe6faff,
-      glyph: `skin:${defaultBallSkin}`,
-      name: t('shop.skin.classic.name'),
-      en: 'CLASSIC',
-      desc: t('shop.skin.classic.desc'),
-      price: 0,
-      owned: true,
-      ownedLabel: t('shop.owned'),
-      onBuy: () => false,
-      wishable: false,
-      onEquip: () => this.actions.equipSkin(null, 'ball'),
-      equipped: classicEquipped,
-      equipLabel: classicEquipped ? t('shop.equipped') : t('shop.equip'),
-    });
+    const classicCard = (
+      id: string,
+      equip: () => boolean,
+      equipped: boolean,
+      nameKey: string,
+      descKey: string,
+    ): HTMLElement =>
+      this.shopItem({
+        id,
+        color: 0xe6faff,
+        glyph: `skin:${id}`,
+        name: t(nameKey),
+        en: 'CLASSIC',
+        desc: t(descKey),
+        price: 0,
+        owned: true,
+        ownedLabel: t('shop.owned'),
+        onBuy: () => false,
+        wishable: false,
+        onEquip: equip,
+        equipped,
+        equipLabel: equipped ? t('shop.equipped') : t('shop.equip'),
+      });
+    const classicBall = classicCard(
+      defaultBallSkin,
+      () => this.actions.equipSkin(null, 'ball'),
+      econ.skinBall === null,
+      'shop.skin.classic.name',
+      'shop.skin.classic.desc',
+    );
+    const classicPaddle = classicCard(
+      defaultPaddleSkin,
+      () => this.actions.equipSkin(null, 'paddle'),
+      econ.skinPaddle === null,
+      'shop.skin.classicPaddle.name',
+      'shop.skin.classicPaddle.desc',
+    );
     const cards = SKINS.map((skin) => {
       const owned = econ.skins.includes(skin.id);
-      // Ball skins wear their glow; the backdrop theme previews itself on the first chapter.
+      // Ball and paddle skins wear their glow; the backdrop theme previews itself on chapter one.
       const color =
-        skin.kind === 'ball'
-          ? skin.colors.glow
-          : applyBgSkin(CHAPTERS[0]!.bg, CHAPTERS[0]!.accent, skin).accent;
-      const equippedBall = skin.kind === 'ball' && econ.skinBall === skin.id;
-      const equippedBg = skin.kind === 'bg' && econ.skinBg === skin.id;
-      const equipped = equippedBall || equippedBg;
+        skin.kind === 'bg' ? applyBgSkin(CHAPTERS[0]!.bg, CHAPTERS[0]!.accent, skin).accent : skin.colors.glow;
+      const equipped =
+        (skin.kind === 'ball' && econ.skinBall === skin.id) ||
+        (skin.kind === 'paddle' && econ.skinPaddle === skin.id) ||
+        (skin.kind === 'bg' && econ.skinBg === skin.id);
       return this.shopItem({
         id: skin.id,
         color,
@@ -855,11 +875,13 @@ export class UI implements HudHost {
         ownedLabel: t('shop.owned'),
         onBuy: () => this.actions.buySkin(skin.id),
         wishable: false,
+        // The theme has no stock card of its own, so equipping it again clears it; ball and
+        // paddle looks clear through their free 「原色」 card instead.
         onEquip: owned
           ? () =>
-              skin.kind === 'ball'
-                ? this.actions.equipSkin(skin.id, 'ball')
-                : this.actions.equipSkin(equipped ? null : skin.id, 'bg')
+              skin.kind === 'bg'
+                ? this.actions.equipSkin(equipped ? null : skin.id, 'bg')
+                : this.actions.equipSkin(skin.id, skin.kind)
           : undefined,
         equipped,
         equipLabel: !owned
@@ -869,7 +891,19 @@ export class UI implements HudHost {
             : t(equipped ? 'shop.equipped' : 'shop.equip'),
       });
     });
-    return [classic, ...cards];
+    const head = (label: string): HTMLElement =>
+      el('div', { class: 'shop-skin-head' }, el('span', { text: label }));
+    const byKind = (kind: SkinKind): HTMLElement[] => cards.filter((_, i) => SKINS[i]!.kind === kind);
+    return [
+      head(t('shop.skinGroup.ball')),
+      classicBall,
+      ...byKind('ball'),
+      head(t('shop.skinGroup.paddle')),
+      classicPaddle,
+      ...byKind('paddle'),
+      head(t('shop.skinGroup.bg')),
+      ...byKind('bg'),
+    ];
   }
 
   private progressRows(): HTMLElement[] {

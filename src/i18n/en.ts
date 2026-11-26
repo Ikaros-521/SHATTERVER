@@ -1177,12 +1177,17 @@ export const en: UiDict & { content: ContentOverrides } = {
       trial: 'Trial',
       trialOn: 'On trial',
     },
+    skinGroup: { ball: 'Ball skins', paddle: 'Paddle skins', bg: 'Backdrop theme' },
     skin: {
       classic: { name: 'Classic', desc: 'The stock white ball, untouched.' },
       startrail: { name: 'Startrail', desc: 'A cold cyan-white comet tail, like a star crossing the night.' },
       molten: { name: 'Molten', desc: 'Golden-orange radiance wrapped around the ball.' },
       aurora: { name: 'Aurora', desc: 'A cyan-violet gradient of glow and trail.' },
       deepspace: { name: 'Deepspace', desc: 'Deep-blue glow beneath a bright silver core.' },
+      classicPaddle: { name: 'Classic paddle', desc: 'The stock cold-white paddle, untouched.' },
+      emberfall: { name: 'Emberfall', desc: 'Paddle skin: a carbon-orange body still holding its warmth.' },
+      frostline: { name: 'Frostline', desc: 'Paddle skin: an ice-blue steel body, cold as frost.' },
+      duskveil: { name: 'Duskveil', desc: 'Paddle skin: dusk purple settling onto one paddle.' },
       neon: { name: 'Neon Arcade', desc: 'Backdrop theme: shifts every chapter\u2019s colours into neon.' },
     },
     ms: {

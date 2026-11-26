@@ -41,6 +41,18 @@ export interface BallSkinOverride {
   core: number;
 }
 
+/**
+ * Draw-time colour override for the equipped paddle skin (see `render/skins`). Same contract as
+ * the ball's: cosmetic only. The overdrive body flash, the ready-meter light and the buff tints
+ * (wide's ring, magnet's arc) keep their stock colours — they are feedback, not fashion.
+ */
+export interface PaddleSkinOverride {
+  /** The paddle's own surface. */
+  body: number;
+  /** The thruster wash underneath and its flash colour. */
+  glow: number;
+}
+
 function hash(n: number): number {
   let x = Math.floor(n * 374761393) >>> 0;
   x = Math.imul(x ^ (x >>> 13), 1274126177) >>> 0;
@@ -186,7 +198,13 @@ function drawBricks(pen: Pen, world: World, time: number): void {
   }
 }
 
-function drawPaddle(pen: Pen, world: World, accent: number, time: number): void {
+function drawPaddle(
+  pen: Pen,
+  world: World,
+  accent: number,
+  time: number,
+  skin?: PaddleSkinOverride | null,
+): void {
   const p = world.paddle;
   // The live block, so the paddle draws its buffs too: the emitters of a laser capsule, its magnet.
   const s = world.live;
@@ -196,9 +214,10 @@ function drawPaddle(pen: Pen, world: World, accent: number, time: number): void 
   const ready = world.energy >= 100 && !world.odActive;
   const flicker = 0.5 + 0.5 * Math.sin(time * 22);
 
-  // Thruster wash underneath.
-  pen.light(p.x, p.y + 8, hw * 1.3, 22 + 6 * flicker, accent, 0.5 + p.flash * 0.6, 0.3);
-  pen.surface(p.x, p.y, hw, hh, world.odActive ? 0xc8fbff : 0xe6faff, {
+  // Thruster wash underneath; a paddle skin recolours it and the body, nothing else here.
+  pen.light(p.x, p.y + 8, hw * 1.3, 22 + 6 * flicker, skin ? skin.glow : accent, 0.5 + p.flash * 0.6, 0.3);
+  // Overdrive keeps its own body flash: it is feedback, the skin only owns the resting look.
+  pen.surface(p.x, p.y, hw, hh, world.odActive ? 0xc8fbff : skin ? skin.body : 0xe6faff, {
     radius: hh,
     flash: p.flash,
     halo: 0.4 + (ready ? 0.5 * flicker : 0),
@@ -620,6 +639,7 @@ export function drawScene(
   time: number,
   out: SceneInfo,
   ballSkin?: BallSkinOverride | null,
+  paddleSkin?: PaddleSkinOverride | null,
 ): void {
   const accent = chapter.accent;
   fx.accent = accent;
@@ -645,7 +665,7 @@ export function drawScene(
 
   // ── surfaces (alpha blended) ──
   drawBricks(pen, world, time);
-  if (world.state !== 'dead') drawPaddle(pen, world, accent, time);
+  if (world.state !== 'dead') drawPaddle(pen, world, accent, time, paddleSkin);
 
   // ── light (additive) ──
   drawZones(pen, world, time);

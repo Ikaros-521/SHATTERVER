@@ -7,6 +7,8 @@ import {
   canBuySkin,
   canEquipSkin,
   defaultBallSkin,
+  defaultPaddleSkin,
+  isPaddleSkinId,
   isSkinId,
   SKINS,
   SKIN_MAP,
@@ -41,7 +43,7 @@ describe('skin catalog', () => {
   });
 
   it('prices ascend within each kind', () => {
-    for (const kind of ['ball', 'bg'] as const) {
+    for (const kind of ['ball', 'paddle', 'bg'] as const) {
       let previous = 0;
       for (const skin of SKINS.filter((def) => def.kind === kind)) {
         expect(skin.price).toBeGreaterThan(previous);
@@ -52,6 +54,7 @@ describe('skin catalog', () => {
 
   it('the stock look is free, always there, and not a catalog entry', () => {
     expect(defaultBallSkin).toBe('classic');
+    expect(defaultPaddleSkin).toBe(defaultBallSkin);
     expect(isSkinId(defaultBallSkin)).toBe(false);
     expect(SKINS.some((skin) => skin.id === defaultBallSkin)).toBe(false);
   });
@@ -65,6 +68,22 @@ describe('skin catalog', () => {
       expect(legal(skin.colors.glow), `${skin.id} glow`).toBe(true);
       expect(legal(skin.colors.trail), `${skin.id} trail`).toBe(true);
     }
+  });
+
+  it('paddle colours are legal 0xRRGGBB values, and every paddle id guards as one', () => {
+    const legal = (c: number): boolean => Number.isInteger(c) && c >= 0 && c <= 0xffffff;
+    const paddles = SKINS.filter((skin) => skin.kind === 'paddle');
+    expect(paddles).toHaveLength(3);
+    for (const skin of paddles) {
+      expect(legal(skin.colors.body), `${skin.id} body`).toBe(true);
+      expect(legal(skin.colors.glow), `${skin.id} glow`).toBe(true);
+      expect(isPaddleSkinId(skin.id), skin.id).toBe(true);
+      // A paddle id cannot ride the ball or backdrop slot.
+      expect(SKIN_MAP[skin.id].kind).toBe('paddle');
+    }
+    expect(isPaddleSkinId('startrail')).toBe(false);
+    expect(isPaddleSkinId('neon')).toBe(false);
+    expect(isPaddleSkinId('classic')).toBe(false);
   });
 
   it('the backdrop theme carries a fixed transform', () => {
@@ -119,18 +138,21 @@ describe('skin storage', () => {
     const save = defaultSave();
     expect(save.economy.skins).toEqual([]);
     expect(save.economy.skinBall).toBeNull();
+    expect(save.economy.skinPaddle).toBeNull();
     expect(save.economy.skinBg).toBeNull();
   });
 
   it('round-trips owned skins and equips', () => {
     const save = defaultSave();
-    save.economy.skins = ['startrail', 'neon'];
+    save.economy.skins = ['startrail', 'frostline', 'neon'];
     save.economy.skinBall = 'startrail';
+    save.economy.skinPaddle = 'frostline';
     save.economy.skinBg = 'neon';
     storeSave(save);
     const again = loadSave();
-    expect(again.economy.skins).toEqual(['startrail', 'neon']);
+    expect(again.economy.skins).toEqual(['startrail', 'frostline', 'neon']);
     expect(again.economy.skinBall).toBe('startrail');
+    expect(again.economy.skinPaddle).toBe('frostline');
     expect(again.economy.skinBg).toBe('neon');
   });
 
@@ -144,6 +166,7 @@ describe('skin storage', () => {
         economy: {
           skins: ['startrail', 'bogus', 'molten'],
           skinBall: 'aurora', // a real id, but not owned
+          skinPaddle: 'duskveil', // not owned either
           skinBg: 'neon', // not owned either
         },
       }),
@@ -151,22 +174,29 @@ describe('skin storage', () => {
     const save = loadSave();
     expect(save.economy.skins).toEqual(['startrail', 'molten']);
     expect(save.economy.skinBall).toBeNull();
+    expect(save.economy.skinPaddle).toBeNull();
     expect(save.economy.skinBg).toBeNull();
   });
 
-  it('a backdrop id cannot ride the ball slot, and vice versa', () => {
+  it('a skin id cannot ride a slot of another kind', () => {
     store.set(
       KEY,
       JSON.stringify({
         version: 2,
         settings: {},
         records: {},
-        economy: { skins: ['neon', 'startrail'], skinBall: 'neon', skinBg: 'startrail' },
+        economy: {
+          skins: ['neon', 'startrail', 'frostline'],
+          skinBall: 'neon',
+          skinBg: 'startrail',
+          skinPaddle: 'aurora',
+        },
       }),
     );
     const save = loadSave();
     expect(save.economy.skinBall).toBeNull();
     expect(save.economy.skinBg).toBeNull();
+    expect(save.economy.skinPaddle).toBeNull();
   });
 });
 
@@ -181,10 +211,14 @@ describe('buy/equip verdicts', () => {
   it('equipSkin always accepts null, and otherwise only an owned skin of its own kind', () => {
     expect(canEquipSkin([], null, 'ball')).toBe(true);
     expect(canEquipSkin([], null, 'bg')).toBe(true);
+    expect(canEquipSkin([], null, 'paddle')).toBe(true);
     expect(canEquipSkin(['startrail'], 'startrail', 'ball')).toBe(true);
     expect(canEquipSkin([], 'startrail', 'ball')).toBe(false);
     expect(canEquipSkin(['neon'], 'neon', 'ball')).toBe(false);
     expect(canEquipSkin(['neon'], 'neon', 'bg')).toBe(true);
     expect(canEquipSkin(['startrail'], 'startrail', 'bg')).toBe(false);
+    expect(canEquipSkin(['frostline'], 'frostline', 'paddle')).toBe(true);
+    expect(canEquipSkin(['frostline'], 'frostline', 'ball')).toBe(false);
+    expect(canEquipSkin(['startrail'], 'startrail', 'paddle')).toBe(false);
   });
 });

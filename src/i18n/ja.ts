@@ -1161,12 +1161,17 @@ export const ja: UiDict & { content: ContentOverrides } = {
       trial: '体験',
       trialOn: '体験中',
     },
+    skinGroup: { ball: 'ボールスキン', paddle: 'パドルスキン', bg: '背景テーマ' },
     skin: {
       classic: { name: 'オリジナル', desc: '最初の白いボール、飾りなし。' },
       startrail: { name: '星軌', desc: '冷たい白青の尾跡。夜空を走る星のように。' },
       molten: { name: '熔金', desc: '金橙色の輝光がボールを包む。' },
       aurora: { name: 'オーロラ', desc: '青紫のグラデーション、輝光と尾跡。' },
       deepspace: { name: '深宇宙', desc: '深い青の輝光に、明るい銀の核。' },
+      classicPaddle: { name: 'オリジナルパドル', desc: '初期の冷たい白パドル、飾りなし。' },
+      emberfall: { name: '余燼', desc: 'パドルスキン：炭橙の板身に、消えかけぬ熱。' },
+      frostline: { name: '霜線', desc: 'パドルスキン：氷青の鋼体、霜のごとく冷たく。' },
+      duskveil: { name: '暮帷', desc: 'パドルスキン：夕暮れの紫が一枚の板に降りる。' },
       neon: { name: 'ネオン回廊', desc: '背景テーマ：章ごとの配色をネオンにずらす。' },
     },
     ms: {

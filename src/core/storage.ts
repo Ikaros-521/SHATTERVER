@@ -2,7 +2,7 @@ import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
 import { isSupplyId } from '../game/economy/catalog';
 import { DAILY_MISSION_MAP, isDailyMissionId } from '../game/economy/dailies';
-import { isBallSkinId, isBgSkinId, isSkinId } from '../render/skins';
+import { isBallSkinId, isBgSkinId, isPaddleSkinId, isSkinId } from '../render/skins';
 import { isTier, type Tier } from '../render/governor';
 import type { QualityLevel } from '../render/layout';
 import { APP_VERSION } from './version';
@@ -113,10 +113,12 @@ export interface EconomyState {
   protocols: string[];
   /** Owned supply ids. */
   supplies: string[];
-  /** Owned cosmetic skin ids (`render/skins`): ball looks and backdrop themes. */
+  /** Owned cosmetic skin ids (`render/skins`): ball looks, paddle looks and backdrop themes. */
   skins: string[];
   /** The equipped ball skin id, or null for the free stock look 「原色」. */
   skinBall: string | null;
+  /** The equipped paddle skin id, or null for the stock paddle. */
+  skinPaddle: string | null;
   /** The equipped backdrop theme id, or null for the chapters' own palettes. */
   skinBg: string | null;
   /** Supplies carried into the next run; bounded by the earned slot count. */
@@ -194,6 +196,7 @@ export const DEFAULT_ECONOMY: EconomyState = {
   supplies: [],
   skins: [],
   skinBall: null,
+  skinPaddle: null,
   skinBg: null,
   loadout: [],
   wishlist: null,
@@ -284,6 +287,8 @@ export function parseEconomyState(raw: unknown): EconomyState | null {
   // its own kind — a hand-edited save cannot wear something the wallet never bought.
   economy.skins = Array.isArray(e.skins) ? e.skins.filter(isSkinId) : [];
   economy.skinBall = isBallSkinId(e.skinBall) && economy.skins.includes(e.skinBall) ? e.skinBall : null;
+  economy.skinPaddle =
+    isPaddleSkinId(e.skinPaddle) && economy.skins.includes(e.skinPaddle) ? e.skinPaddle : null;
   economy.skinBg = isBgSkinId(e.skinBg) && economy.skins.includes(e.skinBg) ? e.skinBg : null;
   economy.loadout = Array.isArray(e.loadout) ? e.loadout.filter(isSupplyId) : [];
   economy.wishlist = typeof e.wishlist === 'string' ? e.wishlist : null;

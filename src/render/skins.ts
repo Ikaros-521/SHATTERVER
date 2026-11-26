@@ -4,17 +4,20 @@
  * A skin is looks and nothing else — a palette of 0xRRGGBB numbers plus, for backdrop themes,
  * one fixed numeric transform. The render layer reads them at draw time, so the simulation
  * (`game/`) never knows a skin exists. Ball skins recolour the comet trail, the glow and the hot
- * core; a backdrop theme runs every chapter's background palette through its transform (an HSL
- * hue rotation with mild saturation/brightness factors) — deterministic, no randomness.
+ * core; paddle skins recolour the paddle's body and its thruster wash (overdrive, ready-meter and
+ * buff tints stay stock — they are feedback, not fashion); a backdrop theme runs every chapter's
+ * background palette through its transform (an HSL hue rotation with mild saturation/brightness
+ * factors) — deterministic, no randomness.
  *
  * Chinese names/descriptions are canonical here; the UI reads its copy through the
- * `shop.skin.<id>` keys (see `i18n/zh.ts`), which every locale must carry. The stock ball look
- * 「原色」 is not a catalog entry: it is free, always owned, and expressed as a null equip.
+ * `shop.skin.<id>` keys (see `i18n/zh.ts`), which every locale must carry. The stock looks
+ * 「原色」 (ball and paddle) are not catalog entries: they are free, always owned, and expressed
+ * as a null equip.
  */
 
-export type SkinId = 'startrail' | 'molten' | 'aurora' | 'deepspace' | 'neon';
+export type SkinId = 'startrail' | 'molten' | 'aurora' | 'deepspace' | 'emberfall' | 'frostline' | 'duskveil' | 'neon';
 
-export type SkinKind = 'ball' | 'bg';
+export type SkinKind = 'ball' | 'bg' | 'paddle';
 
 /** The three draw-time colours a ball skin recolours. All 0xRRGGBB. */
 export interface BallSkinColors {
@@ -57,9 +60,27 @@ export interface BgSkinDef {
   transform: BgSkinTransform;
 }
 
-export type SkinDef = BallSkinDef | BgSkinDef;
+/** The two draw-time colours a paddle skin recolours. All 0xRRGGBB. */
+export interface PaddleSkinColors {
+  /** The paddle's own surface (the stock look is a cold near-white). */
+  body: number;
+  /** The thruster wash underneath and the soft halo while charged. */
+  glow: number;
+}
 
-/** Ball skins first, in ascending price; the backdrop theme closes the shelf. */
+export interface PaddleSkinDef {
+  id: SkinId;
+  kind: 'paddle';
+  price: number;
+  name: string;
+  en: string;
+  desc: string;
+  colors: PaddleSkinColors;
+}
+
+export type SkinDef = BallSkinDef | BgSkinDef | PaddleSkinDef;
+
+/** Ball skins first, then paddle skins, in ascending price; the backdrop theme closes the shelf. */
 export const SKINS: readonly SkinDef[] = [
   {
     id: 'startrail',
@@ -98,6 +119,33 @@ export const SKINS: readonly SkinDef[] = [
     colors: { core: 0xf4f7ff, glow: 0x3352b8, trail: 0x1c2f6e },
   },
   {
+    id: 'emberfall',
+    kind: 'paddle',
+    price: 600,
+    name: '余烬',
+    en: 'EMBERFALL',
+    desc: '弹板涂装：碳橙的板身带着未散的余温，推进器光晕暖橙。',
+    colors: { body: 0xffb27a, glow: 0xff7a3c },
+  },
+  {
+    id: 'frostline',
+    kind: 'paddle',
+    price: 800,
+    name: '霜线',
+    en: 'FROSTLINE',
+    desc: '弹板涂装：冰蓝钢体，推进器光晕冷冽如霜。',
+    colors: { body: 0xbfe8ff, glow: 0x5ec8ff },
+  },
+  {
+    id: 'duskveil',
+    kind: 'paddle',
+    price: 1000,
+    name: '暮帷',
+    en: 'DUSKVEIL',
+    desc: '弹板涂装：暮色的紫落在一块板上，光晕沉静。',
+    colors: { body: 0xc9a8ff, glow: 0x8a5cff },
+  },
+  {
     id: 'neon',
     kind: 'bg',
     price: 2500,
@@ -113,6 +161,9 @@ export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s
 /** The equipped-ball value that means 「原色」: not a catalog item, never bought, always available. */
 export const defaultBallSkin: string = 'classic';
 
+/** The equipped-paddle value that means the stock paddle, same rules as the ball's 「原色」. */
+export const defaultPaddleSkin: string = 'classic';
+
 export function isSkinId(value: unknown): value is SkinId {
   return typeof value === 'string' && Object.hasOwn(SKIN_MAP, value);
 }
@@ -123,6 +174,10 @@ export function isBallSkinId(value: unknown): value is SkinId {
 
 export function isBgSkinId(value: unknown): value is SkinId {
   return isSkinId(value) && SKIN_MAP[value].kind === 'bg';
+}
+
+export function isPaddleSkinId(value: unknown): value is SkinId {
+  return isSkinId(value) && SKIN_MAP[value].kind === 'paddle';
 }
 
 /** The shop action's verdict, shared with the tests: unknown, owned or unaffordable all refuse. */

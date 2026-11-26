@@ -52,13 +52,14 @@ import { Fx, particleCapacity, type FxSettings } from './render/fx';
 import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './render/governor';
 import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette } from './render/renderer';
-import { drawScene, type BallSkinOverride, type SceneInfo } from './render/scene';
+import { drawScene, type BallSkinOverride, type PaddleSkinOverride, type SceneInfo } from './render/scene';
 import {
   applyBgSkin,
   canBuySkin,
   canEquipSkin,
   isBallSkinId,
   isBgSkinId,
+  isPaddleSkinId,
   SKIN_MAP,
   type BgSkinDef,
   type SkinKind,
@@ -781,6 +782,7 @@ export class App implements UiActions {
     const econ = this.save.economy;
     if (!canEquipSkin(econ.skins, id, kind)) return false;
     if (kind === 'ball') econ.skinBall = id;
+    else if (kind === 'paddle') econ.skinPaddle = id;
     else econ.skinBg = id;
     storeSave(this.save);
     this.pushWallet();
@@ -1450,6 +1452,13 @@ export class App implements UiActions {
       : null;
   }
 
+  /** The equipped paddle skin as a draw-time override, or null for the stock paddle. */
+  private paddleSkin(): PaddleSkinOverride | null {
+    const id = this.save.economy.skinPaddle;
+    const def = isPaddleSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    return def && def.kind === 'paddle' ? { body: def.colors.body, glow: def.colors.glow } : null;
+  }
+
   /** The equipped backdrop theme, or null for the chapters' own palettes. */
   private bgSkin(): BgSkinDef | null {
     const id = this.save.economy.skinBg;
@@ -1469,7 +1478,7 @@ export class App implements UiActions {
       ? { a: skinned.bg[0], b: skinned.bg[1], c: skinned.bg[2], accent: skinned.accent }
       : { a: chapter.bg[0], b: chapter.bg[1], c: chapter.bg[2], accent: chapter.accent };
     this.renderer.pen.reset();
-    drawScene(this.renderer.pen, world, this.fx, chapter, time, this.info, this.ballSkin());
+    drawScene(this.renderer.pen, world, this.fx, chapter, time, this.info, this.ballSkin(), this.paddleSkin());
     this.renderer.render({ layout: this.layout, time, palette, view, post: this.fx.post, info: this.info });
   }
 

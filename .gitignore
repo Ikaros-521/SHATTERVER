@@ -9,3 +9,4 @@ promo/
 .hyperframes/
 covers/
 *.zip
+project.private.config.json

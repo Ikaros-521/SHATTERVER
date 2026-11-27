@@ -62,6 +62,7 @@ import { SAKURA_ART } from '../src/render/themes/art/sakura';
 import { THEMES, THEME_CONFIGS, ThemeRegistry } from '../src/render/themes/index';
 import { ThemeLayer, themeParticleCapacity } from '../src/render/themes/layer';
 import { emitBurst } from '../src/render/themes/recipes';
+import { outfitForPart, outfitForTheme } from '../src/ui/themePreview';
 import type {
   AmbientKind,
   BallPainter,
@@ -1166,6 +1167,16 @@ describe('theme copy', () => {
   const LOCALES = ['zh', 'en', 'ja', 'ko'] as const;
   const shop = (): Record<string, any> => (dict() as unknown as Record<string, any>).shop;
 
+  it('the try-on preview says its three lines in all four locales', () => {
+    for (const lang of LOCALES) {
+      setLang(lang);
+      for (const key of ['shop.preview', 'shop.previewTitle', 'shop.previewClose']) {
+        expect(t(key), `${lang} ${key}`).not.toBe(key);
+        expect(t(key).trim(), `${lang} ${key}`).not.toBe('');
+      }
+    }
+  });
+
   it('every theme and every part has a name and a line of its own in all four locales', () => {
     for (const lang of LOCALES) {
       setLang(lang);
@@ -1243,5 +1254,28 @@ describe('theme copy', () => {
         `data.${theme.id}`,
       );
     }
+  });
+});
+
+describe('try-on outfits', () => {
+  it('a set card wears all three slots of its theme at once', () => {
+    for (const id of THEME_IDS) {
+      expect(outfitForTheme(id)).toEqual({
+        paddle: themePartId(id, 'paddle'),
+        ball: themePartId(id, 'ball'),
+        bg: themePartId(id, 'bg'),
+      });
+    }
+  });
+
+  it('a shelf card wears only its own kind, leaving the save\u2019s other slots alone', () => {
+    expect(outfitForPart('sakura_paddle', 'paddle')).toEqual({
+      paddle: 'sakura_paddle',
+      ball: null,
+      bg: null,
+    });
+    expect(outfitForPart('emberfall', 'paddle')).toEqual({ paddle: 'emberfall', ball: null, bg: null });
+    expect(outfitForPart('ocean_bg', 'bg')).toEqual({ paddle: null, ball: null, bg: 'ocean_bg' });
+    expect(outfitForPart('startrail', 'ball')).toEqual({ paddle: null, ball: 'startrail', bg: null });
   });
 });

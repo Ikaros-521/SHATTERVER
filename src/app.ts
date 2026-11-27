@@ -65,6 +65,7 @@ import { WeChatChannel } from './net/wechatchannel';
 import { ToyChannel } from './net/toychannel';
 import { mergeWallet } from './net/toywallet';
 import { composeScorecard, saveScorecardPng, type BuildIcon, type ScorecardData } from './ui/scorecard';
+import type { SkinOutfit } from './ui/themePreview';
 import { UI, type PerfInfo, type UiActions } from './ui/ui';
 
 /** Minimum spacing between redraws of a screen where nothing moves (paused, drafting, over). */
@@ -908,6 +909,15 @@ export class App implements UiActions {
     return true;
   }
 
+  /**
+   * The shop's try-on: an outfit the live scene wears on top of the save's equips — including
+   * looks the wallet does not hold yet, which is the point of a preview. Nothing is written;
+   * null returns every slot to whatever the save says.
+   */
+  previewOutfit(outfit: SkinOutfit | null): void {
+    this.outfit = outfit;
+  }
+
   toggleWishlist(id: string): void {
     const econ = this.save.economy;
     if (!PROTOCOL_MAP[id] && !isSupplyId(id)) return;
@@ -1449,6 +1459,24 @@ export class App implements UiActions {
     }
   }
 
+  /**
+   * The shop's try-on outfit, worn by the live scene on top of the save's equips. Null when no
+   * preview is up, which is every frame the try-on overlay is not open.
+   */
+  private outfit: SkinOutfit | null = null;
+
+  /** The id a kind's slot wears right now: the try-on says, else the save's equip. */
+  private wornId(kind: SkinKind): string | null {
+    if (this.outfit) return this.outfit[kind];
+    const econ = this.save.economy;
+    return kind === 'ball' ? econ.skinBall : kind === 'paddle' ? econ.skinPaddle : econ.skinBg;
+  }
+
+  /** True when the id may dress its slot: the save bought it, or the shop's try-on put it on. */
+  private mayWear(id: string): boolean {
+    return this.outfit !== null || this.save.economy.skins.includes(id);
+  }
+
   /** The equipped ball skin as a draw-time override, or null for the free stock look 「原色」. */
   private ballSkin(): BallSkinOverride | null {
     // A theme's ball wears the theme's glow colours, and says how much of the stock glow it wants.
@@ -1461,8 +1489,8 @@ export class App implements UiActions {
         halo: theme.ball.halo,
       };
     }
-    const id = this.save.economy.skinBall;
-    const def = isBallSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    const id = this.wornId('ball');
+    const def = isBallSkinId(id) && this.mayWear(id) ? SKIN_MAP[id] : null;
     return def && def.kind === 'ball' && 'colors' in def
       ? { glow: def.colors.glow, trail: def.colors.trail, core: def.colors.core }
       : null;
@@ -1470,8 +1498,8 @@ export class App implements UiActions {
 
   /** The equipped paddle skin as a draw-time override, or null for the stock paddle. A theme's paddle draws itself. */
   private paddleSkin(): PaddleSkinOverride | null {
-    const id = this.save.economy.skinPaddle;
-    const def = isPaddleSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    const id = this.wornId('paddle');
+    const def = isPaddleSkinId(id) && this.mayWear(id) ? SKIN_MAP[id] : null;
     return def && def.kind === 'paddle' && 'colors' in def
       ? { body: def.colors.body, glow: def.colors.glow }
       : null;
@@ -1479,21 +1507,20 @@ export class App implements UiActions {
 
   /** The equipped backdrop recolouring, or null for the chapters' own palettes (and for a theme's scene). */
   private bgSkin(): BgSkinDef | null {
-    const id = this.save.economy.skinBg;
-    const def = isBgSkinId(id) && this.save.economy.skins.includes(id) ? SKIN_MAP[id] : null;
+    const id = this.wornId('bg');
+    const def = isBgSkinId(id) && this.mayWear(id) ? SKIN_MAP[id] : null;
     return def && def.kind === 'bg' && 'transform' in def ? def : null;
   }
 
   /**
    * The themes the save's equips add up to, slot by slot. Each slot is read on its own, so the
    * paddle, the ball and the background may come from three different themes — or from none. An
-   * equipped id that was never bought reads as nothing worn, the same as for a plain skin.
+   * equipped id that was never bought reads as nothing worn, the same as for a plain skin — the
+   * shop's try-on excepted, which dresses looks the wallet does not hold yet.
    */
   private wornThemes(): ThemeSlots {
-    const econ = this.save.economy;
-    const owned = econ.skins;
     const worn = (id: string | null, kind: 'paddle' | 'ball' | 'bg'): ThemeConfig | null => {
-      if (!id || !owned.includes(id)) return null;
+      if (!id || !this.mayWear(id)) return null;
       const part = themePart(id);
       return part && part.kind === kind ? THEMES.get(part.theme) : null;
     };
@@ -1503,9 +1530,9 @@ export class App implements UiActions {
     // paddle missing its body would be worse than a plain one.
     const bare = this.renderer.spritesBroken;
     return {
-      paddle: bare ? null : worn(econ.skinPaddle, 'paddle'),
-      ball: bare ? null : worn(econ.skinBall, 'ball'),
-      bg: worn(econ.skinBg, 'bg'),
+      paddle: bare ? null : worn(this.wornId('paddle'), 'paddle'),
+      ball: bare ? null : worn(this.wornId('ball'), 'ball'),
+      bg: worn(this.wornId('bg'), 'bg'),
     };
   }
 

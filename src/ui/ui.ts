@@ -77,6 +77,7 @@ import { HUD, tagChips, type HudHost } from './hud';
 import { NicknamePrompt, shouldAskNickname } from './nickname';
 import { sigil } from './sigil';
 import { themeArt, themeArtId, themePartArtId } from './themeArt';
+import { ThemePreview, outfitForPart, outfitForTheme, type SkinOutfit } from './themePreview';
 import { shouldAutoShow, Tutorial } from './tutorial';
 
 /** Everything the UI can ask the app to do. The UI never touches a session or the renderer directly. */
@@ -108,6 +109,11 @@ export interface UiActions {
    * null, returns every slot to the stock look. False when a part is not owned.
    */
   equipTheme(id: string | null): boolean;
+  /**
+   * The shop's try-on: an outfit the live scene wears on top of the save's equips, looks the
+   * wallet does not hold yet included. Nothing is written; null returns to the save's own.
+   */
+  previewOutfit(outfit: SkinOutfit | null): void;
   /** Points the menu/results nudge at a catalog item, or clears the nudge when it is the same one. */
   toggleWishlist(id: string): void;
   /** Toggles a supply in the carried loadout. False when unowned or the earned slots are full. */
@@ -225,6 +231,8 @@ export class UI implements HudHost {
   private readonly tutorial: Tutorial;
   /** The release notes, overlaid the same way: on their own after an update, or from the menu's version link. */
   private readonly changelog: Changelog;
+  /** The looks shelf's try-on: the demo scene behind the shop wears the previewed outfit. */
+  private readonly themePreview: ThemePreview;
   /** The entry nickname prompt, built with the cloud screen: same channel, same identity. */
   private readonly nicknamePrompt: NicknamePrompt | null;
 
@@ -246,6 +254,8 @@ export class UI implements HudHost {
     });
     // Same route for the notes: dismissed by the button or by Esc is "seen" either way.
     this.changelog = new Changelog(audio, () => this.actions.updateSettings({ changelogSeen: APP_VERSION }));
+    // The try-on hands the App a temporary outfit and takes it back on close; the save never moves.
+    this.themePreview = new ThemePreview(audio, (outfit) => this.actions.previewOutfit(outfit));
     // The version link is the one place the version shows on screen, and static markup cannot know it.
     setText(byId('menu-version-tag'), `v${APP_VERSION}`);
     // Phones and tablets do without the effects their compositor cannot afford (see the
@@ -1153,6 +1163,8 @@ export class UI implements HudHost {
         ownedLabel: t('shop.owned'),
         onBuy: () => this.actions.buySkin(skin.id),
         wishable: false,
+        onPreview: () =>
+          this.themePreview.openPreview(t(`shop.skin.${skin.id}.name`), outfitForPart(skin.id, skin.kind)),
         // The theme has no stock card of its own, so equipping it again clears it; ball and
         // paddle looks clear through their free 「原色」 card instead.
         onEquip: owned
@@ -1210,7 +1222,30 @@ export class UI implements HudHost {
         el('i', {}),
         el('span', { text: label }),
       );
-    const side: HTMLElement[] = [];
+    // The set card's two doors into the try-on: the strip itself, and a ghost button beside the
+    // exchange/wear one. Both dress the whole theme on the demo scene behind the shop.
+    const tryOn = (): void => {
+      this.themePreview.openPreview(t(`shop.theme.${theme.id}.name`), outfitForTheme(theme.id));
+    };
+    const art = el(
+      'button',
+      { class: 'shop-theme-art', type: 'button', 'aria-label': t('shop.preview'), title: t('shop.preview') },
+      el('img', { src: themeArt(themeArtId(theme.id)) ?? '', alt: '', draggable: 'false' }),
+    );
+    art.addEventListener('click', () => {
+      this.audio.ui('uiClick');
+      tryOn();
+    });
+    const peek = el(
+      'button',
+      { class: 'shop-preview', type: 'button' },
+      el('span', { text: t('shop.preview') }),
+    );
+    peek.addEventListener('click', () => {
+      this.audio.ui('uiClick');
+      tryOn();
+    });
+    const side: HTMLElement[] = [peek];
     if (complete) {
       // Owned: one tap wears the whole set; a second tap takes all three off again.
       const wear = el(
@@ -1250,11 +1285,7 @@ export class UI implements HudHost {
         class: `shop-theme${complete ? ' owned' : ''}${worn ? ' worn' : ''}`,
         style: `--c:${hexCss(c.accent)};--c3:${hexCss(c.primary)};--glow:${rgbaCss(c.primary, 0.14)}`,
       },
-      el(
-        'div',
-        { class: 'shop-theme-art' },
-        el('img', { src: themeArt(themeArtId(theme.id)) ?? '', alt: '', draggable: 'false' }),
-      ),
+      art,
       el(
         'div',
         { class: 'shop-body' },
@@ -1294,6 +1325,8 @@ export class UI implements HudHost {
       ownedLabel: t('shop.owned'),
       onBuy: () => this.actions.buySkin(part.id),
       wishable: false,
+      onPreview: () =>
+        this.themePreview.openPreview(t(`shop.skin.${part.id}.name`), outfitForPart(part.id, part.kind)),
       // A background clears by being equipped again, as the backdrop theme does; paddle and ball
       // parts clear through their free 「原色」 card.
       onEquip: owned
@@ -1398,6 +1431,8 @@ export class UI implements HudHost {
     trialed?: boolean;
     /** False hides the wishlist button (skins have their own shelf, no nudge). */
     wishable?: boolean;
+    /** Opens the try-on with this look worn over whatever the save already wears. */
+    onPreview?: () => void;
     /** Renders the equip toggle; the closure returns false for "not owned". */
     onEquip?: () => boolean;
     equipped?: boolean;
@@ -1429,6 +1464,9 @@ export class UI implements HudHost {
       el(
         'div',
         { class: 'shop-side' },
+        opts.onPreview
+          ? el('button', { class: 'shop-preview', type: 'button' }, el('span', { text: t('shop.preview') }))
+          : null,
         opts.owned
           ? el('span', { class: 'shop-owned', text: opts.ownedLabel })
           : el(
@@ -1479,6 +1517,11 @@ export class UI implements HudHost {
       if (opts.onBuy()) this.audio.ui('pick');
       else this.audio.ui('deny');
       this.renderShop();
+    });
+    const peek = card.querySelector<HTMLButtonElement>('.shop-preview');
+    peek?.addEventListener('click', () => {
+      this.audio.ui('uiClick');
+      opts.onPreview?.();
     });
     const wish = card.querySelector<HTMLButtonElement>('.shop-wish');
     wish?.addEventListener('click', () => {
@@ -2195,6 +2238,7 @@ export class UI implements HudHost {
     applyDom();
     this.tutorial.applyLanguage();
     this.changelog.applyLanguage();
+    this.themePreview.applyLanguage();
     this.nicknamePrompt?.applyLanguage();
     switch (this.current) {
       case 'menu':

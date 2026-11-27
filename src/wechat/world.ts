@@ -22,6 +22,7 @@ import { difficultyOf, type DifficultyId } from '../game/difficulty';
 import { Session } from '../game/session';
 import type { Starter } from '../game/starters';
 import type { RunMode } from '../game/run';
+import type { World } from '../game/world';
 import { Fx, particleCapacity } from '../render/fx';
 import { computeLayout, type Layout } from '../render/layout';
 import { Renderer } from '../render/renderer';
@@ -47,6 +48,8 @@ export class WorldBinding {
   private readonly info: SceneInfo = { danger: 0, energy: 0 };
   /** Unlisten hooks for the session/world wires, dropped on dispose. */
   private readonly wires: (() => void)[] = [];
+  /** Unlisten hooks for the CURRENT world only — replaced on every level change. */
+  private readonly worldWires: (() => void)[] = [];
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -85,14 +88,29 @@ export class WorldBinding {
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
 
     this.wires.push(
-      this.fx.attach(this.session.world),
-      ...(this.audio ? [this.audio.attach(this.session.world)] : []),
+      this.session.events.on('level', () => this.attachWorld(this.session.world)),
       this.session.events.on('draft', () => this.cb.onDraft()),
       this.session.events.on('phase', ({ phase }) => {
         if (phase === 'over' || phase === 'won') this.cb.onEnding(phase === 'won');
       }),
     );
+    this.attachWorld(this.session.world);
     this.session.start();
+  }
+
+  /**
+   * Wires one world's events to effects and sound. The session opens a fresh World per level
+   * (see `Session.openLevel`), so this reruns on every `level` event — attaching only once left
+   * sectors 2+ playing silently with no hit particles (the wires pointed at the discarded world).
+   */
+  private attachWorld(world: World): void {
+    for (const off of this.worldWires) off();
+    this.worldWires.length = 0;
+    this.fx.clear();
+    this.worldWires.push(
+      this.fx.attach(world),
+      ...(this.audio ? [this.audio.attach(world)] : []),
+    );
   }
 
   /** Advances the simulation and renders one frame. `dt` in seconds, clamped by the caller. */
@@ -130,7 +148,8 @@ export class WorldBinding {
   }
 
   dispose(): void {
-    for (const wire of this.wires) wire();
+    for (const wire of [...this.wires, ...this.worldWires]) wire();
     this.wires.length = 0;
+    this.worldWires.length = 0;
   }
 }

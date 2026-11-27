@@ -628,6 +628,7 @@ function boot(): void {
       return;
     }
     ui.pointerDown(touch.clientX, touch.clientY);
+    console.debug('[hit]', JSON.stringify(ui.lastProbe));
   });
   wx.onTouchMove((event) => {
     const touch = event.touches[0];

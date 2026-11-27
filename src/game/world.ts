@@ -75,6 +75,7 @@ import {
 } from './combat';
 import {
   characterDefeated,
+  startCharacterBoss,
   characterDiscsOf,
   characterPhase,
   hitCharacterPart,
@@ -333,7 +334,14 @@ export class World {
     readonly run: Run,
     readonly level: LevelPlan,
     readonly rng: RNG,
-    opts: { bot?: boolean; difficulty?: Difficulty; startEnergy?: number; secondWind?: boolean } = {},
+    opts: {
+      bot?: boolean;
+      difficulty?: Difficulty;
+      startEnergy?: number;
+      secondWind?: boolean;
+      /** A character boss stands on this level. The level plan will name her in time. */
+      character?: boolean;
+    } = {},
   ) {
     this.stats = run.stats;
     this.liveStats = run.stats;
@@ -353,7 +361,8 @@ export class World {
     // A level with a character boss has her. Which levels do is the level plan's business, and
     // until that plan names her she stands on none: her fight is not playable without the layer
     // and the HUD that show her, and a boss the player cannot see would be an unfair one.
-    this.character = null;
+    // `opts.character` stands in for that plan while the layer is still being built.
+    this.character = opts.character ? startCharacterBoss() : null;
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();

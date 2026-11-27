@@ -32,6 +32,7 @@ import { isLighter, QualityGovernor, tierLabel, tierOf, type Tier } from './rend
 import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette, type ThemeFrame } from './render/renderer';
 import { drawScene, type BallSkinOverride, type PaddleSkinOverride, type SceneInfo } from './render/scene';
+import { BossLayer, frameOf } from './render/boss/layer';
 import { THEMES } from './render/themes';
 import {
   canBuyTheme,
@@ -183,6 +184,8 @@ export class App implements UiActions {
    */
   readonly cloud: Leaderboard | null;
   private readonly renderer: Renderer;
+  /** The character boss's drawing layer: her atlas, baked while she is on screen. */
+  private readonly boss: BossLayer;
   /** The WebGL canvas, kept for the context-loss listeners bound in `bindInput`. */
   private readonly canvas: HTMLCanvasElement;
 
@@ -388,6 +391,7 @@ export class App implements UiActions {
     const start = learned && isLighter(learned, wanted) ? learned : wanted;
     this.governor = new QualityGovernor(wanted, start);
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
+    this.boss = new BossLayer();
     this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
     this.theme = new ThemeLayer(this.governor.current.quality);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
@@ -721,6 +725,9 @@ export class App implements UiActions {
       level,
       difficulty: difficultyOf(difficulty),
       supplies,
+      // She stands on boss levels while the web build can show her; the level plan will name her
+      // in time. The WeChat shell has no layer for her, so it never turns this on.
+      characterBoss: level >= 15,
     });
     this.ui.clearCallouts();
     this.adopt(session, false);
@@ -1594,6 +1601,9 @@ export class App implements UiActions {
             refresh: low ? 2 : 1,
           };
     this.renderer.pen.reset();
+    // A character boss stands behind the field: her layer draws her from her atlas, then the
+    // scene lays the bricks over her.
+    if (world.character) this.boss.draw(this.renderer, world, frameOf(world));
     drawScene(
       this.renderer.pen,
       world,

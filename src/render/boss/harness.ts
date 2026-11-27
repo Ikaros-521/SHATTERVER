@@ -256,9 +256,12 @@ function runScene(): void {
 
   // A sector with its bricks taken out: the frame, the paddle and the parked balls stay, as a
   // reference for how big she is next to them. She rules the third chapter's last sector.
+  // `fight=1` starts her state machine beside the scene, as the fight would.
+  const fight = params.get('fight') === '1';
   const session = new Session('campaign', 20261127, {
     bot: true,
     starter: { id: 'harness', name: '', en: '', desc: '', color: 0, grants: {}, crystals: 0 },
+    characterBoss: fight,
   });
   const world = session.world;
   world.bricks.length = 0;
@@ -284,6 +287,8 @@ function runScene(): void {
   } else if (sheet === 'damage') {
     figures.push({ x: ANCHOR_X - 310, face: 'idle', look: lookWith('intact') });
     figures.push({ x: ANCHOR_X + 310, face: 'idle', look: lookWith('damaged_2') });
+  } else if (fight) {
+    // The fight draws her where her state machine says; no hand-placed figure beside her.
   } else {
     figures.push({ x: ANCHOR_X, face, look: lookWith(STATES[damage] ?? 'intact') });
   }
@@ -327,6 +332,24 @@ function runScene(): void {
       for (const figure of figures) {
         const shown: BossFrame = { x: figure.x, y: ANCHOR_Y, time, face: figure.face, look: figure.look };
         paintSheet(renderer.pen, shown, sheetUsed, atlas, HIYOU_SCALE);
+      }
+      // In fight mode she is drawn where her state machine says, advancing with the world's own
+      // clock — sway, hits fading, phases — not at a hand-frozen pose.
+      if (fight && world.character) {
+        paintSheet(
+          renderer.pen,
+          {
+            x: world.character.state.x,
+            y: world.character.state.y,
+            time,
+            face: world.character.state.face,
+            look: world.character.state.look,
+          },
+          sheetUsed,
+          atlas,
+          HIYOU_SCALE,
+        );
+        world.character.state.look.Body.flash = 0.5 + 0.5 * Math.sin(time * 6);
       }
       renderer.render({
         layout,

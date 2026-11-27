@@ -70,6 +70,11 @@ export interface SessionOptions {
   difficulty?: Difficulty;
   /** Owned supplies carried into this run (ids from `economy/catalog`). Unknown ids are dropped. */
   supplies?: readonly string[];
+  /**
+   * A character boss stands on this run's boss levels. The level plan will name her in time; the
+   * app turns it on for the levels it can show her on.
+   */
+  characterBoss?: boolean;
 }
 
 /**
@@ -93,6 +98,8 @@ export class Session {
   readonly events = new Emitter<SessionEvents>();
   readonly run: Run;
   readonly bot: boolean;
+  /** Whether a character boss stands on this run's boss levels. */
+  readonly characterBoss: boolean;
   readonly difficulty: Difficulty;
   world: World;
   phase: SessionPhase = 'playing';
@@ -114,6 +121,7 @@ export class Session {
 
   constructor(mode: RunMode, seed: number, options: SessionOptions = {}) {
     this.bot = options.bot ?? false;
+    this.characterBoss = options.characterBoss ?? false;
     this.difficulty = options.difficulty ?? difficultyOf('standard');
     this.rng = new RNG(hashCombine(seed, 0xd1a7));
     this.run = createRun(mode, seed);
@@ -295,6 +303,7 @@ export class Session {
       difficulty: this.difficulty,
       startEnergy: this.supplies.has('precharge') ? PRECHARGE_ENERGY : 0,
       secondWind: this.supplies.has('secondwind'),
+      character: this.characterBoss,
     });
   }
 
@@ -446,10 +455,7 @@ export class Session {
     // first spent pick, what is already owned no longer comes back — and nothing this run has
     // banned ever comes back anywhere.
     const intro = this.introPicks > 0;
-    const exclude = [
-      ...(intro && this.introTaken > 0 ? Object.keys(this.run.upgrades) : []),
-      ...this.bans,
-    ];
+    const exclude = [...(intro && this.introTaken > 0 ? Object.keys(this.run.upgrades) : []), ...this.bans];
     this.draft = rollDraft({
       levels: this.run.upgrades,
       level: this.draftLevel(),

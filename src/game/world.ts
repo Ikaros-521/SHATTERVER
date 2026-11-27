@@ -189,9 +189,14 @@ export interface WorldEvents {
   timeStop: 'start' | 'end';
   boss: { phase: 'phase' | 'enrage' | 'die' };
   /** A part of a character boss changed how it looks, or fell off. */
-  characterPart: { id: string; state: 'intact' | 'damaged_1' | 'damaged_2' | 'destroyed' };
+  characterPart: {
+    id: string;
+    state: 'intact' | 'damaged_1' | 'damaged_2' | 'destroyed';
+    x: number;
+    y: number;
+  };
   /** A character boss crossed into a new phase, or has spoken. */
-  character: { kind: 'phase' | 'line'; phase: number; moment: string | null };
+  character: { kind: 'phase' | 'line'; phase: number; moment: string | null; x: number; y: number };
   summon: { count: number };
   shoot: { x: number; y: number };
   bulletPop: { x: number; y: number; blocked: boolean };
@@ -956,7 +961,14 @@ export class World {
     const before = look.state;
     const { changed } = characterPhase(boss);
     if (look.state !== before) {
-      this.events.emit('characterPart', { id, state: look.state });
+      // Where the part sits this frame, so the feedback lands on it as it sways.
+      const disc = this.characterDiscs().find((each) => each.id === id);
+      this.events.emit('characterPart', {
+        id,
+        state: look.state,
+        x: disc?.x ?? cx,
+        y: disc?.y ?? cy,
+      });
       if (look.state === 'destroyed' && id !== 'Core') {
         boss.state.face = 'hurt';
         boss.state.line = 'partDown';
@@ -968,6 +980,8 @@ export class World {
         kind: 'phase',
         phase: boss.state.phase,
         moment: boss.pendingLine ?? null,
+        x: boss.state.x,
+        y: boss.state.y,
       });
       boss.state.face = boss.state.phase >= 4 ? 'awakened' : 'angry';
     }
@@ -975,7 +989,13 @@ export class World {
       boss.state.defeated = true;
       boss.state.face = 'defeated';
       boss.state.line = 'defeated';
-      this.events.emit('character', { kind: 'line', phase: boss.state.phase, moment: 'defeated' });
+      this.events.emit('character', {
+        kind: 'line',
+        phase: boss.state.phase,
+        moment: 'defeated',
+        x: boss.state.x,
+        y: boss.state.y,
+      });
     }
   }
 
@@ -985,7 +1005,13 @@ export class World {
     stepCharacterBoss(this.character, dt);
     const line = this.character.state.line;
     if (line)
-      this.events.emit('character', { kind: 'line', phase: this.character.state.phase, moment: line });
+      this.events.emit('character', {
+        kind: 'line',
+        phase: this.character.state.phase,
+        moment: line,
+        x: this.character.state.x,
+        y: this.character.state.y,
+      });
     // A part the fight has broken changes her face for a while; her phase's face claims it back.
     if (this.character.state.face === 'hurt' && this.character.quietFor > 1.6) {
       this.character.state.face = this.character.state.phase >= 3 ? 'angry' : 'idle';

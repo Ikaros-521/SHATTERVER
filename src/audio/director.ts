@@ -193,6 +193,17 @@ export class AudioDirector {
         this.cutoffLow = phase === 'start';
       }),
       on('boss', (e) => this.play(e.phase === 'die' ? 'bossDie' : 'boss', undefined, 1.3)),
+      on('characterPart', (e) =>
+        this.play(
+          e.state === 'destroyed' ? 'charFall' : 'charPart',
+          undefined,
+          e.state === 'destroyed' ? 1.2 : 0.7,
+        ),
+      ),
+      on('character', (e) => {
+        if (e.kind === 'phase') this.play('charPhase', undefined, 1.3);
+        else if (e.moment) this.play('charLine', undefined, 0.9);
+      }),
       on('shoot', () => this.play('shoot', undefined, 0.2)),
       on('bulletPop', (e) => this.play('pop', e.blocked ? 1500 : 900, 0.5)),
       on('breach', () => this.play('breach', undefined, 1.2)),

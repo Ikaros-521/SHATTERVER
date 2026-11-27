@@ -50,7 +50,11 @@ export type Sfx =
   | 'draft'
   | 'pick'
   | 'discard'
-  | 'deny';
+  | 'deny'
+  | 'charPart'
+  | 'charFall'
+  | 'charPhase'
+  | 'charLine';
 
 const SCALE = [0, 3, 5, 7, 10];
 
@@ -220,6 +224,46 @@ export function playSfx(engine: AudioEngine, name: Sfx, params: SfxParams = {}):
       engine.tone({ type: 'sawtooth', freq: 52, freqEnd: 230, dur: 0.28, gain: 0.14 });
       engine.tone({ type: 'sine', freq: 2140, dur: 0.4, gain: 0.06, reverb: 0.5 });
       break;
+    case 'charPart': {
+      // A plate cracking: a short dry snap with a metallic tail.
+      engine.noise({ filter: 'bandpass', freq: jitter(2400), freqEnd: 900, q: 1.2, dur: 0.09, gain: 0.2 });
+      engine.tone({ type: 'triangle', freq: jitter(620), freqEnd: 380, dur: 0.12, gain: 0.1 });
+      break;
+    }
+    case 'charFall': {
+      // A part torn off: a heavier crack plus a falling pink tone.
+      engine.noise({
+        filter: 'bandpass',
+        freq: jitter(1600),
+        freqEnd: 420,
+        q: 0.9,
+        dur: 0.22,
+        gain: 0.3,
+        reverb: 0.2,
+      });
+      engine.tone({ type: 'sine', freq: jitter(520), freqEnd: 180, dur: 0.34, gain: 0.16, reverb: 0.3 });
+      break;
+    }
+    case 'charPhase': {
+      // The phase turns: a rising pair of soft sines with space around them.
+      [0, 0.12, 0.24].forEach((delay, i) => {
+        engine.tone({ type: 'sine', freq: midiHz(69 + i * 5), dur: 0.3, gain: 0.12, delay, reverb: 0.4 });
+      });
+      break;
+    }
+    case 'charLine': {
+      // She speaks: two soft bell tones, in key, quiet.
+      engine.tone({ type: 'sine', freq: jitter(midiHz(81)), dur: 0.26, gain: 0.07, reverb: 0.45 });
+      engine.tone({
+        type: 'sine',
+        freq: jitter(midiHz(88)),
+        dur: 0.34,
+        gain: 0.05,
+        delay: 0.09,
+        reverb: 0.45,
+      });
+      break;
+    }
     case 'boss':
       [0, 0.19, 0.38, 0.57].forEach((delay, i) => {
         engine.tone({

@@ -49,6 +49,7 @@ export type Sfx =
   | 'uiClick'
   | 'draft'
   | 'pick'
+  | 'discard'
   | 'deny';
 
 const SCALE = [0, 3, 5, 7, 10];
@@ -371,6 +372,18 @@ export function playSfx(engine: AudioEngine, name: Sfx, params: SfxParams = {}):
       break;
     case 'pick':
       playPick(engine, params.rarity ?? 0);
+      break;
+    case 'discard':
+      // The pick, let go of: a note falling away, then the soft landing of what was put down.
+      engine.tone({ type: 'sine', freq: midiHz(81), freqEnd: midiHz(64), dur: 0.2, gain: 0.14 });
+      engine.tone({
+        type: 'triangle',
+        freq: midiHz(45),
+        freqEnd: midiHz(33),
+        dur: 0.24,
+        gain: 0.12,
+        delay: 0.07,
+      });
       break;
     case 'deny':
       engine.tone({ type: 'square', freq: 108, dur: 0.09, gain: 0.09 });

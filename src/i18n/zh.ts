@@ -36,6 +36,8 @@ export interface ChangelogEntry {
 export const zh = {
   common: {
     back: '返回',
+    /** Joins a list of names inside a sentence. */
+    listSep: '、',
   },
   meta: {
     title: '碎界 SHATTERVERSE',
@@ -107,6 +109,17 @@ export const zh = {
     rewardCrystals: '碎晶 +{n}',
     rewardShield: '护盾 +{n}',
     rewardPicks: '强化选择 ×{n}',
+    // The build strip under the cards: every owned upgrade, each one a discard away.
+    build: '当前构筑',
+    buildHint: '点击图标可丢弃',
+    buildToggle: '丢弃',
+    discardAsk: '移除「{name}」？本局无法找回。',
+    discardAskLower: '丢弃「{name}」Lv{lv}？将降为 Lv{next}。',
+    discardAskDeps: '「{deps}」需要它，也会从本次选项中移除。',
+    discardConfirm: '确认丢弃',
+    discardCancel: '取消',
+    discardLocked: '先丢弃「{deps}」，才能移除「{name}」。',
+    discardBack: '知道了',
   },
   pause: {
     title: '已暂停',

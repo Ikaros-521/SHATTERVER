@@ -10,6 +10,8 @@ import type { UiDict } from './zh';
 export const en: UiDict & { content: ContentOverrides } = {
   common: {
     back: 'Back',
+    /** Joins a list of names inside a sentence. */
+    listSep: ', ',
   },
   meta: {
     title: 'SHATTERVERSE 碎界',
@@ -82,6 +84,17 @@ export const en: UiDict & { content: ContentOverrides } = {
     rewardCrystals: 'Crystals +{n}',
     rewardShield: 'Shield +{n}',
     rewardPicks: 'Picks ×{n}',
+    // The build strip under the cards: every owned upgrade, each one a discard away.
+    build: 'Current build',
+    buildHint: 'Click an icon to discard it',
+    buildToggle: 'Discard',
+    discardAsk: 'Remove "{name}"? It is gone for the rest of this run.',
+    discardAskLower: 'Discard "{name}" Lv{lv}? It drops to Lv{next}.',
+    discardAskDeps: '"{deps}" needs it and leaves this draft too.',
+    discardConfirm: 'Discard',
+    discardCancel: 'Cancel',
+    discardLocked: 'Discard "{deps}" first: it needs "{name}".',
+    discardBack: 'Got it',
   },
   pause: {
     title: 'Paused',

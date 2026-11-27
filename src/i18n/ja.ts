@@ -10,6 +10,8 @@ import type { UiDict } from './zh';
 export const ja: UiDict & { content: ContentOverrides } = {
   common: {
     back: '戻る',
+    /** Joins a list of names inside a sentence. */
+    listSep: '、',
   },
   meta: {
     title: '碎界 SHATTERVERSE',
@@ -82,6 +84,17 @@ export const ja: UiDict & { content: ContentOverrides } = {
     rewardCrystals: 'クリスタル +{n}',
     rewardShield: 'シールド +{n}',
     rewardPicks: '選択回数 ×{n}',
+    // The build strip under the cards: every owned upgrade, each one a discard away.
+    build: '現在のビルド',
+    buildHint: 'アイコンを押すと捨てられます',
+    buildToggle: '捨てる',
+    discardAsk: '「{name}」を外しますか？この周回では取り戻せません。',
+    discardAskLower: '「{name}」Lv{lv} を捨てますか？Lv{next} に下がります。',
+    discardAskDeps: '「{deps}」の前提のため、今回の候補からも消えます。',
+    discardConfirm: '捨てる',
+    discardCancel: 'キャンセル',
+    discardLocked: '「{name}」には「{deps}」が必要です。先にそちらを捨ててください。',
+    discardBack: '確認した',
   },
   pause: {
     title: '一時停止',

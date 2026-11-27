@@ -33,6 +33,14 @@ export function availableUpgrades(levels: Record<string, number>): UpgradeDef[] 
   return UPGRADES.filter((u) => (levels[u.id] ?? 0) < u.maxLevel && meetsRequires(u, levels));
 }
 
+/**
+ * Owned upgrades that list `id` in their `requires`: they only work while it is in the build, so
+ * it cannot be discarded until they are gone.
+ */
+export function dependentsOf(id: string, levels: Record<string, number>): UpgradeDef[] {
+  return UPGRADES.filter((u) => (levels[u.id] ?? 0) > 0 && (u.requires?.[id] ?? 0) > 0);
+}
+
 function synergyBoost(def: UpgradeDef, owned: Set<string>): number {
   let matches = 0;
   for (const tag of def.tags) if (!GENERIC_TAGS.has(tag) && owned.has(tag)) matches++;

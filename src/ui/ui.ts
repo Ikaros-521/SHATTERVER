@@ -46,6 +46,7 @@ import { MILESTONES } from '../game/economy/milestones';
 import { DAILY_MISSION_REWARD, dailyMissionsFor } from '../game/economy/dailies';
 import { dayKey } from '../game/economy/coins';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
+import { dependentsOf } from '../game/upgrades/draft';
 import { RARITY_INFO, RARITY_ORDER, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
@@ -87,6 +88,8 @@ export interface UiActions {
   choose(id: string): void;
   reroll(): void;
   skip(): void;
+  /** Removes an owned upgrade from the build at a draft. False when it cannot go. */
+  discard(id: string): boolean;
   /** Fires overdrive if the meter is full. */
   overdrive(): void;
   updateSettings(patch: Partial<Settings>): void;
@@ -199,6 +202,13 @@ export class UI implements HudHost {
   private levels: Record<string, number> = {};
   /** Last shown draft, so a language switch can re-render it in place. */
   private lastDraft: { info: SessionEvents['draft']; session: Session } | null = null;
+  /**
+   * The build-strip tile a discard is waiting on, with the owned upgrades that hold it in the
+   * build (none when it can go), and whether the keyboard asked.
+   */
+  private discardAsk: { def: UpgradeDef; holders: UpgradeDef[]; keyboard: boolean } | null = null;
+  /** Whether the build strip's tiles are unfolded. A phone keeps them folded behind a button; the desktop ignores this. */
+  private discardOpen = false;
   /** Last shown results, same purpose; `showResults` is sound-free so it can simply re-run. */
   private lastResults: Parameters<UI['showResults']> | null = null;
 
@@ -276,6 +286,15 @@ export class UI implements HudHost {
     on('retry', () => this.actions.retry());
     on('reroll', () => this.actions.reroll());
     on('skip', () => this.actions.skip());
+    // The phone's way into the build strip: unfold the tiles above the footer. The strip's own
+    // button folds them back; the desktop never sees either half of this pair.
+    byId('draft-build-quick').addEventListener('click', () => {
+      if (this.discardOpen || !this.lastDraft) return;
+      this.discardOpen = true;
+      this.audio.ui('uiClick');
+      this.renderDraftBuild(this.lastDraft.session);
+      byId('draft-build').scrollIntoView({ block: 'nearest' });
+    });
     on('shot', () => void this.takeScorecard());
     // The on-screen prompt is a button too, so touch players have a way to fire overdrive.
     byId('od-hint').addEventListener('click', () => this.actions.overdrive());
@@ -362,6 +381,8 @@ export class UI implements HudHost {
     // corner of the window instead of scrolling away with a menu taller than that.
     byId('menu-version').hidden = id !== 'menu';
     if (id !== null) this.hideTooltip();
+    // A question left open on the draft's build strip does not follow the player off that screen.
+    if (id !== 'draft') this.discardAsk = null;
     // The performance figures follow the game live while the settings screen is up.
     window.clearInterval(this.perfTicker);
     this.perfTicker = 0;
@@ -556,15 +577,26 @@ export class UI implements HudHost {
   }
 
   showDraft(info: SessionEvents['draft'], session: Session): void {
+    // A new set of cards starts the build strip's question — and its folding — over.
+    this.discardAsk = null;
+    this.discardOpen = false;
     this.lastDraft = { info, session };
     this.renderDraft(info, session);
     this.show('draft');
     this.audio.ui('draft');
   }
 
-  /** Rebuilds the draft screen's body; `showDraft` adds the screen switch and the sound cue. */
-  private renderDraft(info: SessionEvents['draft'], session: Session): void {
+  /**
+   * Rebuilds the draft screen's body; `showDraft` adds the screen switch and the sound cue.
+   * `entrance` is false when the cards were already on the table — a discard moved the build
+   * under them — so they are redrawn, levels and costs reading the new build, without being
+   * dealt in again.
+   */
+  private renderDraft(info: SessionEvents['draft'], session: Session, entrance = true): void {
+    // Tooltips over the build strip read their levels here: no HUD frame runs during a draft.
+    this.levels = session.run.upgrades;
     const cards = byId('draft-cards');
+    cards.classList.toggle('still', !entrance);
     cards.replaceChildren();
     info.options.forEach((def, i) => {
       const level = session.run.upgrades[def.id] ?? 0;
@@ -591,6 +623,207 @@ export class UI implements HudHost {
     // An opening pick is forfeited when skipped, not traded — promising crystals here would lie.
     setText(byId('skip-reward'), info.intro ? '' : `+◆ ${info.skipReward}`);
     byId<HTMLButtonElement>('btn-reroll').disabled = session.run.crystals < info.rerollCost;
+    this.renderDraftBuild(session);
+  }
+
+  /**
+   * The build strip under the cards: every owned upgrade, each one a discard away — the cross on
+   * a tile says so. Picking a tile moves the question up into the bar above the tiles (on a
+   * phone, over them), and nothing leaves the build before its confirm button — on a screen where
+   * a slip of the pointer is otherwise harmless.
+   */
+  private renderDraftBuild(session: Session): void {
+    const owned = this.hud.ownedUpgrades(session.run.upgrades);
+    const strip = byId('draft-build');
+    strip.hidden = owned.length === 0;
+    // The footer's third button is the phone's way in: it costs no height while the strip is
+    // folded, which is every quiet moment on a phone, and stays narrow enough that the footer's
+    // own pair keeps one line (the count rides in the tooltip). The desktop ignores it (CSS) and
+    // always shows the tiles.
+    const quick = byId<HTMLButtonElement>('draft-build-quick');
+    quick.hidden = owned.length === 0;
+    if (owned.length === 0) {
+      this.discardAsk = null;
+      this.discardOpen = false;
+      strip.classList.remove('asking', 'open', 'quick-closed');
+      return;
+    }
+    const count = `${t('draft.buildToggle')} · ${owned.length}`;
+    setText(quick, t('draft.buildToggle'));
+    if (quick.title !== count) quick.title = count;
+    if (quick.getAttribute('aria-label') !== count) quick.setAttribute('aria-label', count);
+    strip.classList.toggle('quick-closed', !this.discardOpen);
+    this.renderDraftBar(session);
+    byId('draft-build-icons').replaceChildren(
+      ...owned.map(({ def, level }) => {
+        const holders = dependentsOf(def.id, session.run.upgrades);
+        // An owned upgrade that requires it keeps it in the build: the tile says why, and that is all it does.
+        const reason =
+          holders.length > 0
+            ? t('draft.discardLocked', { name: upgradeName(def), deps: this.nameList(holders) })
+            : undefined;
+        const tile = this.hud.tile(def, level, true, reason);
+        tile.classList.add('draft-tile');
+        tile.classList.toggle('locked', reason !== undefined);
+        if (reason) {
+          tile.setAttribute('aria-disabled', 'true');
+          tile.setAttribute('aria-label', `${upgradeName(def)} Lv${level} · ${reason}`);
+          tile.append(el('i', { class: 'lock' }));
+        } else {
+          tile.append(el('i', { class: 'x' }));
+        }
+        tile.addEventListener('click', () => this.askDiscard(def, tile, session));
+        return tile;
+      }),
+    );
+  }
+
+  /**
+   * Draws the strip's bar: the caption at rest, or the open question with its buttons. Returns
+   * the button the question hinges on, for the keyboard to land on.
+   */
+  private renderDraftBar(session: Session): HTMLButtonElement | null {
+    const ask = this.discardAsk;
+    const bar = byId('draft-build-bar');
+    const asking = ask !== null;
+    bar.classList.toggle('asking', asking);
+    byId('draft-build').classList.toggle('asking', asking);
+    byId('draft-build').classList.toggle('open', this.discardOpen);
+    if (!ask) {
+      const toggle = el(
+        'button',
+        {
+          class: 'btn btn-small btn-ghost draft-build-toggle',
+          type: 'button',
+          'aria-expanded': String(this.discardOpen),
+          'aria-controls': 'draft-build-icons',
+          onClick: () => {
+            this.discardOpen = !this.discardOpen;
+            this.audio.ui('uiClick');
+            this.renderDraftBuild(session);
+          },
+        },
+        el('span', { text: `${t('draft.buildToggle')} · ${Object.keys(session.run.upgrades).length}` }),
+      );
+      bar.replaceChildren(
+        el('span', { class: 'draft-build-label', text: t('draft.build') }),
+        el('span', { class: 'draft-build-hint', text: t('draft.buildHint') }),
+        toggle,
+      );
+      return null;
+    }
+    const name = upgradeName(ask.def);
+    if (ask.holders.length > 0) {
+      const back = this.stripButton(t('draft.discardBack'), 'btn-ghost', () => this.cancelDiscard());
+      bar.replaceChildren(
+        el('span', {
+          class: 'draft-build-ask locked',
+          text: t('draft.discardLocked', { name, deps: this.nameList(ask.holders) }),
+        }),
+        back,
+      );
+      return back;
+    }
+    // Cards on the table that need this upgrade leave with it: said here, before the click that does it.
+    const leaves = session.draft.filter((option) => (option.requires?.[ask.def.id] ?? 0) > 0);
+    const level = session.run.upgrades[ask.def.id] ?? 0;
+    const confirm = this.stripButton(t('draft.discardConfirm'), 'btn-discard', () => this.confirmDiscard());
+    bar.replaceChildren(
+      el('span', {
+        class: 'draft-build-ask',
+        text:
+          leaves.length > 0
+            ? t('draft.discardAskDeps', { name, lv: level, deps: this.nameList(leaves) })
+            : t('draft.discardAsk', { name, lv: level }),
+      }),
+      confirm,
+      this.stripButton(t('draft.discardCancel'), 'btn-ghost', () => this.cancelDiscard()),
+    );
+    return confirm;
+  }
+
+  /** A compact text button for the build strip's bar; the draft footer's are twice its height. */
+  private stripButton(text: string, style: string, onClick: () => void): HTMLButtonElement {
+    return el('button', { class: `btn btn-small ${style}`, type: 'button', text, onClick });
+  }
+
+  /** Owned (or offered) upgrades by name, in the list form the locale writes inside a sentence. */
+  private nameList(defs: readonly UpgradeDef[]): string {
+    return defs.map((def) => upgradeName(def)).join(t('common.listSep'));
+  }
+
+  /** Opens the question for one tile. Asked from the keyboard, its confirm button takes focus at once. */
+  private askDiscard(def: UpgradeDef, tile: HTMLElement, session: Session): void {
+    if (this.discardAsk?.def === def) return;
+    this.audio.ui(tile.classList.contains('locked') ? 'deny' : 'uiClick');
+    // A question unfolds the tiles, so the strip keeps the height it had and the footer stays put.
+    this.discardOpen = true;
+    this.discardAsk = {
+      def,
+      holders: dependentsOf(def.id, session.run.upgrades),
+      keyboard: tile.matches(':focus-visible'),
+    };
+    const answer = this.renderDraftBar(session);
+    if (answer && this.discardAsk.keyboard) answer.focus();
+  }
+
+  private confirmDiscard(): void {
+    const ask = this.discardAsk;
+    const current = this.lastDraft;
+    if (!ask || !current) return;
+    const session = current.session;
+    // A keyboard user's place in the strip outlives the re-draw; for a pointer, a focused tile would only raise a tooltip.
+    const strip = byId('draft-build');
+    const active = document.activeElement;
+    const place =
+      active !== null && strip.contains(active) && active.matches(':focus-visible')
+        ? [...strip.querySelectorAll<HTMLElement>('[data-id]')].findIndex(
+            (tile) => tile.dataset.id === ask.def.id,
+          )
+        : -1;
+
+    if (!this.actions.discard(ask.def.id)) {
+      // Nothing left the build — another upgrade holds it now, say. The strip says what.
+      this.discardAsk = { ...ask, holders: dependentsOf(ask.def.id, session.run.upgrades) };
+      this.audio.ui('deny');
+      const back = this.renderDraftBar(session);
+      if (ask.keyboard) back?.focus();
+      return;
+    }
+    this.discardAsk = null;
+    this.hideTooltip();
+    // The table may have lost cards that needed what went, and the costs read the new build.
+    this.lastDraft = { session, info: this.draftView(session, current.info.intro) };
+    this.renderDraft(this.lastDraft.info, session, false);
+    if (place >= 0) {
+      const tiles = [...byId('draft-build-icons').querySelectorAll<HTMLElement>('[data-id]')];
+      (
+        tiles[Math.min(place, tiles.length - 1)] ?? byId('draft-cards').querySelector<HTMLElement>('button')
+      )?.focus();
+    }
+  }
+
+  /** Closes the build strip's open question. Esc on the draft screen lands here. */
+  cancelDiscard(): void {
+    const ask = this.discardAsk;
+    if (!ask || !this.lastDraft) return;
+    this.discardAsk = null;
+    this.audio.ui('uiClick');
+    this.renderDraftBar(this.lastDraft.session);
+    // Hand focus back to the tile the question came from.
+    if (ask.keyboard) {
+      byId('draft-build-icons').querySelector<HTMLElement>(`[data-id="${ask.def.id}"]`)?.focus();
+    }
+  }
+
+  /** The draft as the session holds it now. After a discard, the table is not the one first dealt. */
+  private draftView(session: Session, intro: boolean): SessionEvents['draft'] {
+    return {
+      options: session.draft,
+      rerollCost: session.rerollCost,
+      skipReward: session.skipReward,
+      intro,
+    };
   }
 
   /** What a wave sector's clear paid, spelt out above the cards. Hidden on every other draft. */
@@ -1594,7 +1827,7 @@ export class UI implements HudHost {
 
   // ───────────────────────────── tooltip ─────────────────────────────
 
-  showTooltip(def: UpgradeDef, anchor: HTMLElement): void {
+  showTooltip(def: UpgradeDef, anchor: HTMLElement, note?: string): void {
     const rarity = RARITY_INFO[def.rarity];
     const color = upgradeColor(def.tags, def.rarity);
     const level = this.levels[def.id] ?? 0;
@@ -1619,6 +1852,7 @@ export class UI implements HudHost {
             })
           : null,
         el('div', { class: 'chips' }, ...tagChips(def)),
+        note ? el('p', { class: 'tt-note', text: note }) : null,
       ),
     );
     this.tooltip.style.setProperty('--rarity', hexCss(rarity.color));

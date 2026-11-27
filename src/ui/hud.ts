@@ -13,7 +13,8 @@ import { sigil } from './sigil';
 
 /** What the HUD needs from its host: showing and hiding the upgrade tooltip. */
 export interface HudHost {
-  showTooltip(def: UpgradeDef, anchor: HTMLElement): void;
+  /** `note` adds a closing line under the rules: what the tile does on the screen showing it. */
+  showTooltip(def: UpgradeDef, anchor: HTMLElement, note?: string): void;
   hideTooltip(): void;
 }
 
@@ -213,8 +214,8 @@ export class HUD {
     this.reactions.hidden = true;
   }
 
-  /** An icon tile for one owned upgrade. Shared by the HUD build panel and the results screen. */
-  tile(def: UpgradeDef, level: number, interactive: boolean): HTMLElement {
+  /** An icon tile for one owned upgrade. Shared by the HUD build panel, the draft's build strip and the results screen. */
+  tile(def: UpgradeDef, level: number, interactive: boolean, note?: string): HTMLElement {
     const color = upgradeColor(def.tags, def.rarity);
     const node = el(interactive ? 'button' : 'div', {
       class: 'sigil-tile',
@@ -229,9 +230,9 @@ export class HUD {
       el('b', { class: 'lv' }, String(level)),
     );
     if (interactive) {
-      node.addEventListener('pointerenter', () => this.host.showTooltip(def, node));
+      node.addEventListener('pointerenter', () => this.host.showTooltip(def, node, note));
       node.addEventListener('pointerleave', () => this.host.hideTooltip());
-      node.addEventListener('focus', () => this.host.showTooltip(def, node));
+      node.addEventListener('focus', () => this.host.showTooltip(def, node, note));
       node.addEventListener('blur', () => this.host.hideTooltip());
     }
     return node;

@@ -492,6 +492,10 @@ export class App implements UiActions {
         lines.push(t('draft.rewardPicks', { n: picks }));
         this.ui.toast(t('draft.rewardTitle'), lines.join(' · '), 0xffc93c);
       }),
+      // The cue follows the session's own word that something left, never the click that asked.
+      session.events.on('discard', () => {
+        if (!demo) this.audio.ui('discard');
+      }),
       session.events.on('phase', ({ phase }) => {
         if (!this.inRun) return;
         if (phase === 'over' || phase === 'won') this.resultsTimer = 1.1;
@@ -780,6 +784,10 @@ export class App implements UiActions {
 
   skip(): void {
     this.session.skip();
+  }
+
+  discard(id: string): boolean {
+    return this.session.discard(id);
   }
 
   overdrive(): void {
@@ -1289,6 +1297,9 @@ export class App implements UiActions {
       } else if (this.paused && this.ui.screen === 'pause') {
         event.preventDefault();
         this.resume();
+      } else if (this.ui.screen === 'draft') {
+        // A discard waiting on its confirm backs out; with nothing open this is a no-op.
+        this.ui.cancelDiscard();
       }
       return;
     }

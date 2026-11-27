@@ -11,7 +11,7 @@ import { difficultyOf, type Difficulty } from './difficulty';
 import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, sectorStart, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
 import type { Starter } from './starters';
-import { rollDraft } from './upgrades/draft';
+import { dependentsOf, meetsRequires, rollDraft } from './upgrades/draft';
 import { UPGRADE_MAP } from './upgrades/defs';
 import { computeStats } from './upgrades/stats';
 import type { UpgradeDef } from './upgrades/types';
@@ -51,6 +51,8 @@ export interface SessionEvents {
     reward: SectorReward | null;
   };
   pick: { def: UpgradeDef; level: number };
+  /** An owned upgrade left the build; `level` is what it was. */
+  discard: { def: UpgradeDef; level: number };
   skip: Record<string, never>;
 }
 
@@ -207,6 +209,27 @@ export class Session {
     if (this.introPicks > 0) return this.spendIntroPick();
     this.run.crystals += this.skipReward;
     return this.spendRewardPick();
+  }
+
+  /**
+   * Removes an owned upgrade from the build, every level of it at once, for the rest of the run.
+   * Draft time only: the next level is built from whatever the build is by then, so nothing has
+   * to change under a world in play.
+   *
+   * An upgrade that another owned one requires stays put until that one is gone — dropping the
+   * base would leave the payoff sitting in the build doing nothing. Cards on the table that needed
+   * what went leave with it, since they could no longer be taken.
+   */
+  discard(id: string): boolean {
+    if (this.phase !== 'draft') return false;
+    const def = UPGRADE_MAP[id];
+    const level = this.run.upgrades[id] ?? 0;
+    if (!def || level <= 0 || dependentsOf(id, this.run.upgrades).length > 0) return false;
+    delete this.run.upgrades[id];
+    this.draft = this.draft.filter((option) => meetsRequires(option, this.run.upgrades));
+    this.refreshStats();
+    this.events.emit('discard', { def, level });
+    return true;
   }
 
   /** Takes the rarest option. Used by the attract-mode demo. */

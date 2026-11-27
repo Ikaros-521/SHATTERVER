@@ -10,6 +10,8 @@ import type { UiDict } from './zh';
 export const ko: UiDict & { content: ContentOverrides } = {
   common: {
     back: '뒤로',
+    /** Joins a list of names inside a sentence. */
+    listSep: ', ',
   },
   meta: {
     title: '碎界 SHATTERVERSE',
@@ -82,6 +84,17 @@ export const ko: UiDict & { content: ContentOverrides } = {
     rewardCrystals: '크리스털 +{n}',
     rewardShield: '실드 +{n}',
     rewardPicks: '선택 횟수 ×{n}',
+    // The build strip under the cards: every owned upgrade, each one a discard away.
+    build: '현재 빌드',
+    buildHint: '아이콘을 눌러 버리기',
+    buildToggle: '버리기',
+    discardAsk: '「{name}」을(를) 빼버릴까요? 이번 플레이에서는 되돌릴 수 없습니다.',
+    discardAskLower: '「{name}」 Lv{lv}을(를) 버릴까요? Lv{next}으(로) 내려갑니다.',
+    discardAskDeps: '「{deps}」의 필수 강화라 이번 선택지에서도 사라집니다.',
+    discardConfirm: '버리기',
+    discardCancel: '취소',
+    discardLocked: '먼저 「{deps}」을(를) 버려야 「{name}」을(를) 버릴 수 있습니다.',
+    discardBack: '확인',
   },
   pause: {
     title: '일시정지',

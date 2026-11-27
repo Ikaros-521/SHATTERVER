@@ -132,7 +132,7 @@ export class AudioDirector {
   }
 
   /** UI feedback. Not rate-limited by game load. */
-  ui(name: 'uiHover' | 'uiClick' | 'draft' | 'pick' | 'deny', rarity = 0): void {
+  ui(name: 'uiHover' | 'uiClick' | 'draft' | 'pick' | 'discard' | 'deny', rarity = 0): void {
     if (this.muted || !this.engine.ready) return;
     if (name === 'pick') playSfx(this.engine, 'pick', { rarity });
     else playSfx(this.engine, name);

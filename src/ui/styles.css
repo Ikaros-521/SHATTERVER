@@ -1598,6 +1598,166 @@ button.sigil-tile:hover {
   margin-top: clamp(14px, 2.6vh, 26px);
 }
 
+/* ── draft: the build strip (discard) ── */
+.draft-build {
+  margin-top: clamp(12px, 2.2vh, 22px);
+  padding: 8px 14px 12px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 0.03);
+}
+
+/* The strip already spaces itself from the cards, so the footer need not add its own gap. */
+.draft-build:not([hidden]) + .draft-foot {
+  margin-top: clamp(10px, 1.6vh, 16px);
+}
+
+/* The caption and the question with its buttons are each one line as tall as those buttons, so
+   the tiles underneath never jump under the pointer that just tapped one. */
+.draft-build-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 38px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.draft-build-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+}
+
+.draft-build-hint {
+  color: var(--ink-faint);
+}
+
+.draft-build-ask {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.draft-build-ask.locked {
+  color: var(--gold);
+}
+
+.draft-build-bar .btn-small {
+  flex: none;
+}
+
+/* The fold control exists for phones; the desktop always shows the tiles. */
+.draft-build-toggle {
+  display: none;
+}
+
+/* The footer button that unfolds the strip on a phone; the desktop hides it too. */
+.draft-build-quick {
+  display: none;
+}
+
+/* A tile here is a button that removes something: the pointer says so. */
+#draft-build .sigil-tile {
+  cursor: pointer;
+}
+
+/* Kept in the build by an upgrade that requires it: dimmed behind a lock, and it only explains itself. */
+#draft-build .sigil-tile.locked {
+  cursor: not-allowed;
+}
+
+#draft-build .sigil-tile.locked img {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+#draft-build .sigil-tile.locked:hover {
+  border-color: color-mix(in srgb, var(--rarity) 50%, transparent);
+  transform: none;
+}
+
+.sigil-tile .lock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 13px;
+  height: 9px;
+  border: 1.5px solid var(--gold);
+  border-radius: 2px;
+  background: rgb(6 9 24 / 0.9);
+  transform: translate(-50%, -30%);
+}
+
+.sigil-tile .lock::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 7px;
+  height: 6px;
+  border: 1.5px solid var(--gold);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  transform: translateX(-50%);
+}
+
+/* The cross on a tile that can go: a tap here is a removal. It takes the confirm button's red
+   under the pointer. */
+.sigil-tile .x {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgb(255 255 255 / 0.38);
+  border-radius: 50%;
+  background: rgb(6 9 24 / 0.9);
+  transition: border-color 0.15s ease-out;
+}
+
+.sigil-tile .x::before,
+.sigil-tile .x::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6.5px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--ink);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.sigil-tile .x::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.draft-tile:hover .x,
+.draft-tile:focus-visible .x {
+  border-color: var(--danger);
+}
+
+.draft-tile:hover .x::before,
+.draft-tile:hover .x::after,
+.draft-tile:focus-visible .x::before,
+.draft-tile:focus-visible .x::after {
+  background: var(--danger);
+}
+
+/* The one button on this screen that cannot be taken back: the shield-break red, not the accent. */
+.btn-discard {
+  background: linear-gradient(100deg, var(--danger), #ff8fa0);
+  box-shadow: 0 0 26px -8px rgb(255 61 90 / 0.9);
+}
+
+/* Redrawn in place after a discard: these cards were already on the table, so they are not dealt in again. */
+.cards.still .card {
+  animation: none;
+}
+
 /* ── results ── */
 .results-head {
   text-align: center;
@@ -1944,6 +2104,14 @@ button.sigil-tile:hover {
 
 .tooltip .chips {
   margin-top: 10px;
+}
+
+/* What the tile does on this screen, under the rules. */
+.tt-note {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  color: var(--gold);
 }
 
 .noscript {
@@ -2650,6 +2818,94 @@ button.sigil-tile:hover {
 
   .draft-head {
     flex-wrap: wrap;
+  }
+
+  /* Phones carry no caption: the strip stays folded — display:none, costing no height in a
+     screen where the three cards alone can outgrow the viewport — and the footer's third button
+     names what unfolds it. A question covers the open strip, so nothing moves under the finger
+     that just tapped. */
+  .draft-build {
+    position: relative;
+    margin-top: 10px;
+    padding: 5px 10px 8px;
+  }
+
+  .draft-build.quick-closed {
+    display: none;
+  }
+
+  .draft-build-quick:not([hidden]) {
+    display: inline-flex;
+    justify-content: center;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .draft-build-bar {
+    margin-bottom: 0;
+  }
+
+  .draft-build-bar:not(.asking) .draft-build-label,
+  .draft-build-bar:not(.asking) .draft-build-hint {
+    display: none;
+  }
+
+  .draft-build-toggle {
+    display: inline-flex;
+    justify-content: center;
+    flex: 1 1 auto;
+  }
+
+  .draft-build-toggle::after {
+    content: '▾';
+    font-size: 11px;
+  }
+
+  .draft-build.open .draft-build-toggle::after {
+    content: '▴';
+  }
+
+  /* Over the strip's own box, border included; it may run a little past the bottom when the
+     question wraps. The level puts it above the tiles, which are positioned too and come later. */
+  .draft-build-bar.asking {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    left: -1px;
+    z-index: 4;
+    min-height: calc(100% + 2px);
+    padding: 3px 10px 5px;
+    border: 1px solid var(--line);
+    background: rgb(8 10 26 / 0.98);
+  }
+
+  /* The question reads across the whole width; the buttons answer underneath it. */
+  .draft-build-bar .draft-build-ask {
+    flex: 1 0 100%;
+  }
+
+  .draft-build-bar .btn-small {
+    padding: 5px 14px;
+  }
+
+  /* The row's padding is room for the level badges, which hang off the tiles' corners; no
+     scrollbar — a tile clipped at the edge already says the row scrolls. */
+  .draft-build .build-icons {
+    display: flex;
+    gap: 8px;
+    padding: 0 5px 5px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .draft-build .build-icons::-webkit-scrollbar {
+    display: none;
+  }
+
+  .draft-build .sigil-tile {
+    flex: none;
+    width: 44px;
+    height: 44px;
   }
 
   /* Codex rows keep their icon but tighten. */

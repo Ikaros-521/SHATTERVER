@@ -41,6 +41,12 @@ export interface Shot {
    * top left corner at the corner of the picture's place in the atlas.
    */
   paint: (ctx: CanvasRenderingContext2D) => void;
+  /**
+   * How dense a picture is baked, as a share of the atlas's density. Left out: as dense as the
+   * atlas. A blur is baked coarse, and so may be a state that is only worn for a moment — and what
+   * they spare goes to the pictures that need it.
+   */
+  density?: number;
 }
 
 /** Where a layer's frame is put for a frame: its origin in figure units, its turn, and whether it is flipped first. */
@@ -91,6 +97,17 @@ export interface Layer {
    * the layer's origin along — is no part of it.
    */
   home?: Partial<Pose>;
+  /**
+   * A part that is torn off leaves this layer behind as a shape of starlight rather than nothing:
+   * its first picture shows, turned to ghost light and drawn behind the rest of her. Left off, a
+   * torn-off part is simply not drawn.
+   */
+  ghost?: boolean;
+  /**
+   * How much of the white of a hit this layer takes, 0 to 1. Left out: all of it, as line art
+   * takes it; a painting is washed out by all of it, and takes a little.
+   */
+  flash?: number;
 }
 
 /** A light thrown under the field, in figure units. */
@@ -128,6 +145,10 @@ export interface Placed {
   alpha: number;
   /** The look of the part it belongs to. */
   look: PartLook;
+  /** The white of a hit on it this frame, as much as its layer takes of it. */
+  flash: number;
+  /** 1 while this is the shape a torn-off part leaves behind: drawn as starlight, under the rest of her. */
+  ghost: number;
 }
 
 /** How a layer with no part is looked at: whole, and never knocked. */
@@ -138,19 +159,21 @@ export const DRAWN: readonly PartState[] = ['intact', 'damaged_1', 'damaged_2'];
 
 /**
  * Where every picture goes this frame, back to front. Pure: the same frame gives the same list.
- * `out` is cleared and filled, and returned. `still` places her as she stands in a picture made
- * for her: anchored, and not moving.
+ * `out` is cleared, filled and returned. `still` places her as she stands in a picture made for
+ * her: anchored, and not moving. What a torn-off part leaves behind goes first of all, under her.
  */
 export function place(sheet: Sheet, frame: BossFrame, out: Placed[] = [], still = false): Placed[] {
   out.length = 0;
+  const ghosts: Placed[] = [];
   for (const layer of sheet.layers) {
     const look = layer.part ? frame.look[layer.part] : NO_PART;
-    if (look.state === 'destroyed') continue;
-    const shot = layer.show(frame, look);
+    const gone = look.state === 'destroyed';
+    if (gone && !layer.ghost) continue;
+    const shot = gone ? layer.shots[0] : layer.show(frame, look);
     if (!shot) continue;
-    const pose = still ? undefined : layer.move ? layer.move(frame, look) : undefined;
+    const pose = still || gone ? undefined : layer.move ? layer.move(frame, look) : undefined;
     const home = layer.home;
-    out.push({
+    const placed: Placed = {
       shot,
       group: layer.group,
       // The knock is in figure units, the same way about on both sides of her.
@@ -160,8 +183,23 @@ export function place(sheet: Sheet, frame: BossFrame, out: Placed[] = [], still 
       mirror: (home?.mirror ?? false) || (pose?.mirror ?? false),
       alpha: pose?.alpha ?? 1,
       look,
-    });
+      flash: look.flash * (layer.flash ?? 1),
+      ghost: 0,
+    };
+    if (gone) {
+      // What is left behind hangs where the part was drawn, whole and still.
+      placed.x = home?.x ?? 0;
+      placed.y = home?.y ?? 0;
+      placed.rot = home?.rot ?? 0;
+      placed.alpha = 1;
+      placed.flash = 0;
+      placed.ghost = 1;
+      ghosts.push(placed);
+    } else {
+      out.push(placed);
+    }
   }
+  if (ghosts.length) out.unshift(...ghosts);
   return out;
 }
 

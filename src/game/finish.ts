@@ -68,7 +68,8 @@ export function settleFinishedRun(
     score,
     level: reached,
     code: run.mode === 'campaign' ? world.level.code : String(run.level),
-    name: world.level.name,
+    // A character boss's level is recorded under her name, not the lattice def's it took over.
+    name: world.character?.def.name ?? world.level.name,
     combo: run.maxCombo,
     damage: Math.round(run.totalDamage),
     kills: run.kills,

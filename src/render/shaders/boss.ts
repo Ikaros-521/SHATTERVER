@@ -14,7 +14,7 @@
  *   aPos      x, y, quad half-width, quad half-height
  *   aRotColor rotation, and the tint: r, g, b
  *   aUv       alpha, u0, v0, u1
- *   aParm     v1, flags, flash, -
+ *   aParm     v1, flags, flash, ghost
  *
  * The atlas is uploaded premultiplied, so that its edges filter cleanly and the picture can go
  * straight into the frame, which is blended premultiplied like everything else in the scene.
@@ -33,7 +33,7 @@ layout(location = 1) in vec4 aPos;
 layout(location = 2) in vec4 aRotColor;
 // alpha, u0, v0, u1
 layout(location = 3) in vec4 aUv;
-// v1, flags, flash, -
+// v1, flags, flash, and 1 while the piece is the shape a torn-off part leaves behind
 layout(location = 4) in vec4 aParm;
 
 uniform vec4 uView;
@@ -42,6 +42,7 @@ uniform vec2 uResolution;
 out vec2 vUv;
 flat out vec4 vColor;
 flat out float vFlash;
+flat out float vGhost;
 
 void main() {
   vec2 local = aCorner * aPos.zw;
@@ -55,6 +56,7 @@ void main() {
   vUv = vec2(mix(aUv.y, aUv.w, t.x), mix(aUv.z, aParm.x, t.y));
   vColor = vec4(aRotColor.yzw, aUv.x);
   vFlash = aParm.z;
+  vGhost = aParm.w;
 }
 `;
 
@@ -65,13 +67,21 @@ uniform sampler2D uAtlas;
 in vec2 vUv;
 flat in vec4 vColor;
 flat in float vFlash;
+// 1 while the piece is the shape a torn-off part leaves behind
+flat in float vGhost;
 out vec4 outColor;
 
 void main() {
   vec4 tex = texture(uAtlas, vUv);
   float a = tex.a * vColor.a;
+  vec3 rgb = tex.rgb * vColor.rgb;
+  // A part torn off her stays as a shape of starlight: gold where it was dark, brighter where it
+  // was bright, and thin.
+  float lit = dot(tex.rgb, vec3(0.3, 0.59, 0.11));
+  rgb = mix(rgb, vec3(1.0, 0.8, 0.42) * (lit * 0.75 + 0.2 * a), vGhost);
+  a = mix(a, a * 0.4, vGhost);
   // A hit washes the piece white; an eighth of its own colour stays, so that its lines do not vanish.
-  vec3 rgb = mix(tex.rgb * vColor.rgb, vec3(a), vFlash * 0.88);
+  rgb = mix(rgb, vec3(a), vFlash * 0.88);
   outColor = vec4(rgb, a);
 }
 `;

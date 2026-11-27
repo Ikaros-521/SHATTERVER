@@ -4,7 +4,7 @@ import { makeBall } from '../src/game/entities';
 import { CAMPAIGN_LENGTH, buildLevel } from '../src/game/levels/generator';
 import { createRun } from '../src/game/run';
 import { World } from '../src/game/world';
-import type { BossDisc } from '../src/game/hiyou';
+import type { BossDisc } from '../src/game/character';
 
 /**
  * 绯樱 through the world itself: what a ball does to her, what the world says about it, and whether
@@ -148,7 +148,7 @@ describe('a character boss through the world', () => {
     const world = makeFight();
     runUntil(world, () => world.state === 'playing', 3);
     tearOff(world, 'LeftWing', 30);
-    world.character!.attackPattern = 0;
+    world.character!.attackAt = 0;
     world.character!.attackCd = 0;
     const before = world.bullets.length;
     expect(() => world.update(DT)).not.toThrow();

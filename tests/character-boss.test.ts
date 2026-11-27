@@ -214,7 +214,7 @@ describe('绯樱 as a fight', () => {
 });
 
 describe('her attacks', () => {
-  it('alternates wings and core orb, resets the clock, and scatters wider late', () => {
+  it('alternates a volley from her wings and a core orb, resets the clock, and scatters wider late', () => {
     const boss = startCharacterBoss();
     expect(boss.attackCd).toBeGreaterThan(0);
     const seen: string[] = [];
@@ -224,11 +224,11 @@ describe('her attacks', () => {
       seen.push(`${attack.kind}:${attack.scatter}`);
       expect(boss.attackCd, `attack ${i}`).toBeGreaterThan(0);
     }
-    expect(seen).toEqual(['wings:0', 'orb:8', 'wings:0', 'orb:8', 'wings:0', 'orb:8']);
+    expect(seen).toEqual(['volley:0', 'orb:8', 'volley:0', 'orb:8', 'volley:0', 'orb:8']);
     // Late phases scatter wider.
     boss.state.phase = 3;
     boss.attackCd = 0;
-    expect(characterAttack(boss)).toMatchObject({ kind: 'wings', scatter: 0 });
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', scatter: 0 });
     boss.attackCd = 0;
     expect(characterAttack(boss)).toMatchObject({ kind: 'orb', scatter: 10 });
   });

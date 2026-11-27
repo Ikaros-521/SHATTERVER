@@ -33,6 +33,11 @@ import { computeLayout, type Layout } from './render/layout';
 import { Renderer, type Palette, type ThemeFrame } from './render/renderer';
 import { drawScene, type BallSkinOverride, type PaddleSkinOverride, type SceneInfo } from './render/scene';
 import { BossLayer, frameOf } from './render/boss/layer';
+import type { PartState } from './render/boss/types';
+import { HIYOU_SHEET, HIYOU_SCALE } from './render/boss/hiyou/draw/pieces';
+import { loadVesperArt, vesperArt } from './render/boss/vesper/art';
+import { HIYOU } from './game/hiyou';
+import { VESPER } from './game/vesper';
 import { THEMES } from './render/themes';
 import {
   canBuyTheme,
@@ -279,6 +284,29 @@ export class App implements UiActions {
         ? { status: this.audio.status, peak: +level.peak.toFixed(3), rms: +level.rms.toFixed(4) }
         : null;
     },
+    /**
+     * The character boss of the level being played, if there is one: who she is and how each of
+     * her parts is. Given a part-to-state map, she is put into it first — for looking at her worn
+     * and torn without playing her there.
+     */
+    character: (states?: Record<string, PartState>): Record<string, unknown> | null => {
+      const boss = this.session.world.character;
+      if (!boss) return null;
+      for (const [id, state] of Object.entries(states ?? {})) {
+        const look = boss.state.look[id];
+        // Put at rest as well: no white of a blow left on her, nothing knocked out of place.
+        if (look) Object.assign(look, { state, flash: 0, dx: 0, dy: 0 });
+      }
+      return {
+        id: boss.def.id,
+        phase: boss.state.phase,
+        shielded: boss.state.shielded,
+        integrity: +boss.state.integrity.toFixed(3),
+        face: boss.state.face,
+        parts: Object.fromEntries(Object.entries(boss.state.look).map(([id, look]) => [id, look.state])),
+        art: this.boss.status(),
+      };
+    },
     /** Halts simulation and effects while still drawing, so an exact frame can be inspected. */
     freeze: (on: boolean): void => {
       this.frozen = on;
@@ -392,6 +420,11 @@ export class App implements UiActions {
     this.governor = new QualityGovernor(wanted, start);
     this.renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
     this.boss = new BossLayer();
+    // Who can be drawn, and how: 绯樱 is drawn with Canvas 2D the moment she is wanted; 薇斯珀 is
+    // cut from pictures, which are fetched now so that they are in hand long before her sector.
+    this.boss.register(HIYOU.id, () => ({ sheet: HIYOU_SHEET, scale: HIYOU_SCALE }));
+    this.boss.register(VESPER.id, () => vesperArt(VESPER.figure));
+    void loadVesperArt();
     this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
     this.theme = new ThemeLayer(this.governor.current.quality);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);
@@ -725,8 +758,8 @@ export class App implements UiActions {
       level,
       difficulty: difficultyOf(difficulty),
       supplies,
-      // The web build can show her wherever the world puts her (the campaign's last sector);
-      // the WeChat shell has no layer for her, so it never turns this on.
+      // The web build can show a character wherever the world puts one (her boss sectors of
+      // the campaign); the WeChat shell has no layer for her, so it never turns this on.
       characterBoss: true,
     });
     this.ui.clearCallouts();
@@ -1207,7 +1240,7 @@ export class App implements UiActions {
       won,
       mode: run.mode,
       code: run.mode === 'campaign' ? world.level.code : String(run.level),
-      name: world.level.name,
+      name: world.character?.def.name ?? world.level.name,
       score,
       newRecord: this.lastFresh.includes('score'),
       rank: runRank(history, score),

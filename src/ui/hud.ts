@@ -128,11 +128,13 @@ export class HUD {
     // ── a character boss: her name and arm gauge in the boss slot, her line in the plate ──
     const char = world.character;
     if (char) {
-      this.put(this.levelCode, t('characterBoss.code'));
-      this.put(this.levelName, t('characterBoss.name'));
-      this.progressTrack.title = t('characterBoss.armor');
+      // Her words are her own: filed under the name her fight knows her by.
+      const who = `characterBoss.${char.def.id}`;
+      this.put(this.levelCode, t(`${who}.code`));
+      this.put(this.levelName, t(`${who}.name`));
+      this.progressTrack.title = t(`${who}.armor`);
       this.progressTrack.dataset.phase = char.state.shielded
-        ? t('characterBoss.shieldUp')
+        ? t(`${who}.shieldUp`)
         : t('hud.phase', { n: char.state.phase });
       // The gauge reads how much of her is standing, by her parts' weights.
       setWidth(this.progress, char.state.integrity);
@@ -140,8 +142,8 @@ export class HUD {
       if (line && line !== this.lastCharacterLine) {
         this.lastCharacterLine = line;
         this.characterLineUntil = now + 3800;
-        this.put(this.characterName, t('characterBoss.name'));
-        this.put(this.characterLine, t(`characterBoss.lines.${line}`));
+        this.put(this.characterName, t(`${who}.name`));
+        this.put(this.characterLine, t(`${who}.lines.${line}`));
         this.characterBox.hidden = false;
         pop(this.characterBox, 1.04, 160);
       } else if (this.characterBox.hidden === false && now > this.characterLineUntil) {

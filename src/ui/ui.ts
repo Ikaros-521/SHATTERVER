@@ -964,7 +964,10 @@ export class UI implements HudHost {
     const level = session.world.level;
     const tier = difficultyOf(run.difficulty);
     const tierSuffix = tier.id !== 'standard' ? t('over.diffSuffix', { name: difficultyName(tier) }) : '';
-    const localizedLevel = levelName(level.chapter, level.name);
+    // Where a character boss stands the sector is hers, by her own name.
+    const localizedLevel = session.world.character
+      ? t(`characterBoss.${session.world.character.def.id}.name`)
+      : levelName(level.chapter, level.name);
     // The upload line belongs to this run; the app fills it in when the submit settles.
     byId('over-cloud').hidden = true;
     setText(byId('over-eyebrow'), won ? 'CAMPAIGN COMPLETE' : 'RUN TERMINATED');
@@ -2288,12 +2291,14 @@ export class UI implements HudHost {
       ? t('callouts.bannerMutator', { name: mutatorName(plan.modifier), desc: mutatorDesc(plan.modifier) })
       : undefined;
     // Her sector opens with her name, not the lattice def the plan still carries.
-    if (session.world.character) {
+    const character = session.world.character;
+    if (character) {
+      const who = `characterBoss.${character.def.id}`;
       this.banner({
-        title: t('characterBoss.code'),
-        sub: t('characterBoss.name'),
-        note: t('characterBoss.title'),
-        color: 0xff5fd8,
+        title: t(`${who}.code`),
+        sub: t(`${who}.name`),
+        note: t(`${who}.title`),
+        color: character.def.color,
         duration: 2.6,
       });
     } else if (plan.boss) {

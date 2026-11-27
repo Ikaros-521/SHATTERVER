@@ -1,34 +1,45 @@
+import { BOSS_EVERY, CAMPAIGN_LENGTH, isBossLevel } from './levels/generator';
 import {
   discsOf,
-  HIT_ORDER,
-  HIYOU_PARTS,
-  HIYOU_X,
-  HIYOU_Y,
+  hitOrder,
+  integrityOf,
   hitsPerState,
-  PART_WEIGHT,
   WEAR,
   type BossDisc,
+  type CharacterAttack,
+  type CharacterDef,
   type CharacterBossState,
   type PartLookState,
-} from './hiyou';
-import { restingLook } from '../render/boss/types';
+} from './character';
+import { HIYOU } from './hiyou';
+import { VESPER } from './vesper';
 import type { BossPartId } from '../render/boss/types';
+
+/**
+ * A character boss as a fight: her state machine, all of it plain data + logic.
+ *
+ * Whoever she is (`CharacterDef`), her parts are discs that wear through three states and then
+ * come off. She has four phases, cut on how much of her is standing; at the third her shield comes
+ * off for good, and at the last she will not be talked to any more. What she says is handed to the
+ * world as an event: the fight knows *when*, the words are somebody else's.
+ *
+ * Headless-testable: no rendering, no clock but the one the world gives her.
+ */
 
 /** What she says, as moments: the words are the i18n's. */
 export type LineMoment = 'intro' | 'phase2' | 'phase3' | 'phase4' | 'partDown' | 'defeated';
 
 /**
- * 樱之誓约·绯樱 as a fight: her state machine, all of it plain data + logic.
- *
- * Ten parts, each a disc that wears through three states and then falls off. She has four phases,
- * cut on how much of her is standing; at the third her shield comes down for good, and at the last
- * she will not be talked to any more. What she says is handed to the world as an event: the fight
- * knows *when*, the words are somebody else's.
- *
- * Headless-testable: no rendering, no clock but the one the world gives her.
+ * Who stands on the boss sectors of the campaign, by the sector's boss slot: the first keeps its
+ * lattice, the second is 薇斯珀's and the last 绯樱's. Past the campaign the lattice takes over.
  */
+const CAST: readonly (CharacterDef | null)[] = [null, VESPER, HIYOU];
 
-/** The state a part starts in. */
+/** The character standing on a level, if any: `opts.character` in the world is the build's say on whether she may. */
+export function characterFor(level: number): CharacterDef | null {
+  if (!isBossLevel(level) || level > CAMPAIGN_LENGTH) return null;
+  return CAST[level / BOSS_EVERY - 1] ?? null;
+}
 
 /** How long the white of a hit takes to fade. */
 const FLASH_TIME = 0.24;
@@ -37,6 +48,8 @@ const KNOCK = 4;
 const KNOCK_HOME = 9;
 
 export interface CharacterBoss {
+  /** Who she is: her parts, where she stands, what she throws. */
+  def: CharacterDef;
   state: CharacterBossState;
   /** Hits taken per part, against its `hp`, since its last state change. */
   wear: Record<BossPartId, number>;
@@ -48,26 +61,29 @@ export interface CharacterBoss {
   pendingLine: LineMoment | null;
   /** Seconds until her next attack. Ticks only while the fight runs. */
   attackCd: number;
-  /** Which attack comes next: wings volley and core orb alternate. */
-  attackPattern: 0 | 1;
+  /** Where she is in her list of attacks: which comes next. */
+  attackAt: number;
+  /** Seconds until she pours bricks into the field again, if she does. */
+  reforgeCd: number;
 }
 
-/** Starts her, whole, at the top of the arena. */
-export function startCharacterBoss(): CharacterBoss {
+/** Starts her, whole, at the top of the arena. 绯樱 if nobody is named. */
+export function startCharacterBoss(def: CharacterDef = HIYOU): CharacterBoss {
   const look = {} as Record<BossPartId, PartLookState>;
   const wear = {} as Record<BossPartId, number>;
-  for (const part of HIYOU_PARTS) {
+  for (const part of def.parts) {
     look[part.id] = { state: 'intact', flash: 0, dx: 0, dy: 0 };
     wear[part.id] = 0;
   }
   return {
+    def,
     state: {
-      x: HIYOU_X,
-      y: HIYOU_Y,
+      x: def.x,
+      y: def.y,
       face: 'idle',
       look,
       phase: 1,
-      shielded: true,
+      shielded: def.shield !== null,
       integrity: 1,
       line: null,
       defeated: false,
@@ -78,20 +94,9 @@ export function startCharacterBoss(): CharacterBoss {
     quietFor: 0,
     pendingLine: 'intro',
     attackCd: 2.4,
-    attackPattern: 0,
+    attackAt: 0,
+    reforgeCd: def.reforge?.every ?? 0,
   };
-}
-
-/** How much of her is standing, by the parts' weights. */
-function integrityOf(look: Record<BossPartId, PartLookState>): number {
-  let whole = 0;
-  for (const part of HIYOU_PARTS) {
-    const state = look[part.id].state;
-    whole +=
-      PART_WEIGHT[part.id] *
-      (state === 'intact' ? 1 : state === 'damaged_1' ? 0.66 : state === 'damaged_2' ? 0.33 : 0);
-  }
-  return whole;
 }
 
 /**
@@ -99,10 +104,11 @@ function integrityOf(look: Record<BossPartId, PartLookState>): number {
  * `dt` is the world's own delta. Emits nothing here — the world reads her.
  */
 export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
+  const { def } = boss;
   boss.swayT += dt;
-  boss.state.x = HIYOU_X + Math.sin(boss.swayT * 0.9) * 36;
-  boss.state.y = HIYOU_Y + Math.sin(boss.swayT * 1.7) * 5;
-  boss.tilt = Math.sin(boss.swayT * 0.9) * 0.025;
+  boss.state.x = def.x + Math.sin(boss.swayT * def.swayRate) * def.swayX;
+  boss.state.y = def.y + Math.sin(boss.swayT * def.bobRate) * def.bobY;
+  boss.tilt = Math.sin(boss.swayT * def.swayRate) * def.tilt;
 
   boss.quietFor += dt;
   boss.state.line = null;
@@ -112,13 +118,10 @@ export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
     boss.quietFor = 0;
   }
 
-  let flashed = false;
-  for (const part of HIYOU_PARTS) {
+  for (const part of def.parts) {
     const look = boss.state.look[part.id];
-    if (look.flash > 0) {
-      look.flash = Math.max(0, look.flash - dt / FLASH_TIME);
-      flashed = true;
-    }
+    if (!look) continue;
+    if (look.flash > 0) look.flash = Math.max(0, look.flash - dt / FLASH_TIME);
     if (look.dx !== 0 || look.dy !== 0) {
       const home = Math.min(1, (KNOCK_HOME * dt) / (Math.hypot(look.dx, look.dy) || 1));
       look.dx -= look.dx * home;
@@ -129,7 +132,6 @@ export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
       }
     }
   }
-  void flashed;
 }
 
 /**
@@ -143,11 +145,11 @@ export function hitCharacterPart(
   nx: number,
   ny: number,
 ): number {
-  const part = HIYOU_PARTS.find((each) => each.id === id);
-  if (!part || boss.state.defeated) return 0;
+  const part = boss.def.parts.find((each) => each.id === id);
   const look = boss.state.look[id];
+  if (!part || !look || boss.state.defeated) return 0;
   if (look.state === 'destroyed') return 0;
-  if (id === 'Core' && boss.state.shielded) return 0;
+  if (id === boss.def.core && boss.state.shielded) return 0;
 
   const dealt = power * (1 - part.defense);
   look.flash = 1;
@@ -155,44 +157,35 @@ export function hitCharacterPart(
   look.dy -= ny * KNOCK;
   // A part wears by the blow, not by the point of damage: its hp is how many blows a state takes,
   // and the armour shows up as less hurt per blow. The world scores what her armour let through.
-  boss.wear[id] += 1;
-  while (boss.wear[id] >= hitsPerState(part) && look.state !== 'destroyed') {
+  boss.wear[id]! += 1;
+  while (boss.wear[id]! >= hitsPerState(part) && look.state !== 'destroyed') {
     const at = WEAR.indexOf(look.state as 'intact' | 'damaged_1' | 'damaged_2');
     if (at < 0 || at >= WEAR.length - 1) {
       look.state = 'destroyed';
       break;
     }
-    boss.wear[id] -= hitsPerState(part);
+    boss.wear[id]! -= hitsPerState(part);
     look.state = WEAR[at + 1]!;
   }
+  // A shield torn off by blows opens the core as surely as the third phase does.
+  if (id === boss.def.shield && look.state === 'destroyed') boss.state.shielded = false;
 
-  boss.state.integrity = integrityOf(boss.state.look);
+  boss.state.integrity = integrityOf(boss.def, boss.state.look);
   return dealt;
 }
 
 /**
- * Her next attack, due now: a volley from both wings, or a heavy orb from her core that bursts
- * into scatter shots. Later phases attack faster and scatter wider.
- */
-export interface CharacterAttack {
-  kind: 'wings' | 'orb';
-  /** Scatter shots the orb bursts into. 0 for a volley. */
-  scatter: number;
-}
-
-/** Her attack cadence, by phase: she gets quicker as she loses parts. */
-const ATTACK_CD: readonly number[] = [2.7, 2.3, 1.9, 1.5];
-
-/**
- * The attack due now, advancing her pattern and winding the clock for the one after. Only asked
- * while the fight runs — the world gates on that.
+ * The attack due now, taking the next in her list and winding the clock for the one after. Only
+ * asked while the fight runs — the world gates on that.
  */
 export function characterAttack(boss: CharacterBoss): CharacterAttack {
-  const wings = boss.attackPattern === 0;
-  boss.attackPattern = wings ? 1 : 0;
-  boss.attackCd = ATTACK_CD[boss.state.phase - 1] ?? 2.7;
-  // The orb scatters wider the deeper the fight goes: eight shots early, ten late.
-  return { kind: wings ? 'wings' : 'orb', scatter: wings ? 0 : boss.state.phase >= 3 ? 10 : 8 };
+  const list = boss.def.attacks;
+  const next = list[boss.attackAt] ?? list[0]!;
+  boss.attackAt = (boss.attackAt + 1) % Math.max(1, list.length);
+  // She gets quicker as she loses parts.
+  boss.attackCd = boss.def.attackCd[boss.state.phase - 1] ?? boss.def.attackCd[0] ?? 2.5;
+  // An orb scatters wider from the third phase on.
+  return { ...next, scatter: boss.state.phase >= 3 ? next.scatterLate : next.scatter };
 }
 
 /**
@@ -208,11 +201,10 @@ export function characterPhase(boss: CharacterBoss): {
 } {
   let standing = 0;
   let total = 0;
-  for (const part of HIYOU_PARTS) {
-    const state = boss.state.look[part.id].state;
-    const weight = PART_WEIGHT[part.id];
+  for (const part of boss.def.parts) {
+    const weight = part.weight;
     total += weight;
-    if (state !== 'destroyed') standing += weight;
+    if (boss.state.look[part.id]?.state !== 'destroyed') standing += weight;
   }
   // By what she has lost, not what stands: the phases fall as the fight goes on, and a part half
   // broken has not lost its whole weight.
@@ -223,14 +215,14 @@ export function characterPhase(boss: CharacterBoss): {
   if (changed) {
     boss.state.phase = phase;
     // The shield is down for good from the third phase: it comes off her, and the core is fair game.
-    if (phase >= 3) {
+    if (phase >= 3 && boss.def.shield) {
       boss.state.shielded = false;
-      const shield = boss.state.look.CoreShield;
-      if (shield.state !== 'destroyed') {
+      const shield = boss.state.look[boss.def.shield];
+      if (shield && shield.state !== 'destroyed') {
         shield.state = 'destroyed';
-        boss.wear.CoreShield = 0;
-        boss.state.integrity = integrityOf(boss.state.look);
-        fell = 'CoreShield';
+        boss.wear[boss.def.shield] = 0;
+        boss.state.integrity = integrityOf(boss.def, boss.state.look);
+        fell = boss.def.shield;
       }
     }
     if (phase === 2) boss.pendingLine = 'phase2';
@@ -242,13 +234,13 @@ export function characterPhase(boss: CharacterBoss): {
 
 /** True once every part of her is gone. */
 export function characterDefeated(boss: CharacterBoss): boolean {
-  return HIT_ORDER.every((part) => boss.state.look[part.id].state === 'destroyed');
+  return hitOrder(boss.def).every((part) => boss.state.look[part.id]?.state === 'destroyed');
 }
 
 /** Her discs this moment, for the sweep and the renderer alike. */
 export function characterDiscsOf(boss: CharacterBoss): BossDisc[] {
-  return discsOf(boss.state.look, boss.state, boss.tilt, 0);
+  return discsOf(boss.def, boss.state.look, boss.state, boss.tilt);
 }
 
 /** Reused resting look, so that a headless test can build a frame without the renderer. */
-export { restingLook };
+export { restingLook } from '../render/boss/types';

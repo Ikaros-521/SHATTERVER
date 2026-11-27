@@ -1,4 +1,4 @@
-import { formatNumber, TAU, clamp, hexToRgb, lerp } from '../core/math';
+import { formatNumber, TAU, clamp, hexToRgb, lerp, mixHex } from '../core/math';
 import { AEGIS_Y, ARENA_H, ARENA_W, DANGER_Y, PADDLE_H, PADDLE_Y } from '../game/config';
 import type { Brick, PickupKind } from '../game/entities';
 import type { BuffId } from '../game/buffs/defs';
@@ -108,6 +108,8 @@ export function particleCapacity(quality: QualityLevel): number {
 }
 
 const rand = (lo: number, hi: number): number => lo + Math.random() * (hi - lo);
+/** A colour the lighter, for what flies off it: mixed most of the way to white. */
+const lightOf = (color: number): number => mixHex(color, 0xffffff, 0.55);
 
 function swapRemove<T>(items: T[], index: number): void {
   items[index] = items[items.length - 1] as T;
@@ -196,20 +198,21 @@ export class Fx {
       }),
       // Her fight: a falling part throws pink debris and a ring; a phase turn lands a double
       // shockwave on her; a part cracking flashes sparks at the plate.
+      // In the colour of whoever she is.
       on('characterPart', (e) => {
         if (e.state === 'destroyed') {
-          this.ring(e.x, e.y, 30, 4, 0xff5fd8, 1, 0.4);
-          this.sparks(e.x, e.y, 14, 0xff5fd8, 260, 0.55);
-          this.sparks(e.x, e.y, 8, 0xffd0f4, 180, 0.7);
+          this.ring(e.x, e.y, 30, 4, e.color, 1, 0.4);
+          this.sparks(e.x, e.y, 14, e.color, 260, 0.55);
+          this.sparks(e.x, e.y, 8, lightOf(e.color), 180, 0.7);
         } else {
-          this.sparks(e.x, e.y, 6, 0xffa6ec, 200, 0.4);
+          this.sparks(e.x, e.y, 6, lightOf(e.color), 200, 0.4);
         }
       }),
       on('character', (e) => {
         if (e.kind !== 'phase') return;
-        this.ring(e.x, e.y, 46, 5, 0xff5fd8, 1, 0.5);
-        this.ring(e.x, e.y, 30, 3.4, 0xffd0f4, 0.9, 0.4);
-        this.sparks(e.x, e.y, 12, 0xff5fd8, 300, 0.5);
+        this.ring(e.x, e.y, 46, 5, e.color, 1, 0.5);
+        this.ring(e.x, e.y, 30, 3.4, lightOf(e.color), 0.9, 0.4);
+        this.sparks(e.x, e.y, 12, e.color, 300, 0.5);
       }),
       on('hurt', () => this.onHurt()),
       on('pickup', (e) => this.onPickup(e.x, e.y, e.kind)),

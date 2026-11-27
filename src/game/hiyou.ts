@@ -1,7 +1,8 @@
 import { CORE_LIGHT } from '../render/boss/hiyou/draw/body';
 import { HIYOU_SCALE } from '../render/boss/hiyou/draw/pieces';
-import type { BossPartId, FaceId, PartState } from '../render/boss/types';
+import type { BossPartId } from '../render/boss/types';
 import { ARENA_W } from './config';
+import type { CharacterDef, CharacterPart } from './character';
 
 /**
  * 樱之誓约·绯樱 as the fight sees her: a list of parts, each a disc the balls can hit, hung at a
@@ -11,7 +12,8 @@ import { ARENA_W } from './config';
  * She is not made of bricks. Her parts live beside the brick list: the ball sweep takes them where
  * it takes the bricks, but damage, states, phases and what she says are hers, not the lattice's.
  * Nothing here knows how she is drawn — the renderer turns the same part states the fight produces
- * into a frame for whatever sheet she is made of.
+ * into a frame for whatever sheet she is made of. How a fight reads a page like this is
+ * `character.ts`; the fight itself is `characterBoss.ts`.
  */
 
 /** Figure units to world units: the same conversion the drawing uses, so parts sit on the picture. */
@@ -21,7 +23,7 @@ export const FIGURE = HIYOU_SCALE;
 export const HIYOU_X = ARENA_W / 2;
 export const HIYOU_Y = 300;
 
-/** One hittable disc of her. */
+/** One of her parts, hung at one place: the ten are each a single disc. */
 export interface BossPart {
   id: BossPartId;
   /** Where the disc's middle lies on her figure, in figure units, about the anchor. */
@@ -74,82 +76,41 @@ export const PART_WEIGHT: Record<BossPartId, number> = {
 /** The parts, in the order a ball meets them: the ones on top of the others first. */
 export const HIT_ORDER: readonly BossPart[] = [...HIYOU_PARTS].sort((a, b) => b.order - a.order);
 
-/** The states of a part, worn through in order. */
-export const WEAR: readonly PartState[] = ['intact', 'damaged_1', 'damaged_2'];
+/** She as a fight reads her. */
+export const HIYOU: CharacterDef = {
+  id: 'hiyou',
+  name: '樱之誓约·绯樱',
+  parts: HIYOU_PARTS.map((part): CharacterPart => ({
+    id: part.id,
+    discs: [{ fx: part.fx, fy: part.fy, radius: part.radius }],
+    defense: part.defense,
+    hp: part.hp,
+    weight: PART_WEIGHT[part.id]!,
+    order: part.order,
+  })),
+  core: 'Core',
+  shield: 'CoreShield',
+  figure: FIGURE,
+  x: HIYOU_X,
+  y: HIYOU_Y,
+  swayX: 36,
+  swayRate: 0.9,
+  bobY: 5,
+  bobRate: 1.7,
+  tilt: 0.025,
+  // She gets quicker on her feet as she loses parts.
+  attackCd: [2.7, 2.3, 1.9, 1.5],
+  // Her wings volley, and her core's heavy orb bursts into scatter shots — wider late.
+  attacks: [
+    { kind: 'volley', from: ['LeftWing', 'RightWing'], shots: 2, scatter: 0, scatterLate: 0 },
+    { kind: 'orb', from: ['Core'], shots: 1, scatter: 8, scatterLate: 10 },
+  ],
+  color: 0xff5fd8,
+  reforge: null,
+};
 
-/** Blows of the standard power it takes to go from one state of a part to the next. */
+/** The blows a state of one of her parts takes. */
 export const hitsPerState = (part: BossPart): number => Math.max(1, Math.round(part.hp / 3));
-
-/** A disc of her at one moment, in world units: what the sweep and the renderer both read. The id is the part's for the renderer, and a negative number for the ball sweep, which keys by brick id. */
-export interface BossDisc {
-  id: BossPartId;
-  /** The part as a sweep key: negative, and so never a brick's id. */
-  key: number;
-  x: number;
-  y: number;
-  radius: number;
-  state: PartState;
-  defense: number;
-}
-
-/** What the fight says about her at one moment — the whole contract with the renderer. */
-export interface CharacterBossState {
-  /** Where her anchor stands, in world units. */
-  x: number;
-  y: number;
-  /** Which of her expressions the moment calls for. */
-  face: FaceId;
-  /** How each part is, one entry a part. */
-  look: Record<BossPartId, PartLookState>;
-  /** The phase 1..4. */
-  phase: number;
-  /** The shield is up while this is true: the core cannot be hurt. */
-  shielded: boolean;
-  /** 0..1, how much of her is still standing, by the parts' weights. */
-  integrity: number;
-  /** The line waiting to be said, if this is the moment for one. */
-  line: string | null;
-  /** Set once when the fight is over: she has no parts left. */
-  defeated: boolean;
-}
-
-export interface PartLookState {
-  state: PartState;
-  /** 0..1, the white of a hit, fading. */
-  flash: number;
-  /** How far the last hit knocked the part, in figure units; the stepper eases it home. */
-  dx: number;
-  dy: number;
-}
-
-/**
- * Where every part sits when she leans by `tilt` and sways by `swayX`. Her discs are hung on the
- * figure in figure units and read in world units, so the anchor and the lean carry them along.
- */
-export function discsOf(
-  look: Record<BossPartId, PartLookState>,
-  anchor: { x: number; y: number },
-  tilt: number,
-  swayX: number,
-): BossDisc[] {
-  const c = Math.cos(tilt);
-  const s = Math.sin(tilt);
-  // A part that is torn off is not there: no ball sweeps it, and nothing draws it.
-  return HIT_ORDER.filter((part) => look[part.id].state !== 'destroyed').map((part) => {
-    const at = look[part.id];
-    const fx = part.fx + at.dx + swayX;
-    const fy = part.fy + at.dy;
-    return {
-      id: part.id,
-      key: -1 - HIT_ORDER.indexOf(part),
-      x: anchor.x + (c * fx - s * fy) * FIGURE,
-      y: anchor.y + (s * fx + c * fy) * FIGURE,
-      radius: part.radius * FIGURE,
-      state: at.state,
-      defense: part.defense,
-    };
-  });
-}
 
 /** Where her core's light falls, in figure units about the anchor: the same light the drawing throws. */
 export const CORE_AT = { x: 0, y: -70 - 6 };

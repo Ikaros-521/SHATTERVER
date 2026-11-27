@@ -327,6 +327,8 @@ export class Pen {
     alpha = 1,
     flash = 0,
     mirror = false,
+    /** 1: the shape a torn-off part leaves behind, drawn as starlight (see `boss/sheet.ts`). */
+    ghost = 0,
   ): void {
     const batch = this.boss;
     if (!batch) return;
@@ -348,7 +350,7 @@ export class Pen {
     d[i + 12] = rect.v1;
     d[i + 13] = mirror ? FLAG_PART_MIRROR : 0;
     d[i + 14] = flash;
-    d[i + 15] = 0;
+    d[i + 15] = ghost;
     d[i + 16] = 0;
     d[i + 17] = 0;
     d[i + 18] = 0;

@@ -76,6 +76,7 @@ import {
 import {
   characterAttack,
   characterDefeated,
+  characterFor,
   startCharacterBoss,
   characterDiscsOf,
   characterPhase,
@@ -83,7 +84,7 @@ import {
   stepCharacterBoss,
   type CharacterBoss,
 } from './characterBoss';
-import type { BossDisc } from './hiyou';
+import type { BossDisc, CharacterDef } from './character';
 import type { BossPartId } from '../render/boss/types';
 import { BUFFS, BUFF_MAP, COVER, OFFENCE, type ActiveBuff, type BuffDef, type BuffId } from './buffs/defs';
 import { withBuffs } from './buffs/live';
@@ -105,7 +106,7 @@ import {
   type Shard,
 } from './entities';
 import { CHAPTERS, COMBO_TIERS, type BossDef, type ReactionId, type SummonKind } from './levels/definitions';
-import { CAMPAIGN_LENGTH, type LevelPlan } from './levels/generator';
+import { type LevelPlan } from './levels/generator';
 import type { Run } from './run';
 import type { BuildStats } from './upgrades/stats';
 
@@ -194,9 +195,18 @@ export interface WorldEvents {
     state: 'intact' | 'damaged_1' | 'damaged_2' | 'destroyed';
     x: number;
     y: number;
+    /** 0xRRGGBB: the colour of her, for what the feedback draws. */
+    color: number;
   };
   /** A character boss crossed into a new phase, or has spoken. */
-  character: { kind: 'phase' | 'line'; phase: number; moment: string | null; x: number; y: number };
+  character: {
+    kind: 'phase' | 'line';
+    phase: number;
+    moment: string | null;
+    x: number;
+    y: number;
+    color: number;
+  };
   summon: { count: number };
   shoot: { x: number; y: number };
   bulletPop: { x: number; y: number; blocked: boolean };
@@ -367,14 +377,12 @@ export class World {
     if (this.stats.singularity) this.singularity = { t: 0, tick: 0 };
     this.paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
     if (this.diff.purgePeriod > 0) this.purgeT = this.diff.purgePeriod * 0.6;
-    // A character boss rules the campaign's last sector: there she takes the lattice boss's
-    // place — same slot, same slot number, a very different fight. The plan still carries the
-    // lattice def (its name and code stay), and the world below spawns her instead of its bricks.
-    // `opts.character` is the build's hand raised: only a build that can show her offers her.
-    this.character =
-      opts.character && this.level.boss !== null && this.level.index === CAMPAIGN_LENGTH
-        ? startCharacterBoss()
-        : null;
+    // A character boss rules some of the campaign's boss sectors: there she takes the lattice
+    // boss's place — same slot, same slot number, a very different fight. The plan still carries
+    // the lattice def (its name and code stay), and the world below spawns her instead of its
+    // bricks. `opts.character` is the build's hand raised: only a build that can show her offers her.
+    const cast = characterFor(this.level.index);
+    this.character = opts.character && this.level.boss !== null && cast ? startCharacterBoss(cast) : null;
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();
@@ -956,9 +964,9 @@ export class World {
       crit,
       execute: false,
       source: 'ball',
-      // No brick: the part is hers, and the impact draws in her energy colour.
+      // No brick: the part is hers, and the impact draws in her colour.
       brick: null as never,
-      color: 0xff5fd8,
+      color: boss.def.color,
     });
 
     const { changed, fell } = characterPhase(boss);
@@ -971,8 +979,9 @@ export class World {
         state: look.state,
         x: where?.x ?? cx,
         y: where?.y ?? cy,
+        color: boss.def.color,
       });
-      if (look.state === 'destroyed' && id !== 'Core') {
+      if (look.state === 'destroyed' && id !== boss.def.core) {
         boss.state.face = 'hurt';
         boss.state.line = 'partDown';
         boss.quietFor = 0;
@@ -985,6 +994,7 @@ export class World {
         state: 'destroyed',
         x: where?.x ?? cx,
         y: where?.y ?? cy,
+        color: boss.def.color,
       });
     }
     if (changed) {
@@ -994,6 +1004,7 @@ export class World {
         moment: boss.pendingLine ?? null,
         x: boss.state.x,
         y: boss.state.y,
+        color: boss.def.color,
       });
       boss.state.face = boss.state.phase >= 4 ? 'awakened' : 'angry';
     }
@@ -1007,51 +1018,60 @@ export class World {
         moment: 'defeated',
         x: boss.state.x,
         y: boss.state.y,
+        color: boss.def.color,
       });
     }
   }
 
-  /** Steps her state machine: sway, hits fading, phases, her lines — and her attacks. */
+  /**
+   * Steps her state machine: sway, hits fading, phases, her lines — her attacks, and whatever hold
+   * she has on the brick field.
+   */
   private updateCharacter(dt: number): void {
-    if (!this.character || this.state !== 'playing') return;
-    stepCharacterBoss(this.character, dt);
-    const line = this.character.state.line;
-    if (line)
-      this.events.emit('character', {
-        kind: 'line',
-        phase: this.character.state.phase,
-        moment: line,
-        x: this.character.state.x,
-        y: this.character.state.y,
-      });
+    const boss = this.character;
+    if (!boss || this.state !== 'playing') return;
+    stepCharacterBoss(boss, dt);
+    const here = { x: boss.state.x, y: boss.state.y, color: boss.def.color };
+    const line = boss.state.line;
+    if (line) this.events.emit('character', { kind: 'line', phase: boss.state.phase, moment: line, ...here });
     // A part the fight has broken changes her face for a while; her phase's face claims it back.
-    if (this.character.state.face === 'hurt' && this.character.quietFor > 1.6) {
-      this.character.state.face = this.character.state.phase >= 3 ? 'angry' : 'idle';
+    if (boss.state.face === 'hurt' && boss.quietFor > 1.6) {
+      boss.state.face = boss.state.phase >= 3 ? 'angry' : 'idle';
     }
-    // Her attacks fire from where her parts actually are this frame: the wings volley from their
-    // discs, the core's heavy orb grows from hers and bursts into scatter shots on a fuse. A part
-    // that is torn off fires nothing.
-    this.character.attackCd -= dt;
-    if (this.character.attackCd > 0) return;
+    // Some of them pour bricks into the field, a row of it below where they stand; she does it
+    // faster once her third phase has come.
+    const forge = boss.def.reforge;
+    if (forge) {
+      boss.reforgeCd -= dt;
+      if (boss.reforgeCd <= 0) {
+        boss.reforgeCd = boss.state.phase >= 3 ? forge.late : forge.every;
+        this.reforge(forge);
+      }
+    }
+    // Her attacks fire from where her parts actually are this frame: a volley from every part it
+    // names, an orb and a rain from the first of them standing. The orb grows from its part and
+    // bursts into scatter shots on a fuse. A part that is torn off fires nothing.
+    boss.attackCd -= dt;
+    if (boss.attackCd > 0) return;
     const discs = this.characterDiscs();
     const discOf = (id: BossPartId): BossDisc | undefined => discs.find((disc) => disc.id === id);
-    const attack = characterAttack(this.character);
-    if (attack.kind === 'wings') {
-      for (const id of ['LeftWing', 'RightWing'] as BossPartId[]) {
-        const wing = discOf(id);
-        if (!wing) continue;
-        this.shoot(wing.x, wing.y + wing.radius * 0.4);
-        this.shoot(wing.x, wing.y + wing.radius * 0.4);
+    const attack = characterAttack(boss);
+    const first = attack.from.map(discOf).find((disc) => disc !== undefined);
+    if (attack.kind === 'volley') {
+      for (const id of attack.from) {
+        const part = discOf(id);
+        if (!part) continue;
+        for (let i = 0; i < attack.shots; i++) this.shoot(part.x, part.y + part.radius * 0.4);
       }
-    } else {
-      const core = discOf('Core');
-      if (!core) return;
-      const aim = Math.atan2(this.paddle.y - core.y, this.paddle.x - core.x);
+    } else if (attack.kind === 'rain') {
+      if (first) this.starRain(first, attack.shots);
+    } else if (first) {
+      const aim = Math.atan2(this.paddle.y - first.y, this.paddle.x - first.x);
       const speed = 190 + this.level.index * 3;
       this.bullets.push({
         id: allocId(),
-        x: core.x,
-        y: core.y,
+        x: first.x,
+        y: first.y,
         vx: Math.cos(aim) * speed,
         vy: Math.sin(aim) * speed,
         r: 16,
@@ -1061,8 +1081,63 @@ export class World {
         splitT: 1.15,
         splitN: attack.scatter,
       });
-      this.events.emit('shoot', { x: core.x, y: core.y });
+      this.events.emit('shoot', { x: first.x, y: first.y });
     }
+  }
+
+  /**
+   * Stars shaken loose from above: they fall in a loose line towards the paddle, a wall with gaps
+   * in it to find a way through.
+   */
+  private starRain(from: BossDisc, count: number): void {
+    const speed = Math.min(320, 230 + this.level.index * 2) * (1 - this.live.slowField);
+    for (let i = 0; i < count; i++) {
+      if (this.bullets.length >= MAX_BULLETS) break;
+      const x = from.x + ((i + 0.5) / count - 0.5) * from.radius * 4 + this.rng.range(-8, 8);
+      const y = from.y + this.rng.range(0, 26);
+      // Each falls at the paddle, a little off true: a line of them, not one point.
+      const aim = Math.atan2(this.paddle.y - y, this.paddle.x - x) + this.rng.range(-0.16, 0.16);
+      this.bullets.push({
+        id: allocId(),
+        x,
+        y,
+        vx: Math.cos(aim) * speed,
+        vy: Math.sin(aim) * speed,
+        r: 8,
+        dead: false,
+      });
+    }
+    this.events.emit('shoot', { x: from.x, y: from.y });
+  }
+
+  /**
+   * Bricks poured into a row of the field: where a cell is free. They come down like any the
+   * lattice summons, and count towards the level's bricks like any other.
+   */
+  private reforge(rule: NonNullable<CharacterDef['reforge']>): void {
+    if (this.bricks.length > 150) return;
+    const palette = CHAPTERS[this.level.chapter]?.bricks ?? [0x27e0ff];
+    const start = this.rng.int(0, 12 - rule.count);
+    let count = 0;
+    for (let i = 0; i < rule.count; i++) {
+      const col = start + i;
+      const row = rule.row;
+      if (this.bricks.some((b) => !b.dead && b.col === col && Math.abs(b.row - row) < 3)) continue;
+      const type: BrickType = this.rng.chance(0.2) ? 'gold' : 'normal';
+      const brick = makeBrick({
+        col,
+        row,
+        type,
+        hp: Math.max(1, Math.round(this.level.hpUnit * BRICK_HP[type])),
+        color: type === 'gold' ? 0xffc93c : (palette[row % palette.length] ?? 0x27e0ff),
+        seed: this.rng.next(),
+      });
+      brick.vy = 9 + this.level.index * 0.6;
+      this.bricks.push(brick);
+      this.brickTotal++;
+      count++;
+    }
+    if (count > 0) this.events.emit('summon', { count });
   }
 
   /** The scatter shots a burst produces: a fan across the lower half, from where the orb burst. */

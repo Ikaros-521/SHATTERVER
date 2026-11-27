@@ -1,6 +1,6 @@
 import type { Pen, PictureRect } from '../batch';
 import type { GL } from '../gl';
-import { allShots, place, type Placed, type Sheet } from './sheet';
+import { allShots, place, type Placed, type Sheet, type Shot } from './sheet';
 import { makeBakingCanvas } from '../textAtlas';
 import type { BossFrame } from './types';
 
@@ -80,11 +80,15 @@ export function packRows(
   return slots;
 }
 
+/** The density a picture is baked at: the atlas's, less whatever the picture gives up. */
+export const shotScale = (shot: Shot, scale: number): number => scale * (shot.density ?? 1);
+
 /** The size each picture of a sheet takes in the atlas, in pixels: [id, width, height]. */
 export function shotSizes(sheet: Sheet, scale: number): [string, number, number][] {
   return allShots(sheet).map((shot) => {
     const [x0, y0, x1, y1] = shot.box;
-    return [shot.id, Math.ceil((x1 - x0) * scale), Math.ceil((y1 - y0) * scale)];
+    const at = shotScale(shot, scale);
+    return [shot.id, Math.ceil((x1 - x0) * at), Math.ceil((y1 - y0) * at)];
   });
 }
 
@@ -139,9 +143,11 @@ export function bakeSheet(
     const [x0, y0, x1, y1] = shot.box;
     const w = x1 - x0;
     const h = y1 - y0;
+    // A picture may be baked coarser than its neighbours (see `Shot.density`).
+    const at = shotScale(shot, scale);
     // The layer's frame, scaled, with the box's corner at the slot's corner; and nothing drawn
     // outside the box, which would run into the gutter and the next picture.
-    ctx.setTransform(scale, 0, 0, scale, sx - x0 * scale, sy - y0 * scale);
+    ctx.setTransform(at, 0, 0, at, sx - x0 * at, sy - y0 * at);
     ctx.save();
     ctx.beginPath();
     ctx.rect(x0, y0, w, h);
@@ -152,8 +158,8 @@ export function bakeSheet(
     pictures.set(shot.id, {
       u0: (sx + 0.5) / size,
       v0: (sy + 0.5) / size,
-      u1: (sx + w * scale - 0.5) / size,
-      v1: (sy + h * scale - 0.5) / size,
+      u1: (sx + w * at - 0.5) / size,
+      v1: (sy + h * at - 0.5) / size,
       hw: w / 2,
       hh: h / 2,
       cx: (x0 + x1) / 2,
@@ -214,8 +220,9 @@ export function paintSheet(
       piece.rot,
       picture,
       piece.alpha,
-      piece.look.flash,
+      piece.flash,
       piece.mirror,
+      piece.ghost,
     );
   }
   // What she throws on the field around her goes down beneath it, where it belongs.

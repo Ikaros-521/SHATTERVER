@@ -97,16 +97,25 @@ export class HUD {
     // ── level progress, or boss health in the same slot ──
     const boss = world.boss && !world.boss.dead ? world.boss : null;
     this.progressTrack.classList.toggle('is-boss', boss !== null);
+    // Wave ticks: only a wave sector's bar is divided, and a boss resets whatever came before it.
+    const waves = boss ? 0 : world.level.waves;
+    this.progressTrack.dataset.waves = waves > 1 ? String(waves) : '';
+    if (waves > 1) this.progressTrack.style.setProperty('--waves', String(waves));
+    else this.progressTrack.style.removeProperty('--waves');
     if (boss) {
       this.put(this.levelCode, boss.def.en);
       this.put(this.levelName, bossName(boss.def));
       this.progressTrack.dataset.phase = boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase });
       setWidth(this.progress, boss.hp / boss.maxHp);
     } else {
-      this.put(this.levelCode, world.level.code);
-      this.put(this.levelName, levelName(world.level.chapter, world.level.name));
+      const plan = world.level;
+      this.put(this.levelCode, plan.code);
+      // A wave sector counts its waves off next to its name, and its bar spans all of them.
+      const wave = waves > 1 ? ` · ${t('hud.wave', { n: plan.wave, total: waves })}` : '';
+      this.put(this.levelName, levelName(plan.chapter, plan.name) + wave);
       this.progressTrack.dataset.phase = '';
-      setWidth(this.progress, 1 - world.brickCount() / Math.max(1, world.brickTotal));
+      const cleared = 1 - world.brickCount() / Math.max(1, world.brickTotal);
+      setWidth(this.progress, waves > 1 ? (plan.wave - 1 + cleared) / waves : cleared);
     }
 
     this.put(this.crystals, formatNumber(run.crystals));

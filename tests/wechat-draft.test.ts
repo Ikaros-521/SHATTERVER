@@ -110,4 +110,41 @@ describe('draftTree', () => {
     walk(draftTree(model({ intro: true, code: '' }), actions().acts, 400, 800, m));
     expect(texts).toContain(t('shop.headstartEyebrow'));
   });
+
+  it('counts off a wave sector’s bonus on the drafts it granted, and nowhere else', () => {
+    const texts: string[] = [];
+    const walk = (w: Widget): void => {
+      if (w.kind === 'label') texts.push(w.text);
+      if (w.kind === 'panel' || w.kind === 'row') w.children.forEach(walk);
+      if (w.kind === 'scroll') walk(w.child);
+    };
+    const reward = { crystals: 150, shield: 1, picks: 3, pick: 2 };
+    const lines = (over: Partial<DraftModel>): string[] => {
+      texts.length = 0;
+      walk(draftTree(model(over), actions().acts, 400, 800, m));
+      return [...texts];
+    };
+    const bonus = (all: string[]): string | undefined =>
+      all.find((text) => text.startsWith(t('draft.rewardTitle')));
+
+    const texts2 = lines({ code: '5-1', reward });
+    expect(texts2).toContain(t('draft.rewardEyebrow', { code: '5-1', n: 2, total: 3 }));
+    expect(bonus(texts2)).toContain(t('draft.rewardCrystals', { n: 150 }));
+    expect(bonus(texts2)).toContain(t('draft.rewardShield', { n: 1 }));
+    expect(bonus(texts2)).toContain(t('draft.rewardPicks', { n: 3 }));
+
+    // A full shield restored nothing: the line leaves it out rather than promising "+0".
+    const full = lines({ reward: { ...reward, shield: 0 } });
+    expect(bonus(full)).toBeDefined();
+    expect(bonus(full)).not.toContain(t('draft.rewardShield', { n: 0 }));
+
+    // Every other draft reads as it did.
+    const plain = lines({});
+    expect(plain).toContain(t('draft.eyebrow', { code: '2-3' }));
+    expect(bonus(plain)).toBeUndefined();
+    // So does the opening draft, whatever the model carries.
+    const intro = lines({ intro: true, code: '', reward });
+    expect(intro).toContain(t('shop.headstartEyebrow'));
+    expect(bonus(intro)).toBeUndefined();
+  });
 });

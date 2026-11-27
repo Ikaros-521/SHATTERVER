@@ -59,4 +59,28 @@ describe('gain systems (shared core, WeChat parity)', () => {
     expect(Math.ceil(session.world.buffs[0]!.t)).toBeLessThan(secs);
     expect(hudSignature(session, 0)).not.toBe(withBuff);
   });
+
+  it('hudSignature follows a wave sector from wave to wave', () => {
+    const session = new Session('endless', 9, { level: 21, bot: true });
+    const first = hudSignature(session, 0);
+    session.update(1.5); // the launch countdown
+    // Shatter the whole wall at once; the next wave opens once the clear has played out.
+    for (const brick of session.world.bricks) {
+      if (!brick.dead) session.world.killBrick(brick, HIT);
+    }
+    for (let i = 0; i < 180 && session.world.level.wave === 1; i++) session.update(1 / 60);
+    expect(session.world.level.wave, 'the next wave opened').toBe(2);
+    expect(hudSignature(session, 0)).not.toBe(first);
+  });
 });
+
+/** A plain ball hit, for tests that only need a brick to fall. */
+const HIT = {
+  x: 0,
+  y: 0,
+  power: 1,
+  source: 'ball',
+  ball: null,
+  crit: false,
+  explosion: false,
+} as const;

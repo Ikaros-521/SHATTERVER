@@ -10,6 +10,7 @@
 
 import { t } from '../../core/i18n';
 import { formatNumber } from '../../core/math';
+import type { SectorReward } from '../../game/session';
 import type { UpgradeDef } from '../../game/upgrades/types';
 import { RARITY_INFO } from '../../game/upgrades/present';
 import { rarityName, upgradeDescribe, upgradeName } from '../../i18n/content';
@@ -40,6 +41,8 @@ export interface DraftModel {
   crystals: number;
   rerollCost: number;
   skipReward: number;
+  /** The bonus a wave sector's clear granted, on each of the drafts it paid for; absent otherwise. */
+  reward?: SectorReward | null;
 }
 
 export interface DraftActions {
@@ -64,18 +67,28 @@ export function draftTree(
   m: TextMeasurer = uniformMeasurer(1),
 ): Widget {
   const pad = Math.max(16, Math.min(26, width * 0.045));
+  const reward = model.intro ? null : (model.reward ?? null);
 
   const children: Widget[] = [
-    label(model.intro ? t('shop.headstartEyebrow') : t('draft.eyebrow', { code: model.code }), {
-      size: 11,
-      color: 'accent',
-      weight: '700',
-      alpha: 0.85,
-    }),
+    label(
+      model.intro
+        ? t('shop.headstartEyebrow')
+        : reward
+          ? t('draft.rewardEyebrow', { code: model.code, n: reward.pick, total: reward.picks })
+          : t('draft.eyebrow', { code: model.code }),
+      { size: 11, color: 'accent', weight: '700', alpha: 0.85 },
+    ),
     label(t('draft.title'), { size: 26, weight: '900' }),
     label(`◆ ${formatNumber(model.crystals)}`, { size: 14, color: 'gold', weight: '700' }),
-    spacer(8),
   ];
+  // What the sector's clear paid, on one line: the canvas answer to the DOM draft's reward chips.
+  if (reward) {
+    const parts = [t('draft.rewardCrystals', { n: formatNumber(reward.crystals) })];
+    if (reward.shield > 0) parts.push(t('draft.rewardShield', { n: reward.shield }));
+    parts.push(t('draft.rewardPicks', { n: reward.picks }));
+    children.push(label(`${t('draft.rewardTitle')} · ${parts.join(' · ')}`, { size: 12, color: 'gold' }));
+  }
+  children.push(spacer(8));
 
   model.options.forEach((def, index) => {
     const level = model.levels[index] ?? 0;

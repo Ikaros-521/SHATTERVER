@@ -1,4 +1,4 @@
-import { bossScale, DANGER_Y, GRID, hpUnit } from '../config';
+import { bossScale, DANGER_Y, ENDLESS_WAVES, GRID, hpUnit } from '../config';
 import { mixHex } from '../../core/math';
 import type { RNG } from '../../core/rng';
 import { ERASER_COLOR, type BossRole, type BrickType } from '../entities';
@@ -39,6 +39,12 @@ export interface LevelPlan {
   damageMult: number;
   /** Multiplier applied to every boss part's HP. Only meaningful when `boss` is set. */
   bossScale: number;
+  /**
+   * 1-based wave of this level inside its sector, and how many the sector has. Both 1 on the
+   * campaign, on bosses, and wherever a level is a sector of its own.
+   */
+  wave: number;
+  waves: number;
 }
 
 type Recipe = (rng: RNG) => Cell[];
@@ -100,6 +106,25 @@ export function cycleOf(level: number): number {
 
 export function isBossLevel(level: number): boolean {
   return level % BOSS_EVERY === 0;
+}
+
+/**
+ * How many waves the sector `level` belongs to is fought in. The campaign and every boss are a
+ * single wave (a boss fight already runs in phases of its own); past the campaign the endless
+ * mode pairs its ordinary levels into two-wave sectors, see `ENDLESS_WAVES`.
+ */
+export function wavesInLevel(level: number): number {
+  return level > CAMPAIGN_LENGTH && !isBossLevel(level) ? ENDLESS_WAVES : 1;
+}
+
+/** 1-based wave of `level` inside its sector. 1 wherever sectors are a single wave. */
+export function waveOf(level: number): number {
+  return (((level - 1) % BOSS_EVERY) % wavesInLevel(level)) + 1;
+}
+
+/** First level of the sector `level` belongs to: itself, or the wave before it. */
+export function sectorStart(level: number): number {
+  return level - (waveOf(level) - 1);
 }
 
 /**
@@ -212,6 +237,9 @@ function bossCells(boss: BossDef): LevelCell[] {
 /**
  * Builds the plan for a 1-based level index. Same (level, rng state) → same level; the chosen
  * difficulty only ever scales what comes out, so a seed's geography stays reproducible.
+ *
+ * Every level is one wave. Which wave — and which sector, on the endless mode's two-wave ones —
+ * follows from the index alone (`waveOf`), never from how the run got here.
  */
 export function buildLevel(
   index: number,
@@ -221,6 +249,7 @@ export function buildLevel(
   const level = Math.max(1, Math.floor(index));
   const chapter = chapterOf(level);
   const cycle = cycleOf(level);
+  const waves = wavesInLevel(level);
   const boss = isBossLevel(level) ? at(BOSSES, level / BOSS_EVERY - 1) : null;
   const modifier = !boss && level >= 3 && rng.chance(0.45) ? rng.pick(MODIFIERS) : null;
   const rush = modifier?.id === 'rush';
@@ -239,11 +268,16 @@ export function buildLevel(
     ? 0
     : Math.max(0, Math.min(Math.round(difficulty.extraRows * ramp), SAFE_MAX_ROW - P.maxRow(cells)));
   const stacked = extraRows > 0 ? [...topRows(extraRows, rng), ...P.offsetCells(cells, 0, extraRows)] : cells;
+  // Where the sector sits in its chapter. In the endless mode a pair of ordinary levels shares
+  // one slot, so a chapter reads `4-1 · 4-2 · 4-3` — two waves, two waves, boss — instead of
+  // counting levels.
+  const slot = (level - 1) % BOSS_EVERY;
+  const perChapter = level > CAMPAIGN_LENGTH ? ENDLESS_WAVES : 1;
 
   return {
     index: level,
     chapter,
-    code: `${chapter + 1 + cycle * CHAPTERS.length}-${((level - 1) % BOSS_EVERY) + 1}`,
+    code: `${chapter + 1 + cycle * CHAPTERS.length}-${Math.floor(slot / perChapter) + 1}`,
     name,
     modifier,
     boss,
@@ -254,6 +288,8 @@ export function buildLevel(
     speedMult: rush ? 1.25 : 1,
     damageMult: rush ? 1.25 : 1,
     bossScale: bossScale(level) * (1 + (difficulty.hpMult - 1) * ramp),
+    wave: waveOf(level),
+    waves,
   };
 }
 

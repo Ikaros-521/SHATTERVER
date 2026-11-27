@@ -30,7 +30,7 @@ import { difficultyOf, DIFFICULTIES, type DifficultyId } from '../game/difficult
 import { CAMPAIGN_LENGTH } from '../game/levels/generator';
 import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
 import type { RunMode } from '../game/run';
-import type { Session, SessionEvents } from '../game/session';
+import type { SectorReward, Session, SessionEvents } from '../game/session';
 import { STARTERS, type Starter } from '../game/starters';
 import {
   PROTOCOLS,
@@ -572,6 +572,7 @@ export class UI implements HudHost {
       card.style.animationDelay = `${i * 90}ms`;
       cards.append(card);
     });
+    const reward = info.reward;
     setText(
       byId('draft-eyebrow'),
       // The opening draft names its source: the free head start, or the protocol's own self-picks.
@@ -579,13 +580,34 @@ export class UI implements HudHost {
         ? session.introRarities
           ? t('shop.wildcardEyebrow')
           : t('shop.headstartEyebrow')
-        : t('draft.eyebrow', { code: session.world.level.code }),
+        : reward
+          ? // A wave sector's drafts count off the bonus its clear granted.
+            t('draft.rewardEyebrow', { code: session.world.level.code, n: reward.pick, total: reward.picks })
+          : t('draft.eyebrow', { code: session.world.level.code }),
     );
+    this.renderSectorReward(reward);
     setText(byId('draft-crystals'), formatNumber(session.run.crystals));
     setText(byId('reroll-cost'), `◆ ${info.rerollCost}`);
     // An opening pick is forfeited when skipped, not traded — promising crystals here would lie.
     setText(byId('skip-reward'), info.intro ? '' : `+◆ ${info.skipReward}`);
     byId<HTMLButtonElement>('btn-reroll').disabled = session.run.crystals < info.rerollCost;
+  }
+
+  /** What a wave sector's clear paid, spelt out above the cards. Hidden on every other draft. */
+  private renderSectorReward(reward: SectorReward | null): void {
+    const host = byId('draft-rewards');
+    host.hidden = reward === null;
+    if (!reward) return;
+    const chips: [string, number][] = [
+      [t('draft.rewardCrystals', { n: formatNumber(reward.crystals) }), 0xffc93c],
+    ];
+    // A full shield restored nothing, and saying "+0" would read as a reward that failed.
+    if (reward.shield > 0) chips.push([t('draft.rewardShield', { n: reward.shield }), 0x7dffe0]);
+    chips.push([t('draft.rewardPicks', { n: reward.picks }), this.accent]);
+    host.replaceChildren(
+      el('span', { class: 'draft-rewards-title', text: t('draft.rewardTitle') }),
+      ...chips.map(([text, color]) => el('span', { class: 'chip', style: `--c:${hexCss(color)}` }, text)),
+    );
   }
 
   showPause(session: Session): void {
@@ -1874,11 +1896,14 @@ export class UI implements HudHost {
     );
   }
 
-  /** First banner of a level: sector, name, and its mutator if it has one. */
+  /**
+   * First banner of a level: sector, name, and its mutator if it has one. A later wave of a wave
+   * sector was announced with its sector, so it names only itself and whatever rules it changes.
+   */
   announceLevel(session: Session): void {
     const plan = session.world.level;
     this.setAccent((CHAPTERS[plan.chapter] ?? CHAPTERS[0]).accent);
-    if (session.run.level === 1 && session.run.levelsCleared === 0) {
+    if (session.run.level === 1 && session.run.levelsCleared === 0 && plan.wave === 1) {
       const tier = difficultyOf(session.run.difficulty);
       if (tier.id !== 'standard') {
         this.toast(
@@ -1889,6 +1914,9 @@ export class UI implements HudHost {
       }
       this.toast(t('callouts.firstToastTitle'), t('callouts.firstToastBody'), 0x7dffe0);
     }
+    const mutator = plan.modifier
+      ? t('callouts.bannerMutator', { name: mutatorName(plan.modifier), desc: mutatorDesc(plan.modifier) })
+      : undefined;
     if (plan.boss) {
       this.banner({
         title: plan.boss.en,
@@ -1897,16 +1925,19 @@ export class UI implements HudHost {
         color: 0xff2fb0,
         duration: 2.6,
       });
+    } else if (plan.wave > 1) {
+      this.banner({
+        title: `WAVE ${plan.wave}/${plan.waves}`,
+        sub: levelName(plan.chapter, plan.name),
+        note: mutator,
+        duration: plan.modifier ? 2.4 : 1.3,
+      });
     } else {
       this.banner({
         title: `SECTOR ${plan.code}`,
         sub: levelName(plan.chapter, plan.name),
-        note: plan.modifier
-          ? t('callouts.bannerMutator', {
-              name: mutatorName(plan.modifier),
-              desc: mutatorDesc(plan.modifier),
-            })
-          : undefined,
+        // An unmutated wave sector says up front how long it runs.
+        note: mutator ?? (plan.waves > 1 ? t('callouts.waveCount', { n: plan.waves }) : undefined),
         duration: plan.modifier ? 2.8 : 1.7,
       });
     }

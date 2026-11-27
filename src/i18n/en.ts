@@ -59,6 +59,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     statCrit: 'Crit chance',
     buffs: 'Power-ups',
     pauseAria: 'Pause',
+    wave: 'Wave {n}/{total}',
   },
   starter: {
     title: 'Pick a starting protocol',
@@ -75,6 +76,12 @@ export const en: UiDict & { content: ContentOverrides } = {
     skip: 'Skip',
     newUpgrade: 'NEW',
     maxed: 'MAX',
+    // A wave sector's clear bonus, shown on each of the drafts it granted.
+    rewardEyebrow: 'SECTOR {code} CLEAR · REWARD {n}/{total}',
+    rewardTitle: 'Sector clear bonus',
+    rewardCrystals: 'Crystals +{n}',
+    rewardShield: 'Shield +{n}',
+    rewardPicks: 'Picks ×{n}',
   },
   pause: {
     title: 'Paused',
@@ -240,6 +247,8 @@ export const en: UiDict & { content: ContentOverrides } = {
     overdriveSub: 'Overdrive',
     timeStopSub: 'Time stop',
     sectorClearSub: 'Sector clear',
+    waveClearSub: 'Next wave coming up',
+    waveCount: '{n} waves',
     buffSub: '{name} · {n}s',
     buffTwinSub: '{name} · twin · {n}s',
     dodgeSub: 'Shield intact',

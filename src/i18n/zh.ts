@@ -84,6 +84,7 @@ export const zh = {
     statCrit: '暴击率',
     buffs: '增益',
     pauseAria: '暂停',
+    wave: '波次 {n}/{total}',
   },
   starter: {
     title: '选择初始协议',
@@ -100,6 +101,12 @@ export const zh = {
     skip: '跳过',
     newUpgrade: 'NEW · 新强化',
     maxed: '满级',
+    // A wave sector's clear bonus, shown on each of the drafts it granted.
+    rewardEyebrow: 'SECTOR {code} CLEAR · 关卡奖励 {n}/{total}',
+    rewardTitle: '关卡结束奖励',
+    rewardCrystals: '碎晶 +{n}',
+    rewardShield: '护盾 +{n}',
+    rewardPicks: '强化选择 ×{n}',
   },
   pause: {
     title: '已暂停',
@@ -257,6 +264,8 @@ export const zh = {
     overdriveSub: '超载',
     timeStopSub: '时停',
     sectorClearSub: '关卡清除',
+    waveClearSub: '下一波即将开始',
+    waveCount: '共 {n} 波',
     buffSub: '{name} · 增益 {n} 秒',
     buffTwinSub: '{name} · 双共振 {n} 秒',
     dodgeSub: '护盾未受损',

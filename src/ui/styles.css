@@ -147,6 +147,21 @@ kbd {
   transition: transform 0.12s linear;
 }
 
+/* A wave sector's bar spans all its waves: a tick where each one ends. */
+.bar[data-waves]:not([data-waves=''])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(100% / var(--waves) - 1px),
+    rgb(5 6 15 / 0.85) calc(100% / var(--waves) - 1px),
+    rgb(5 6 15 / 0.85) calc(100% / var(--waves))
+  );
+  pointer-events: none;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -1545,6 +1560,28 @@ button.sigil-tile:hover {
 
 .draft-head {
   margin-bottom: clamp(14px, 2.6vh, 26px);
+}
+
+/* A wave sector's clear bonus, between the draft's heading and its cards. */
+.draft-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: calc(-1 * clamp(4px, 1.2vh, 12px)) 0 clamp(14px, 2.6vh, 26px);
+}
+
+.draft-rewards-title {
+  margin-right: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: var(--gold);
+}
+
+.draft-rewards .chip {
+  padding: 4px 12px;
+  font-size: 12px;
 }
 
 .crystal-big {

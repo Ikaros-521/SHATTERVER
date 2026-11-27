@@ -1,6 +1,6 @@
 import { FrameTimes } from './core/frametimes';
 import { applyDom, setLang, t } from './core/i18n';
-import { clamp } from './core/math';
+import { clamp, formatNumber } from './core/math';
 import { hashString, randomSeed, RNG } from './core/rng';
 import { loadSave, runRank, storeSave, type RunRecord, type SaveData, type Settings } from './core/storage';
 import { AudioDirector } from './audio/director';
@@ -484,6 +484,14 @@ export class App implements UiActions {
         this.noteOffered([def]);
         this.audio.ui('pick', RARITY_INFO[def.rarity].rank);
       }),
+      // A wave sector paid out. Its drafts repeat the same lines above their cards.
+      session.events.on('sectorClear', ({ crystals, shield, picks }) => {
+        if (demo) return;
+        const lines = [t('draft.rewardCrystals', { n: formatNumber(crystals) })];
+        if (shield > 0) lines.push(t('draft.rewardShield', { n: shield }));
+        lines.push(t('draft.rewardPicks', { n: picks }));
+        this.ui.toast(t('draft.rewardTitle'), lines.join(' · '), 0xffc93c);
+      }),
       session.events.on('phase', ({ phase }) => {
         if (!this.inRun) return;
         if (phase === 'over' || phase === 'won') this.resultsTimer = 1.1;
@@ -656,9 +664,21 @@ export class App implements UiActions {
         ),
       ),
       world.events.on('clear', () =>
-        whenPlaying(() =>
-          this.ui.banner({ title: 'SECTOR CLEAR', sub: t('callouts.sectorClearSub'), duration: 1.5 }),
-        ),
+        whenPlaying(() => {
+          const { wave, waves } = world.level;
+          // A wave sector's earlier waves are a beat, not a finish: only its last one clears it.
+          if (wave < waves) {
+            this.ui.banner({
+              title: `WAVE ${wave}/${waves}`,
+              sub: t('callouts.waveClearSub'),
+              small: true,
+              duration: 1.25,
+              key: 'wave',
+            });
+            return;
+          }
+          this.ui.banner({ title: 'SECTOR CLEAR', sub: t('callouts.sectorClearSub'), duration: 1.5 });
+        }),
       ),
     ];
     return () => {
@@ -1593,6 +1613,9 @@ export class App implements UiActions {
       qualityAdjusted: this.governor.adjusted,
       level: world.level.code,
       levelIndex: this.session.run.level,
+      wave: world.level.wave,
+      waves: world.level.waves,
+      levelsCleared: this.session.run.levelsCleared,
       state: world.state,
       sessionPhase: this.session.phase,
       time: +world.time.toFixed(2),

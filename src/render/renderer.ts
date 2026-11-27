@@ -145,6 +145,12 @@ export class Renderer {
   partsBroken = false;
   private readonly parts: InstanceBatch;
   private readonly partsVao: WebGLVertexArrayObject;
+  /**
+   * The atlas a character boss's pieces are drawn from (`boss/pictures.ts`), handed over by
+   * whoever draws her. Without one her pieces are not drawn: a quad left sampling whatever else
+   * happens to be bound would only show noise.
+   */
+  bossAtlas: WebGLTexture | null = null;
   private readonly instanceVaos: [WebGLVertexArrayObject, WebGLVertexArrayObject];
   private readonly textVao: WebGLVertexArrayObject;
   private readonly glyphTexture: WebGLTexture;
@@ -559,7 +565,7 @@ export class Renderer {
   }
 
   /**
-   * Draws the boss parts: the shapes a character boss is drawn from. Nothing happens while the
+   * Draws the boss pieces: the pictures a character boss is drawn from. Nothing happens while the
    * batch is empty, which is every frame without a character boss on screen; like the sprites,
    * its program is compiled the first time it is needed, and a failure here costs the boss her
    * looks and nothing else.
@@ -568,6 +574,7 @@ export class Renderer {
     const batch = this.parts;
     this.stats.parts = batch.count;
     if (batch.count === 0) return;
+    if (!this.bossAtlas) return;
     if (!this.progParts) {
       if (this.partsBroken) return;
       try {
@@ -579,6 +586,7 @@ export class Renderer {
         return;
       }
     }
+    this.gl.texture(this.progParts, 'uAtlas', this.bossAtlas);
     this.drawFamily(this.progParts, this.partsVao, batch);
   }
 

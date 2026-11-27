@@ -8,7 +8,7 @@ import { drawScene, type SceneInfo } from '../scene';
 import { drawBackHair, drawHead } from './hiyou/draw/head';
 import { drawHiyou } from './hiyou/draw/figure';
 import { faults } from './hiyou/draw/brush';
-import { paintHiyou } from './hiyou/painters';
+import { bakeHiyou, paintHiyou } from './pictures';
 import {
   restingLook,
   type BossFrame,
@@ -22,7 +22,11 @@ import {
  * 绯樱立绘预览(开发专用,不进任何平台包)。
  *
  * 用真实的 `Renderer` 出图:同一套泛光与合成,所以这里看到的就是她在竞技场里的样子。场景是一个
- * 清空了砖块的关卡,只为给出场地、挡板和球作参照。
+ * 清空了砖块的关卡,只为给出场地、挡板和球作参照。她走的是游戏里那条路:部件先烤进图集
+ * (`pictures.ts`),每帧只摆贴图四边形。
+ *
+ * `window.__bossHarness` 上有 `errors`(着色器或烘焙的失败)、`stats()`(绘制统计、读不完的路径数)、
+ * `pictures`(图集里的部件数)和 `step(秒)`:按需画一帧,给动画帧被节流的自动化截图用。
  *
  * URL 参数:
  *   view   = figure | head | side | arena   只看立绘(放大)、只看头部、只看右肩甲(各再放大),或按竞技场里的真实比例看。默认 figure。
@@ -57,7 +61,12 @@ const frozen = params.has('at') && Number.isFinite(at);
 const ANCHOR_X = 360;
 const ANCHOR_Y = 300;
 
-const debug = { errors: [] as unknown[], stats: (): unknown => ({}) };
+const debug = {
+  errors: [] as unknown[],
+  stats: (): unknown => ({}),
+  step: (_seconds: number): void => {},
+  pictures: 0,
+};
 (window as unknown as { __bossHarness: typeof debug }).__bossHarness = debug;
 
 /** The page's one canvas, which it cannot run without. */
@@ -126,7 +135,11 @@ function runArt(mode: (typeof ARTS)[number]): void {
 
 function runScene(): void {
   const renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
-  debug.stats = () => renderer.stats;
+  debug.stats = () => ({ ...renderer.stats, unreadPaths: faults.unread });
+  // Her pieces are baked once, here at the start, and drawn from the atlas every frame.
+  const atlas = bakeHiyou(renderer.gl);
+  renderer.bossAtlas = atlas.texture;
+  debug.pictures = atlas.pictures.size;
   const fx = new Fx(2000, { shake: true, flashes: true, quality: 'high' });
   const info: SceneInfo = { danger: 0, energy: 0 };
 
@@ -202,7 +215,7 @@ function runScene(): void {
       if (sheet === 'none') drawScene(renderer.pen, world, fx, chapter, time, info);
       for (const figure of figures) {
         const shown: BossFrame = { x: figure.x, y: ANCHOR_Y, time, face: figure.face, look: figure.look };
-        paintHiyou(renderer.pen, shown);
+        paintHiyou(renderer.pen, shown, atlas);
       }
       renderer.render({
         layout,
@@ -220,8 +233,16 @@ function runScene(): void {
     }
     requestAnimationFrame(frame);
   };
+  // Draws one frame at a given moment, whatever the browser is doing with its animation frames: for
+  // an automated look at a page whose rAF is throttled.
+  debug.step = (seconds: number): void => frame(seconds * 1000);
   requestAnimationFrame(frame);
 }
 
-if (art !== 'none') runArt(art);
-else runScene();
+// A set-up that throws is kept where an automated look will find it, not left to the console.
+try {
+  if (art !== 'none') runArt(art);
+  else runScene();
+} catch (error) {
+  debug.errors.push(error);
+}

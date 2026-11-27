@@ -1,61 +1,38 @@
-import type { BossFrame, FaceId } from '../../types';
-import { drawArm, drawCore, drawPauldron, drawTorso, drawWing, NECK_JOINT } from './body';
-import { drawBackHair, drawHead } from './head';
+import type { BossFrame } from '../../types';
+import { glow, rgba } from './brush';
+import { CORE_LIGHT } from './body';
+import { PIECES, coreLight, placeHiyou, type Placed } from './pieces';
 
 /**
- * 绯樱 whole, for one frame, drawn with Canvas 2D in figure units (see `head.ts`): back to front,
- * each part where its look says it is. She hangs in the air, so the whole of her drifts up and
- * down a little; the head leans on the top of her neck.
+ * 绯樱 whole, for one frame, drawn with Canvas 2D in figure units (see `head.ts`): each piece
+ * where `placeHiyou` puts it, back to front. The renderer that draws her into the game is handed
+ * the same list (see `pictures.ts`), so the two cannot drift apart.
  */
 
-/** How far the head leans, in radians: positive droops towards her right shoulder. */
-function headTilt(face: FaceId, time: number): number {
-  switch (face) {
-    case 'defeated':
-      return 0.17;
-    case 'hurt':
-      return -0.07;
-    case 'awakened':
-      return -0.09;
-    case 'smug':
-      return 0.08;
-    case 'angry':
-      return -0.04;
-    default:
-      return Math.sin(time * 0.9) * 0.025;
-  }
-}
+/** The placement of one frame, kept from the last: placing is an action performed many times a second. */
+const placed: Placed[] = [];
 
 /** Draws her with the top of her breastbone at the origin. */
 export function drawHiyou(ctx: CanvasRenderingContext2D, frame: BossFrame): void {
-  const { look, time, face } = frame;
   ctx.save();
-  ctx.translate(frame.x, frame.y + Math.sin(time * 1.1) * 3);
-
-  drawWing(ctx, -1, look.LeftWing, time);
-  drawWing(ctx, 1, look.RightWing, time);
-
-  // The hair behind her goes where her head goes.
-  ctx.save();
-  ctx.translate(look.Head.dx, look.Head.dy);
-  drawBackHair(ctx);
-  ctx.restore();
-
-  drawTorso(ctx, look.Body);
-  drawArm(ctx, -1, look.LeftArm, time);
-  drawArm(ctx, 1, look.RightArm, time);
-  drawPauldron(ctx, -1, look.LeftShoulder, time);
-  drawPauldron(ctx, 1, look.RightShoulder, time);
-
-  // The head leans on the joint at the top of her neck.
-  ctx.save();
-  ctx.translate(look.Head.dx, look.Head.dy);
-  ctx.translate(0, NECK_JOINT);
-  ctx.rotate(headTilt(face, time));
-  ctx.translate(0, -NECK_JOINT);
-  drawHead(ctx, face);
-  ctx.restore();
-
-  drawCore(ctx, look.Core, look.CoreShield, time);
+  // She hangs in the air: the whole of her drifts up and down a little.
+  ctx.translate(frame.x, frame.y + Math.sin(frame.time * 1.1) * 3);
+  const light = coreLight(frame);
+  if (light) {
+    const reach = CORE_LIGHT.reach + 2;
+    ctx.fillStyle = glow(ctx, light.x, light.y, rgba(0xff5fd8, light.alpha), 14, CORE_LIGHT.reach);
+    ctx.fillRect(light.x - reach, light.y - reach, reach * 2, reach * 2);
+  }
+  for (const piece of placeHiyou(frame, placed)) {
+    const drawn = PIECES.get(piece.key);
+    if (!drawn) continue;
+    ctx.save();
+    ctx.translate(piece.x, piece.y);
+    if (piece.rot !== 0) ctx.rotate(piece.rot);
+    if (piece.mirror) ctx.scale(-1, 1);
+    ctx.globalAlpha = piece.alpha;
+    drawn.paint(ctx, piece.look);
+    ctx.restore();
+  }
   ctx.restore();
 }

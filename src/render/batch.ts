@@ -87,27 +87,12 @@ export interface SpriteOptions {
   pad?: number;
 }
 
-/** What a boss part may say about itself beyond its place and colour. Each shape reads its own subset. */
-export interface BossOptions {
-  /** First shape parameter. */
-  p0?: number;
-  /** Second shape parameter. */
-  p1?: number;
-  /** Third shape parameter. */
-  p2?: number;
-  /** White flash, 0..1. */
-  flash?: number;
-  /** Width of the ink outline around the shape, in world units. 0 draws none. */
-  outline?: number;
-  /** Mirror the shape across its own vertical axis. */
-  mirror?: boolean;
-  /** World units of quad padding beyond the half extents, which have to hold the outline. */
-  pad?: number;
-  /**
-   * A number fixed for the life of the part, from which its cracks are grown. Give parts that can
-   * be damaged different seeds, or they crack alike.
-   */
-  seed?: number;
+/** Where a picture lies in the boss atlas: the rectangle of it the picture samples. */
+export interface PictureRect {
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
 }
 
 // Scratch for the current colour, so drawing helpers never allocate.
@@ -133,7 +118,7 @@ function split(color: Color): void {
  * A pen has two layers for theme sprites, which are drawn in the alpha-blended pass with the
  * surfaces: `sprite` on this pen goes in front of every surface (a themed paddle over the
  * bricks), and the same call on {@link under} goes beneath them all (petals drifting behind the
- * field). A character boss's parts ({@link bossPart}) go beneath every surface too, in the order
+ * field). A character boss's parts ({@link bossPicture}) go beneath every surface too, in the order
  * they were written. Everything else lands where it always did.
  */
 export class Pen {
@@ -326,48 +311,47 @@ export class Pen {
   }
 
   /**
-   * A boss part: one of the character shapes (`PART_PLATE` and up, see `shaders/boss`), alpha
-   * blended like a surface. On every pen it goes into the same batch, which the renderer draws
-   * beneath every surface of the frame, in the order the parts were written. `hw`/`hh` are the
-   * shape's half extents.
+   * A boss picture: one piece of a character boss, a quad textured from the boss atlas (see
+   * `boss/pictures.ts`), alpha blended like a surface. On every pen it goes into the same batch,
+   * which the renderer draws beneath every surface of the frame, in the order the pieces were
+   * written. `hw`/`hh` are the quad's half extents; `rect` the piece's rectangle in the atlas. A
+   * mirrored picture is flipped left to right in its own frame before it is turned.
    */
-  bossPart(
-    shape: number,
+  bossPicture(
     x: number,
     y: number,
     hw: number,
     hh: number,
     rot: number,
-    color: Color,
+    rect: PictureRect,
     alpha = 1,
-    o: BossOptions = {},
+    flash = 0,
+    mirror = false,
   ): void {
     const batch = this.boss;
     if (!batch) return;
     const i = batch.reserve();
     if (i < 0) return;
-    split(color);
     const d = batch.data;
-    const pad = o.pad ?? 4;
     d[i] = x;
     d[i + 1] = y;
-    d[i + 2] = hw + pad;
-    d[i + 3] = hh + pad;
+    d[i + 2] = hw;
+    d[i + 3] = hh;
     d[i + 4] = rot;
-    d[i + 5] = cr;
-    d[i + 6] = cg;
-    d[i + 7] = cb;
+    d[i + 5] = 1;
+    d[i + 6] = 1;
+    d[i + 7] = 1;
     d[i + 8] = alpha;
-    d[i + 9] = shape;
-    d[i + 10] = hw;
-    d[i + 11] = hh;
-    d[i + 12] = o.p0 ?? 0;
-    d[i + 13] = o.p1 ?? 0;
-    d[i + 14] = o.mirror ? FLAG_PART_MIRROR : 0;
-    d[i + 15] = o.flash ?? 0;
-    d[i + 16] = o.outline ?? 0;
-    d[i + 17] = o.p2 ?? 0;
-    d[i + 18] = o.seed ?? 0;
+    d[i + 9] = rect.u0;
+    d[i + 10] = rect.v0;
+    d[i + 11] = rect.u1;
+    d[i + 12] = rect.v1;
+    d[i + 13] = mirror ? FLAG_PART_MIRROR : 0;
+    d[i + 14] = flash;
+    d[i + 15] = 0;
+    d[i + 16] = 0;
+    d[i + 17] = 0;
+    d[i + 18] = 0;
     d[i + 19] = 0;
   }
 

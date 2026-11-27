@@ -751,7 +751,7 @@ function drawBlush(ctx: CanvasRenderingContext2D, side: Side): void {
 }
 
 /** The face with its eyes, nose and mouth, and the brows above them. */
-function drawFace(ctx: CanvasRenderingContext2D, face: FaceId): void {
+export function drawFace(ctx: CanvasRenderingContext2D, face: FaceId): void {
   fillPath(ctx, NECK, INK.skin);
   fillPath(ctx, NECK_SHADOW, rgba(over.skinDeep, 0.7));
 
@@ -809,7 +809,7 @@ function drawFace(ctx: CanvasRenderingContext2D, face: FaceId): void {
 }
 
 /** The fringe: the dome over the forehead and the pointed locks that make its hem. */
-function drawBangs(ctx: CanvasRenderingContext2D): void {
+export function drawBangs(ctx: CanvasRenderingContext2D): void {
   fillPath(
     ctx,
     FRINGE,
@@ -902,7 +902,7 @@ function drawBangs(ctx: CanvasRenderingContext2D): void {
 }
 
 /** The locks that fall in front of the shoulders, over the armour. */
-function drawSideLocks(ctx: CanvasRenderingContext2D): void {
+export function drawSideLocks(ctx: CanvasRenderingContext2D): void {
   for (const side of SIDES) {
     // The lock's shadow on what is behind it: down and to the right, on either side of the head.
     ctx.save();
@@ -946,7 +946,7 @@ function drawSideLocks(ctx: CanvasRenderingContext2D): void {
 }
 
 /** What she wears on her head: an ear unit over each ear, a coronet, and the halo. */
-function drawHeadgear(ctx: CanvasRenderingContext2D): void {
+export function drawHeadgear(ctx: CanvasRenderingContext2D): void {
   for (const side of SIDES) {
     // A fin standing off the unit, then the unit itself: a disc of silver lit from the upper left,
     // with a light at its centre that spills out past it.

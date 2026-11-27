@@ -11,6 +11,7 @@ import {
 import { drawHiyou } from '../src/render/boss/hiyou/draw/figure';
 import { EYE_AT, eyeOpening, FACE } from '../src/render/boss/hiyou/draw/head';
 import { BOSS_PARTS, restingLook, type FaceId, type PartState } from '../src/render/boss/types';
+import { fakeCanvas } from './fake-canvas';
 
 /** A canvas that only remembers the path it is given, command by command. */
 function recorder(): { calls: string[]; ctx: CanvasRenderingContext2D } {
@@ -180,64 +181,6 @@ describe("绯樱's head, by the proportions it is drawn to", () => {
 });
 
 describe('绯樱 drawn whole', () => {
-  /**
-   * A canvas that draws nothing and checks everything: every number it is handed is looked at, and
-   * a path the drawing cannot read all the way is counted by `faults`.
-   */
-  function fakeCanvas(): { ctx: CanvasRenderingContext2D; bad: string[]; fills: () => number } {
-    const bad: string[] = [];
-    const gradient = {
-      addColorStop: (at: number) => {
-        if (!(at >= 0 && at <= 1)) bad.push(`colour stop at ${at}`);
-      },
-    };
-    const numbered =
-      (name: string) =>
-      (...values: number[]): void => {
-        // The last argument of arc() and ellipse() is a flag, not a place.
-        if (!values.every((value) => typeof value === 'boolean' || Number.isFinite(value)))
-          bad.push(`${name}(${values.join(', ')})`);
-      };
-    let fills = 0;
-    const ctx: Record<string, unknown> = {
-      fillStyle: '',
-      strokeStyle: '',
-      lineWidth: 1,
-      lineJoin: 'miter',
-      lineCap: 'butt',
-      globalAlpha: 1,
-      createLinearGradient: (...values: number[]) => {
-        numbered('createLinearGradient')(...values);
-        return gradient;
-      },
-      createRadialGradient: (...values: number[]) => {
-        numbered('createRadialGradient')(...values);
-        return gradient;
-      },
-      fill: () => {
-        fills++;
-      },
-    };
-    for (const name of ['closePath', 'stroke', 'clip', 'save', 'restore']) ctx[name] = (): void => {};
-    for (const name of [
-      'beginPath',
-      'moveTo',
-      'lineTo',
-      'quadraticCurveTo',
-      'bezierCurveTo',
-      'arc',
-      'ellipse',
-      'rect',
-      'fillRect',
-      'translate',
-      'scale',
-      'rotate',
-    ]) {
-      ctx[name] = numbered(name);
-    }
-    return { ctx: ctx as unknown as CanvasRenderingContext2D, bad, fills: () => fills };
-  }
-
   it('reads every path to its end and hands the canvas only finite numbers, whatever her face and her state', () => {
     const { ctx, bad } = fakeCanvas();
     const faces: FaceId[] = ['idle', 'smug', 'surprised', 'angry', 'hurt', 'awakened', 'defeated'];

@@ -28,12 +28,17 @@ import { INK } from './palette';
  *   the arms    upper arm half a head, forearm a little less, hanging a little way out from the body
  *   the wings   three blades' lengths past each shoulder
  *
+ * Every painter here draws one piece of her as it stands at rest, and nothing of how it moves: the
+ * drift of a pauldron, the sway of an arm, the breathing of a wing and the turning of the core are
+ * all in `pieces.ts`, which places the pieces afresh each frame. So a piece can be drawn straight
+ * onto a canvas or baked once into a picture and moved about as a quad, and look the same either way.
+ *
  * What is paired is written for the right and mirrored by its path, never by the canvas: the light,
  * which comes from the upper left, then stays where it is on both sides.
  *
- * A part shows its state as it is drawn: a hit flashes white over the part and no further, damage
- * cracks its plates, and a part that is gone is not drawn. The cracks grow from a seed, so that
- * they do not crawl from frame to frame.
+ * A painter shows a part's state as it draws: damage cracks its plates, and the white of a hit lies
+ * over the part and no further. The cracks grow from a seed, so that they do not crawl from frame to
+ * frame. A part that is gone is not placed at all.
  */
 
 type Side = 1 | -1;
@@ -44,10 +49,10 @@ const SIDES: readonly Side[] = [-1, 1];
 export const NECK_JOINT = -112;
 
 /** Where the core sits. */
-const CORE_Y = -70;
+export const CORE_Y = -70;
 
-/** The bounds of a shape, [left, top, right, bottom], written for the right of the figure. */
-type Box = readonly [number, number, number, number];
+/** The bounds of a piece in its own frame, [left, top, right, bottom]. */
+export type Box = readonly [number, number, number, number];
 
 /** Colours laid over something else, which need an opacity, or mixed in. */
 const over = {
@@ -59,6 +64,9 @@ const over = {
   energySoft: 0xffb4f6,
   well: 0x241636,
 };
+
+/** At rest, with nothing showing on it: how a piece is drawn to be baked. */
+const REST: PartLook = { state: 'intact', flash: 0, dx: 0, dy: 0 };
 
 /** ───────────────────────────── the body ───────────────────────────── */
 
@@ -111,7 +119,7 @@ const UPPER_ARM = 'M 52 -86 C 50 -70 56 -50 62 -36 L 82 -40 C 80 -56 76 -72 74 -
 const BAND_HIGH = 'M 54 -58 C 61 -61 76 -62 81 -59 L 82 -52 C 76 -55 62 -54 56 -51 Z';
 const BAND_LOW = 'M 58 -44 C 64 -46 77 -47 82 -45 L 83 -38 C 77 -40 65 -39 60 -37 Z';
 
-/** The gauntlet: pearl plate from the elbow to the wrist, flared at the elbow. */
+/** The gauntlet: pearl plate from the elbow to the wrist, flared at the elbow and drawn in at the wrist. */
 const GAUNTLET = 'M 57 -23 C 58 -8 64 4 69 16 L 87 16 C 85 4 84 -10 85 -23 C 77 -30 64 -30 57 -23 Z';
 
 /** The cuff at the wrist, then the hand: a dark wrist and a mitten of pearl plate. */
@@ -125,7 +133,7 @@ const HAND = 'M 69 30 C 66 38 68 48 75 52 C 82 54 88 50 89 43 C 90 38 89 33 88 3
  * One blade of the right wing: where it grows from the spar, its angle in degrees (negative:
  * raised), its length and its half width. Uppermost first.
  */
-const FEATHERS: readonly (readonly [number, number, number, number, number])[] = [
+export const FEATHERS: readonly (readonly [number, number, number, number, number])[] = [
   [46, -95, -48, 118, 13],
   [64, -102, -36, 152, 16],
   [84, -109, -24, 180, 19],
@@ -136,6 +144,27 @@ const FEATHERS: readonly (readonly [number, number, number, number, number])[] =
   [121, -97, 27, 152, 17.5],
   [118, -88, 37, 126, 15],
 ];
+
+/** The room a blade's light takes beyond the blade itself. */
+const BLADE_LIGHT = 14;
+
+/** How much of a blade is left once it has broken off. */
+export const BROKEN = 0.45;
+
+/** A blade's bounds in its own frame: its root at the origin, the blade lying along +x. Only its point has light about it. */
+export function bladeBox(index: number): Box {
+  return bladeBounds(FEATHERS[index]![3], FEATHERS[index]![4]);
+}
+
+/** The bounds of a blade `reach` long and `width` half wide lying along +x from the origin. */
+function bladeBounds(reach: number, width: number): Box {
+  return [-2, -width - 2, reach + BLADE_LIGHT, width + 2];
+}
+
+/** A blade's bounds once it has broken off: there is no light past the break. */
+export function tornBladeBox(index: number): Box {
+  return bladeBounds(FEATHERS[index]![3] * BROKEN, FEATHERS[index]![4]);
+}
 
 /** Short blades lying over the roots of the long ones. */
 const COVERTS: readonly (readonly [number, number, number, number, number])[] = [
@@ -215,6 +244,18 @@ function cracks(ctx: CanvasRenderingContext2D, seed: number, count: number, box:
       side,
     );
   }
+}
+
+/** The white of a hit, over a disc and no further. */
+function flashDisc(ctx: CanvasRenderingContext2D, flash: number, radius: number): void {
+  if (flash <= 0) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, TAU);
+  ctx.clip();
+  ctx.fillStyle = rgba(0xffffff, Math.min(1, flash) * 0.85);
+  ctx.fillRect(-radius - 1, -radius - 1, radius * 2 + 2, radius * 2 + 2);
+  ctx.restore();
 }
 
 /** The white of a hit, over the whole of a part and no further. */
@@ -310,15 +351,40 @@ function stone(ctx: CanvasRenderingContext2D, x: number, y: number, radius: numb
   ctx.fill();
 }
 
+/** ───────────────────────────── the ring she hangs over ───────────────────────────── */
+
+/** Where the ring lies. */
+const HOVER_Y = 96;
+
+/** Its bounds in the figure's frame: the ring and the light under it. */
+export const HOVER_BOX: Box = [-50, 66, 50, 140];
+
+/** The ring of light under her hem, and the wash of what holds her up. */
+export function paintHover(ctx: CanvasRenderingContext2D): void {
+  ctx.fillStyle = glow(ctx, 0, HOVER_Y + 2, rgba(over.energy, 0.4), 24, 40);
+  ctx.fillRect(-42, HOVER_Y - 38, 84, 80);
+  for (const [width, alpha] of [
+    [6, 0.2],
+    [2.4, 0.85],
+  ] as const) {
+    ctx.beginPath();
+    ctx.ellipse(0, HOVER_Y, 48, 9.5, 0, 0, TAU);
+    ctx.lineWidth = width;
+    ctx.strokeStyle = rgba(over.energy, alpha);
+    ctx.stroke();
+  }
+}
+
+/** ───────────────────────────── the body ───────────────────────────── */
+
+/** The body's bounds: the under-suit, the cuirass, the belt and the skirt. */
+export const TORSO_BOX: Box = [-61, -105, 61, 73];
+
 /**
  * The body: the under-suit, the cuirass with the collar, the belt and the skirt. The joints the
  * arms hang on belong to it, so that they are still there when an arm is gone.
  */
-export function drawTorso(ctx: CanvasRenderingContext2D, look: PartLook): void {
-  if (look.state === 'destroyed') return;
-  ctx.save();
-  ctx.translate(look.dx, look.dy);
-
+export function paintTorso(ctx: CanvasRenderingContext2D, look: PartLook = REST): void {
   fillPath(
     ctx,
     SUIT,
@@ -400,20 +466,6 @@ export function drawTorso(ctx: CanvasRenderingContext2D, look: PartLook): void {
   // The shoulder joints.
   for (const side of SIDES) joint(ctx, 50, -84, 9.5, side, look.flash);
 
-  // The hover ring under the hem.
-  ctx.fillStyle = glow(ctx, 0, 96, rgba(over.energy, 0.4), 30, 62);
-  ctx.fillRect(-64, 70, 128, 52);
-  for (const [width, alpha] of [
-    [6, 0.2],
-    [2.4, 0.85],
-  ] as const) {
-    ctx.beginPath();
-    ctx.ellipse(0, 96, 48, 9.5, 0, 0, TAU);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = rgba(over.energy, alpha);
-    ctx.stroke();
-  }
-
   const plates: readonly string[] = [CUIRASS, SKIRT_MIDDLE, SKIRT_INNER, SKIRT_OUTER, BELT, COLLAR];
   if (damageOf(look) > 0) {
     const count = look.state === 'damaged_2' ? 7 : 3;
@@ -423,17 +475,15 @@ export function drawTorso(ctx: CanvasRenderingContext2D, look: PartLook): void {
     ctx.restore();
   }
   flashOf(ctx, look, [SUIT, ...plates], [-51, -103, 51, 71], 1);
-  ctx.restore();
 }
 
-/** A pauldron: the shell over a shoulder, its lip, the panel let into it, a slit of light and a stone. */
-export function drawPauldron(ctx: CanvasRenderingContext2D, side: Side, look: PartLook, time: number): void {
-  if (look.state === 'destroyed') return;
-  // The pauldrons float: they drift a little out of step with her, and with each other.
-  const drift = Math.sin(time * 1.3 + (side > 0 ? 1.7 : 0)) * 1.6;
-  ctx.save();
-  ctx.translate(side * look.dx, look.dy + drift);
+/** ───────────────────────────── a pauldron ───────────────────────────── */
 
+/** A pauldron's bounds, written for the right: the fin, the shell and the light of its stone. */
+export const PAULDRON_BOX: Box = [34, -138, 105, -60];
+
+/** A pauldron: the shell over a shoulder, its lip, the panel let into it, a slit of light and a stone. */
+export function paintPauldron(ctx: CanvasRenderingContext2D, side: Side, look: PartLook = REST): void {
   fillPath(ctx, PAULDRON_FIN, mix(over.blade, 0xffffff, 0.2), side);
   strokePath(ctx, PAULDRON_FIN, 0.9, INK.silverDeep, side);
   // The lip, a step below the shell in silver. The shell overlaps it, so only its lower edge shows.
@@ -476,17 +526,15 @@ export function drawPauldron(ctx: CanvasRenderingContext2D, side: Side, look: Pa
     ctx.restore();
   }
   flashOf(ctx, look, marks, [36, -136, 103, -61], side);
-  ctx.restore();
 }
 
-/** An arm: the upper arm in under-suit, the elbow, the gauntlet and the hand. */
-export function drawArm(ctx: CanvasRenderingContext2D, side: Side, look: PartLook, time: number): void {
-  if (look.state === 'destroyed') return;
-  // The arms hang a little away from the body and sway with her breathing.
-  const sway = Math.sin(time * 1.4 + (side > 0 ? 0 : 0.9)) * 1.2;
-  ctx.save();
-  ctx.translate(side * (look.dx + sway), look.dy);
+/** ───────────────────────────── an arm ───────────────────────────── */
 
+/** An arm's bounds, written for the right: from under the pauldron to the hand, the light of the elbow included. */
+export const ARM_BOX: Box = [46, -92, 98, 58];
+
+/** An arm: the upper arm in under-suit, the elbow, the gauntlet and the hand. */
+export function paintArm(ctx: CanvasRenderingContext2D, side: Side, look: PartLook = REST): void {
   fillPath(
     ctx,
     UPPER_ARM,
@@ -514,6 +562,7 @@ export function drawArm(ctx: CanvasRenderingContext2D, side: Side, look: PartLoo
   ctx.fillRect(-92, -34, 184, 56);
   ctx.restore();
   strokePath(ctx, GAUNTLET, 1.2, INK.pearlDeep, side);
+  seam(ctx, quadCurve(62, -16, 66, -2, 71, 11, 8), side);
   // The elbow's pin, over the top of the gauntlet.
   for (const [radius, colour] of [
     [3.5, INK.silver],
@@ -524,7 +573,6 @@ export function drawArm(ctx: CanvasRenderingContext2D, side: Side, look: PartLoo
     ctx.fillStyle = colour;
     ctx.fill();
   }
-  seam(ctx, quadCurve(62, -16, 66, -2, 71, 11, 8), side);
 
   fillPath(ctx, WRIST, INK.suit, side);
   plate(ctx, CUFF, INK.silver, [64, 16, 92, 31], side);
@@ -554,10 +602,66 @@ export function drawArm(ctx: CanvasRenderingContext2D, side: Side, look: PartLoo
     ctx.restore();
   }
   flashOf(ctx, look, marks, [50, -88, 92, 57], side);
-  ctx.restore();
 }
 
-/** One blade of a wing: a leaf that starts at the spar, is widest a third of the way out, and ends in a point that glows. */
+/** ───────────────────────────── a wing ───────────────────────────── */
+
+/** A wing's spar with all that hangs on it, written for the right: the spar, the short blades and the joints. */
+export const SPAR_BOX: Box = [20, -138, 186, -66];
+
+/**
+ * A blade: a leaf that starts at the origin, is widest a third of the way out, and ends in a point
+ * that glows. A broken one is torn off `BROKEN` of the way along, with a ragged edge and no light.
+ */
+export function paintBlade(ctx: CanvasRenderingContext2D, index: number, broken = false): void {
+  const [, , , length, width] = FEATHERS[Math.min(FEATHERS.length - 1, Math.max(0, index))]!;
+  const reach = broken ? length * BROKEN : length;
+  if (broken) {
+    // Torn: the leaf is cut along a ragged line, fixed for the blade.
+    const next = seeded(60 + index);
+    const edge = width + BLADE_LIGHT;
+    ctx.beginPath();
+    ctx.moveTo(-edge, -edge);
+    ctx.lineTo(reach + 2, -edge);
+    let y = -edge;
+    while (y < edge) {
+      y += 5 + next() * 7;
+      ctx.lineTo(reach - 3 - next() * 6, Math.min(edge, y));
+    }
+    ctx.lineTo(-edge, edge);
+    ctx.closePath();
+    ctx.clip();
+  }
+  blade(ctx, 1, 0, 0, 0, reach, width, index % 2 === 0 ? INK.pearl : over.blade, !broken);
+}
+
+/** The spar of a wing, the short blades over the roots of the long ones, and its joints. */
+export function paintWingSpar(ctx: CanvasRenderingContext2D, side: Side, look: PartLook = REST): void {
+  fillPath(
+    ctx,
+    SPAR,
+    shade(ctx, side * 24, -95, side * 126, -114, [
+      [0, INK.silver],
+      [1, INK.steel],
+    ]),
+    side,
+  );
+  strokePath(ctx, SPAR, 1, INK.silverDeep, side);
+  for (const [rootX, rootY, degrees, length, width] of COVERTS) {
+    blade(ctx, side, rootX, rootY, degrees * DEG, length, width, mix(INK.pearl, INK.energySoft, 0.25), true);
+  }
+  for (const [x, y, radius] of JOINTS) joint(ctx, x, y, radius, side, look.flash);
+
+  if (damageOf(look) > 0) {
+    ctx.save();
+    clipTo(ctx, [SPAR], side);
+    cracks(ctx, side < 0 ? 5 : 6, look.state === 'damaged_2' ? 3 : 1, [24, -125, 126, -83], side);
+    ctx.restore();
+  }
+  flashOf(ctx, look, [SPAR], [23, -126, 127, -82], side);
+}
+
+/** One blade: a leaf from its root out to its tip, in the direction `angle`, with a rib and — unless it is torn — a light at the point. */
 function blade(
   ctx: CanvasRenderingContext2D,
   side: Side,
@@ -567,6 +671,7 @@ function blade(
   reach: number,
   width: number,
   colour: string | number,
+  whole: boolean,
 ): void {
   const base = typeof colour === 'number' ? css(colour) : colour;
   const f = (n: number): string => String(Math.round(n * 100) / 100);
@@ -603,115 +708,62 @@ function blade(
     rgba(over.shade, 0.45),
     side,
   );
+  if (!whole) return;
   ctx.fillStyle = glow(ctx, side * tipX, tipY, rgba(over.energy, 0.55), 2, 12);
   ctx.fillRect(side * tipX - 13, tipY - 13, 26, 26);
 }
 
-/** A wing: the blades from a spar, shortest — the lowest — first, so each above lies over the root of the last. */
-export function drawWing(ctx: CanvasRenderingContext2D, side: Side, look: PartLook, time: number): void {
-  if (look.state === 'destroyed') return;
-  ctx.save();
-  ctx.translate(side * look.dx, look.dy);
+/** ───────────────────────────── the core ───────────────────────────── */
 
-  // They breathe: the lower ones travel further than the upper. A damaged wing has lost blades from
-  // its lower edge.
-  for (let i = FEATHERS.length - 1; i >= 0; i--) {
-    const [rootX, rootY, degrees, length, width] = FEATHERS[i]!;
-    const lost =
-      look.state === 'damaged_2' && i >= FEATHERS.length - 2
-        ? 0.42
-        : look.state === 'damaged_1' && i === FEATHERS.length - 1
-          ? 0.6
-          : 1;
-    const angle = (degrees + Math.sin(time * 1.7 + i * 0.55) * (0.6 + i * 0.22)) * DEG;
-    blade(ctx, side, rootX, rootY, angle, length * lost, width, i % 2 === 0 ? INK.pearl : over.blade);
-  }
+/** The core's pieces are drawn in a frame of their own, its middle at the origin. */
+export const CORE_GEM_BOX: Box = [-14, -14, 14, 14];
+export const CORE_ARC_BOX: Box = [-19, -19, 19, 19];
+export const SHIELD_BOX: Box = [-33, -33, 33, 33];
 
-  // The spar, then the short blades over the roots of the long ones.
-  fillPath(
-    ctx,
-    SPAR,
-    shade(ctx, side * 24, -95, side * 126, -114, [
-      [0, INK.silver],
-      [1, INK.steel],
-    ]),
-    side,
-  );
-  strokePath(ctx, SPAR, 1, INK.silverDeep, side);
-  for (const [rootX, rootY, degrees, length, width] of COVERTS) {
-    blade(ctx, side, rootX, rootY, degrees * DEG, length, width, mix(INK.pearl, INK.energySoft, 0.25));
-  }
-  for (const [x, y, radius] of JOINTS) joint(ctx, x, y, radius, side, look.flash);
+/** The light the core throws, in the figure's frame: for the glow batch, which adds it under everything. */
+export const CORE_LIGHT = { x: 0, y: CORE_Y, reach: 46 } as const;
 
-  if (damageOf(look) > 0) {
-    ctx.save();
-    clipTo(ctx, [SPAR], side);
-    cracks(ctx, side < 0 ? 5 : 6, look.state === 'damaged_2' ? 3 : 1, [24, -125, 126, -83], side);
-    ctx.restore();
+/** The stone of the core: six faces, every other point drawn in a little, lit from its upper left. */
+export function paintCoreGem(ctx: CanvasRenderingContext2D): void {
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * Math.PI) / 6;
+    const radius = i % 2 === 0 ? 10.5 : 8.6;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
-  flashOf(ctx, look, [SPAR], [23, -126, 127, -82], side);
-  ctx.restore();
+  ctx.closePath();
+  ctx.fillStyle = glow(ctx, -2, -3, mix(INK.core, 0xffffff, 0.3), 2.5, 13);
+  ctx.fill();
+  ctx.lineWidth = 1.3;
+  ctx.strokeStyle = INK.energy;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(-2.6, -3.4, 2.4, 0, TAU);
+  ctx.fillStyle = rgba(0xffffff, 0.9);
+  ctx.fill();
 }
 
-/** The core in its socket, turning, with two arcs of light going round it; and the shield over it. */
-export function drawCore(
-  ctx: CanvasRenderingContext2D,
-  core: PartLook,
-  shield: PartLook,
-  time: number,
-): void {
-  if (core.state !== 'destroyed') {
-    const beat = 0.5 + 0.5 * Math.sin(time * 4.2);
-    ctx.save();
-    ctx.translate(core.dx, CORE_Y + core.dy);
-    ctx.fillStyle = glow(ctx, 0, 0, rgba(over.energy, 0.26 + 0.08 * beat), 14, 46);
-    ctx.fillRect(-48, -48, 96, 96);
-    // The stone: six faces, every other point drawn in a little.
-    ctx.beginPath();
-    for (let i = 0; i < 12; i++) {
-      const angle = (i * Math.PI) / 6 + time * 0.3;
-      const radius = i % 2 === 0 ? 10.5 : 8.6;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = glow(ctx, -2, -3, mix(INK.core, 0xffffff, 0.3 + 0.4 * core.flash), 2.5, 13);
-    ctx.fill();
-    ctx.lineWidth = 1.3;
-    ctx.strokeStyle = INK.energy;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(-2.6, -3.4, 2.4, 0, TAU);
-    ctx.fillStyle = rgba(0xffffff, 0.85 + 0.1 * beat);
-    ctx.fill();
-    // Two arcs of light that orbit it.
-    for (const [turn, sweep, alpha] of [
-      [time * 1.7, 1.8, 0.9],
-      [time * 1.7 + Math.PI, -1.1, 0.7],
-    ] as const) {
-      ctx.beginPath();
-      ctx.arc(0, 0, 15.5, turn, turn + sweep, sweep < 0);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = rgba(over.energy, alpha);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-  if (shield.state === 'destroyed') return;
+/** One of the two arcs of light that go round the core. `which` 0 sweeps onwards from its start, 1 back. */
+export function paintCoreArc(ctx: CanvasRenderingContext2D, which: 0 | 1): void {
+  ctx.beginPath();
+  ctx.arc(0, 0, 15.5, 0, which === 0 ? 1.8 : -1.1, which === 1);
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = rgba(over.energy, which === 0 ? 0.9 : 0.7);
+  ctx.stroke();
+}
 
-  // The shield: a bubble of light over the socket. Its rim is bright, and there is a highlight
-  // where the light catches it on the upper left.
-  ctx.save();
-  ctx.translate(shield.dx, CORE_Y + shield.dy);
-  const shimmer = Math.sin(time * 2.6) * 0.04;
+/** The shield: a bubble of light over the socket. Its rim is bright, and there is a highlight where the light catches it on the upper left. */
+export function paintShield(ctx: CanvasRenderingContext2D, look: PartLook = REST): void {
   ctx.beginPath();
   ctx.arc(0, 0, 30, 0, TAU);
   ctx.fillStyle = shade(ctx, -30, -30, 30, 30, [
-    [0, rgba(0xffe6ff, 0.3 + shimmer + shield.flash * 0.3)],
-    [0.6, rgba(0xd98cff, 0.1 + shimmer)],
-    [1, rgba(0xd98cff, 0.2 + shimmer)],
+    [0, rgba(0xffe6ff, 0.3)],
+    [0.6, rgba(0xd98cff, 0.1)],
+    [1, rgba(0xd98cff, 0.2)],
   ]);
   ctx.fill();
   // The lattice across it: three chords.
@@ -730,7 +782,7 @@ export function drawCore(
   ctx.beginPath();
   ctx.arc(0, 0, 30, 0, TAU);
   ctx.lineWidth = 1.4;
-  ctx.strokeStyle = rgba(over.energySoft, 0.6 + shield.flash * 0.3);
+  ctx.strokeStyle = rgba(over.energySoft, 0.6);
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(0, 0, 27.5, Math.PI * 1.12, Math.PI * 1.52);
@@ -738,5 +790,5 @@ export function drawCore(
   ctx.lineCap = 'round';
   ctx.strokeStyle = rgba(0xffffff, 0.6);
   ctx.stroke();
-  ctx.restore();
+  flashDisc(ctx, look.flash, 30);
 }

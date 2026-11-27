@@ -5,7 +5,7 @@ import type { GL } from './gl';
  * minigame runtime has no document — the shell's first `wx.createCanvas` call took the screen,
  * so every later call hands out an offscreen canvas, which is exactly what baking needs.
  */
-function makeBakingCanvas(): HTMLCanvasElement {
+export function makeBakingCanvas(): HTMLCanvasElement {
   if (typeof document !== 'undefined') return document.createElement('canvas');
   const api = (globalThis as { wx?: { createCanvas(): HTMLCanvasElement } }).wx;
   return api!.createCanvas();

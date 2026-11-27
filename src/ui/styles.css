@@ -1758,6 +1758,67 @@ button.sigil-tile:hover {
   animation: none;
 }
 
+/* ── draft: the ban corner ── */
+/* The card is a button, and a button cannot nest one: each card rides in a wrapper that owns the
+   corner, and stretches so the row's equal heights survive the extra layer. */
+.card-slot {
+  position: relative;
+  display: flex;
+}
+
+.card-slot .card {
+  flex: 1 1 auto;
+}
+
+.card-ban {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* The price tag at rest: a quiet gold pill in the card's free corner. */
+.card-ban-btn {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 999px;
+  background: rgb(8 12 28 / 0.85);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.card-ban-btn:hover:enabled,
+.card-ban-btn:focus-visible:enabled {
+  border-color: var(--gold);
+  box-shadow: 0 0 18px -6px var(--gold);
+}
+
+.card-ban-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The confirm pair once asked. Gold, not the discard red: nothing owned is lost — crystals are. */
+.card-ban-confirm {
+  background: linear-gradient(100deg, var(--gold), #ffe28a);
+  box-shadow: 0 0 22px -8px rgb(255 201 60 / 0.9);
+  white-space: nowrap;
+}
+
+.card-ban-back {
+  padding-block: 5px;
+}
+
 /* ── results ── */
 .results-head {
   text-align: center;
@@ -2729,6 +2790,21 @@ button.sigil-tile:hover {
   .cards {
     flex-direction: column;
     gap: 10px;
+  }
+
+  /* The ban corner keeps out of the row's way: smaller pill, confirm pair side by side. */
+  .card-ban {
+    top: 6px;
+    right: 6px;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card-ban-btn,
+  .card-ban-confirm,
+  .card-ban-back {
+    font-size: 11px;
   }
 
   #draft-cards .card {

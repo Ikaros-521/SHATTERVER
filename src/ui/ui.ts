@@ -91,6 +91,8 @@ export interface UiActions {
   skip(): void;
   /** Removes an owned upgrade from the build at a draft. False when it cannot go. */
   discard(id: string): boolean;
+  /** Bans one offered card off this run's pool for crystals. False when it cannot go. */
+  ban(id: string): boolean;
   /** Fires overdrive if the meter is full. */
   overdrive(): void;
   updateSettings(patch: Partial<Settings>): void;
@@ -215,6 +217,8 @@ export class UI implements HudHost {
   private discardAsk: { def: UpgradeDef; holders: UpgradeDef[]; keyboard: boolean } | null = null;
   /** Whether the build strip's tiles are unfolded. A phone keeps them folded behind a button; the desktop ignores this. */
   private discardOpen = false;
+  /** The offered card a ban is waiting on; that card's corner shows the confirm instead of the price. */
+  private banAsk: { def: UpgradeDef; keyboard: boolean } | null = null;
   /** Last shown results, same purpose; `showResults` is sound-free so it can simply re-run. */
   private lastResults: Parameters<UI['showResults']> | null = null;
 
@@ -590,6 +594,7 @@ export class UI implements HudHost {
     // A new set of cards starts the build strip's question — and its folding — over.
     this.discardAsk = null;
     this.discardOpen = false;
+    this.banAsk = null;
     this.lastDraft = { info, session };
     this.renderDraft(info, session);
     this.show('draft');
@@ -612,7 +617,9 @@ export class UI implements HudHost {
       const level = session.run.upgrades[def.id] ?? 0;
       const card = this.upgradeCard(def, level, () => this.actions.choose(def.id));
       card.style.animationDelay = `${i * 90}ms`;
-      cards.append(card);
+      // The card is a button, and a button cannot nest one — the ban corner sits beside it in a
+      // wrapper, which also keeps the flex row's equal heights working across the slots.
+      cards.append(el('div', { class: 'card-slot' }, card, this.banCorner(def, session)));
     });
     const reward = info.reward;
     setText(
@@ -830,6 +837,91 @@ export class UI implements HudHost {
     if (ask.keyboard) {
       byId('draft-build-icons').querySelector<HTMLElement>(`[data-id="${ask.def.id}"]`)?.focus();
     }
+  }
+
+  /**
+   * The ban corner over one offered card: its current price at rest, the confirm pair once asked.
+   * The corner dims when the crystals cannot cover the price or when this is the table's last
+   * card — a table banned empty would leave the pick nowhere to land.
+   */
+  private banCorner(def: UpgradeDef, session: Session): HTMLElement {
+    const cost = session.banCost(def);
+    const price = `◆${formatNumber(cost)}`;
+    const host = el('div', { class: 'card-ban' });
+    if (this.banAsk?.def.id === def.id) {
+      const confirm = el(
+        'button',
+        {
+          class: 'btn btn-small card-ban-confirm',
+          type: 'button',
+          text: `${t('draft.banConfirm')} ${price}`,
+          onClick: () => this.confirmBan(),
+        },
+      );
+      host.append(
+        confirm,
+        el('button', {
+          class: 'btn btn-small btn-ghost card-ban-back',
+          type: 'button',
+          text: t('draft.banCancel'),
+          onClick: () => this.cancelBan(),
+        }),
+      );
+      if (this.banAsk.keyboard) confirm.focus();
+      return host;
+    }
+    const locked = session.run.crystals < cost || session.draft.length <= 1;
+    const ask = el(
+      'button',
+      {
+        class: 'card-ban-btn',
+        type: 'button',
+        text: `${t('draft.ban')} ${price}`,
+        title: t('draft.banHint'),
+        'aria-label': `${t('draft.banHint')} · ${price}`,
+        onClick: () => this.askBan(def, session),
+      },
+    );
+    if (locked) ask.disabled = true;
+    host.append(ask);
+    return host;
+  }
+
+  /** Opens the ban confirm over one offered card; closes any other open ask first. */
+  private askBan(def: UpgradeDef, session: Session): void {
+    if (this.banAsk?.def.id === def.id) return;
+    const current = this.lastDraft;
+    if (!current) return;
+    this.audio.ui('uiClick');
+    this.discardAsk = null;
+    this.banAsk = { def, keyboard: document.activeElement?.matches(':focus-visible') ?? false };
+    this.renderDraft(current.info, session, false);
+  }
+
+  private confirmBan(): void {
+    const ask = this.banAsk;
+    const current = this.lastDraft;
+    if (!ask || !current) return;
+    if (!this.actions.ban(ask.def.id)) {
+      // The crystals ran out, or the table shrank to its last card: close and let the corner say why.
+      this.banAsk = null;
+      this.audio.ui('deny');
+      this.renderDraft(current.info, current.session, false);
+      return;
+    }
+    this.banAsk = null;
+    // The table lost a card and the costs and the wallet read differently now.
+    this.lastDraft = { session: current.session, info: this.draftView(current.session, current.info.intro) };
+    this.renderDraft(this.lastDraft.info, current.session, false);
+  }
+
+  /** Closes the ban confirm; false when none was open. Esc on the draft screen lands here first. */
+  cancelBan(): boolean {
+    if (!this.banAsk || !this.lastDraft) return false;
+    this.banAsk = null;
+    this.audio.ui('uiClick');
+    this.renderDraft(this.lastDraft.info, this.lastDraft.session, false);
+    return true;
   }
 
   /** The draft as the session holds it now. After a discard, the table is not the one first dealt. */

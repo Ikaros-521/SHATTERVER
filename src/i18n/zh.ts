@@ -120,6 +120,11 @@ export const zh = {
     discardCancel: '取消',
     discardLocked: '先丢弃「{deps}」，才能移除「{name}」。',
     discardBack: '知道了',
+    // 卡面右上角的封禁角标：付碎晶封掉一张，本局不再刷出。
+    ban: '封禁',
+    banHint: '封禁后本局不再刷出',
+    banConfirm: '确认封禁',
+    banCancel: '取消',
   },
   pause: {
     title: '已暂停',

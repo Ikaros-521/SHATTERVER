@@ -1,6 +1,8 @@
 import { Emitter } from '../core/emitter';
 import { hashCombine, RNG } from '../core/rng';
 import {
+  BAN_COST_BASE,
+  BAN_COST_ESCALATION,
   MAX_HP_BASE,
   SECTOR_CLEAR_CRYSTALS_BASE,
   SECTOR_CLEAR_CRYSTALS_PER_LEVEL,
@@ -53,6 +55,8 @@ export interface SessionEvents {
   pick: { def: UpgradeDef; level: number };
   /** A level was discarded off an owned upgrade; `level` is what it was before the drop. */
   discard: { def: UpgradeDef; level: number };
+  /** An offered card was banned off this run's draft pool; `cost` is the crystals it took. */
+  ban: { def: UpgradeDef; cost: number };
   skip: Record<string, never>;
 }
 
@@ -94,6 +98,8 @@ export class Session {
   phase: SessionPhase = 'playing';
   draft: UpgradeDef[] = [];
   rerolls = 0;
+  /** Cards banned off this run's pool, never to be offered again; lives and dies with the run. */
+  readonly bans: string[] = [];
   private readonly rng: RNG;
   private readonly supplies: ReadonlySet<string>;
   /** Opening picks left before sector one opens; the head-start supply and protocols add to it. */
@@ -171,6 +177,11 @@ export class Session {
     return Math.round(20 * this.run.stats.crystalMult);
   }
 
+  /** What banning this card would cost right now: its rarity's base plus the run's escalation. */
+  banCost(def: UpgradeDef): number {
+    return BAN_COST_BASE[def.rarity] + this.bans.length * BAN_COST_ESCALATION;
+  }
+
   /** The wave sector bonus whose drafts are on the table — which of them, included; null on every other draft. */
   get sectorReward(): SectorReward | null {
     const earned = this.introPicks > 0 ? null : this.reward;
@@ -232,6 +243,26 @@ export class Session {
     this.draft = this.draft.filter((option) => meetsRequires(option, this.run.upgrades));
     this.refreshStats();
     this.events.emit('discard', { def, level });
+    return true;
+  }
+
+  /**
+   * Bans one offered card off this run's pool: it pays crystals, leaves the table at once and is
+   * never dealt again — rerolls and later drafts included. The pick itself is not spent; the
+   * player still chooses among what remains, so the table may never be banned empty. Banning a
+   * prerequisite starves its payoffs out of every future offer on its own: they can never meet
+   * their `requires` again.
+   */
+  ban(id: string): boolean {
+    if (this.phase !== 'draft') return false;
+    const def = this.draft.find((option) => option.id === id);
+    if (!def || this.draft.length <= 1) return false;
+    const cost = this.banCost(def);
+    if (this.run.crystals < cost) return false;
+    this.run.crystals -= cost;
+    this.bans.push(id);
+    this.draft = this.draft.filter((option) => option.id !== id);
+    this.events.emit('ban', { def, cost });
     return true;
   }
 
@@ -412,14 +443,19 @@ export class Session {
   private rollNewDraft(): void {
     // Opening drafts run on the protocol's rarity band, if it set one, and a wider hand: the
     // free head start keeps its three cards, a banded draft shows four to choose from. Past the
-    // first spent pick, what is already owned no longer comes back.
+    // first spent pick, what is already owned no longer comes back — and nothing this run has
+    // banned ever comes back anywhere.
     const intro = this.introPicks > 0;
+    const exclude = [
+      ...(intro && this.introTaken > 0 ? Object.keys(this.run.upgrades) : []),
+      ...this.bans,
+    ];
     this.draft = rollDraft({
       levels: this.run.upgrades,
       level: this.draftLevel(),
       rng: this.rng,
       ...(intro ? { count: this.introRarities ? 4 : 3, rarities: this.introRarities } : {}),
-      ...(intro && this.introTaken > 0 ? { exclude: Object.keys(this.run.upgrades) } : {}),
+      ...(exclude.length > 0 ? { exclude } : {}),
     });
     // A copy per draft, its counter filled in: an event is a snapshot, and whoever held on to
     // the last one must not see it change under them.

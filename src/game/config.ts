@@ -1,3 +1,5 @@
+import type { Rarity } from './upgrades/types';
+
 /**
  * Tuning constants. The simulation runs in a fixed logical space ("world units"); the renderer
  * scales that space uniformly to whatever window it is given.
@@ -142,12 +144,29 @@ export const ENDLESS_WAVES = 2;
 /**
  * What clearing a wave sector pays on top of the drafts its waves earned (`session.ts`): one
  * crystal share per wave, the share growing with depth, and a point of shield back. The crystals
- * are sized against a reroll — the only thing crystals buy mid-run — so a cleared sector is worth
- * about seventy per cent of one.
+ * are sized against a reroll — the benchmark for what crystals buy mid-run — so a cleared sector
+ * is worth about seventy per cent of one.
  */
 export const SECTOR_CLEAR_CRYSTALS_BASE = 8;
 export const SECTOR_CLEAR_CRYSTALS_PER_LEVEL = 2;
 export const SECTOR_CLEAR_SHIELD = 1;
+
+/**
+ * What it costs to ban one offered card off the draft for the rest of the run (`session.ts`): a
+ * base price by the card's rarity, plus an escalation that climbs with every ban already made
+ * this run. A ban is worth more than a reroll — it is permanent and aimed, not a fresh roll that
+ * may deal the same card again — so its base starts around twice a reroll's; the escalation is
+ * the real limiter: three bans in, the next one costs as much as a handful of rerolls, which
+ * keeps a crystal-rich run from scrubbing the pool clean.
+ */
+export const BAN_COST_BASE: Record<Rarity, number> = {
+  common: 30,
+  rare: 40,
+  epic: 50,
+  legendary: 65,
+  mythic: 80,
+};
+export const BAN_COST_ESCALATION = 30;
 
 /** Safety valves. They should never bind in normal play; they exist so a runaway build cannot freeze the frame. */
 export const MAX_BALLS = 180;

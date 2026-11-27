@@ -497,6 +497,10 @@ export class App implements UiActions {
       session.events.on('discard', () => {
         if (!demo) this.audio.ui('discard');
       }),
+      // A banned card leaves the pool the same way a discarded level leaves the build — same cue.
+      session.events.on('ban', () => {
+        if (!demo) this.audio.ui('discard');
+      }),
       session.events.on('phase', ({ phase }) => {
         if (!this.inRun) return;
         if (phase === 'over' || phase === 'won') this.resultsTimer = 1.1;
@@ -789,6 +793,10 @@ export class App implements UiActions {
 
   discard(id: string): boolean {
     return this.session.discard(id);
+  }
+
+  ban(id: string): boolean {
+    return this.session.ban(id);
   }
 
   overdrive(): void {
@@ -1308,8 +1316,8 @@ export class App implements UiActions {
         event.preventDefault();
         this.resume();
       } else if (this.ui.screen === 'draft') {
-        // A discard waiting on its confirm backs out; with nothing open this is a no-op.
-        this.ui.cancelDiscard();
+        // A ban or a discard waiting on its confirm backs out; with nothing open this is a no-op.
+        if (!this.ui.cancelBan()) this.ui.cancelDiscard();
       }
       return;
     }

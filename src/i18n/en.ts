@@ -95,6 +95,11 @@ export const en: UiDict & { content: ContentOverrides } = {
     discardCancel: 'Cancel',
     discardLocked: 'Discard "{deps}" first: it needs "{name}".',
     discardBack: 'Got it',
+    // The ban corner over an offered card: pay crystals and it never deals again this run.
+    ban: 'Ban',
+    banHint: 'Will not be offered again this run',
+    banConfirm: 'Confirm ban',
+    banCancel: 'Cancel',
   },
   pause: {
     title: 'Paused',

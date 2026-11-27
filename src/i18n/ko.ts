@@ -95,6 +95,11 @@ export const ko: UiDict & { content: ContentOverrides } = {
     discardCancel: '취소',
     discardLocked: '먼저 「{deps}」을(를) 버려야 「{name}」을(를) 버릴 수 있습니다.',
     discardBack: '확인',
+    // The ban corner over an offered card: pay crystals and it never deals again this run.
+    ban: '봉인',
+    banHint: '봉인하면 이번 판에서 다시 나오지 않습니다',
+    banConfirm: '봉인 확인',
+    banCancel: '취소',
   },
   pause: {
     title: '일시정지',

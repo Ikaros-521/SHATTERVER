@@ -95,6 +95,11 @@ export const ja: UiDict & { content: ContentOverrides } = {
     discardCancel: 'キャンセル',
     discardLocked: '「{name}」には「{deps}」が必要です。先にそちらを捨ててください。',
     discardBack: '確認した',
+    // The ban corner over an offered card: pay crystals and it never deals again this run.
+    ban: '封印',
+    banHint: '封印するとこの周回では出現しない',
+    banConfirm: '封印する',
+    banCancel: 'やめる',
   },
   pause: {
     title: '一時停止',

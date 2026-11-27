@@ -18,12 +18,20 @@ export function rgba(hex: number, alpha: number): string {
 }
 
 /**
- * Traces an SVG-style path: absolute M, L, Q, C and Z, numbers separated by spaces or commas.
- * A command holds until the next letter, as in SVG ("M 0 -10 L 4 -2 L -4 -2 Z").
+ * Paths `trace` could not read all the way. It leaves the rest of such a path out rather than
+ * throw — a frame must not be lost to a typo — but counts them here, so that a preview page or a
+ * test can tell that a shape is being cut short.
  */
-export function trace(ctx: CanvasRenderingContext2D, d: string): void {
+export const faults = { unread: 0 };
+
+/**
+ * Traces an SVG-style path: absolute M, L, Q, C and Z, numbers separated by spaces or commas.
+ * A command holds until the next letter, as in SVG ("M 0 -10 L 4 -2 L -4 -2 Z"). Without `begin`
+ * the path is added to the one being built, as a second outline to fill or clip by.
+ */
+export function trace(ctx: CanvasRenderingContext2D, d: string, begin = true): void {
   const tokens = d.trim().split(/[\s,]+/);
-  ctx.beginPath();
+  if (begin) ctx.beginPath();
   for (let i = 0; i < tokens.length;) {
     const op = tokens[i++];
     const n = (k: number): number => Number(tokens[i + k]);
@@ -41,9 +49,20 @@ export function trace(ctx: CanvasRenderingContext2D, d: string): void {
       ctx.closePath();
     } else {
       // Not a command: the path is malformed. Leave it rather than draw a wrong line.
+      faults.unread++;
       return;
     }
   }
+}
+
+/** A colour between two, `t` of the way from the first to the second. Either may be a CSS hex string. */
+export function mix(a: number | string, b: number | string, t: number): string {
+  const num = (c: number | string): number => (typeof c === 'number' ? c : parseInt(c.slice(1), 16));
+  const x = num(a);
+  const y = num(b);
+  const channel = (shift: number): number =>
+    Math.round(((x >> shift) & 255) * (1 - t) + ((y >> shift) & 255) * t);
+  return css((channel(16) << 16) | (channel(8) << 8) | channel(0));
 }
 
 /** The same path with every x negated: a shape written for the right of a figure, turned into its left. */

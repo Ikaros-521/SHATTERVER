@@ -3,11 +3,14 @@ import {
   bothHalves,
   chained,
   cubicPoints,
+  faults,
   joined,
   mirrored,
   trace,
 } from '../src/render/boss/hiyou/draw/brush';
+import { drawHiyou } from '../src/render/boss/hiyou/draw/figure';
 import { EYE_AT, eyeOpening, FACE } from '../src/render/boss/hiyou/draw/head';
+import { BOSS_PARTS, restingLook, type FaceId, type PartState } from '../src/render/boss/types';
 
 /** A canvas that only remembers the path it is given, command by command. */
 function recorder(): { calls: string[]; ctx: CanvasRenderingContext2D } {
@@ -173,5 +176,106 @@ describe("绯樱's head, by the proportions it is drawn to", () => {
       );
     expect(lidTop(1)).toBeLessThan(lidTop(0.5));
     expect(lidTop(0.5)).toBeLessThan(lidTop(0.05));
+  });
+});
+
+describe('绯樱 drawn whole', () => {
+  /**
+   * A canvas that draws nothing and checks everything: every number it is handed is looked at, and
+   * a path the drawing cannot read all the way is counted by `faults`.
+   */
+  function fakeCanvas(): { ctx: CanvasRenderingContext2D; bad: string[]; fills: () => number } {
+    const bad: string[] = [];
+    const gradient = {
+      addColorStop: (at: number) => {
+        if (!(at >= 0 && at <= 1)) bad.push(`colour stop at ${at}`);
+      },
+    };
+    const numbered =
+      (name: string) =>
+      (...values: number[]): void => {
+        // The last argument of arc() and ellipse() is a flag, not a place.
+        if (!values.every((value) => typeof value === 'boolean' || Number.isFinite(value)))
+          bad.push(`${name}(${values.join(', ')})`);
+      };
+    let fills = 0;
+    const ctx: Record<string, unknown> = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      lineJoin: 'miter',
+      lineCap: 'butt',
+      globalAlpha: 1,
+      createLinearGradient: (...values: number[]) => {
+        numbered('createLinearGradient')(...values);
+        return gradient;
+      },
+      createRadialGradient: (...values: number[]) => {
+        numbered('createRadialGradient')(...values);
+        return gradient;
+      },
+      fill: () => {
+        fills++;
+      },
+    };
+    for (const name of ['closePath', 'stroke', 'clip', 'save', 'restore']) ctx[name] = (): void => {};
+    for (const name of [
+      'beginPath',
+      'moveTo',
+      'lineTo',
+      'quadraticCurveTo',
+      'bezierCurveTo',
+      'arc',
+      'ellipse',
+      'rect',
+      'fillRect',
+      'translate',
+      'scale',
+      'rotate',
+    ]) {
+      ctx[name] = numbered(name);
+    }
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, bad, fills: () => fills };
+  }
+
+  it('reads every path to its end and hands the canvas only finite numbers, whatever her face and her state', () => {
+    const { ctx, bad } = fakeCanvas();
+    const faces: FaceId[] = ['idle', 'smug', 'surprised', 'angry', 'hurt', 'awakened', 'defeated'];
+    const states: PartState[] = ['intact', 'damaged_1', 'damaged_2', 'destroyed'];
+    const before = faults.unread;
+    for (const face of faces) {
+      for (const state of states) {
+        const look = restingLook();
+        for (const id of BOSS_PARTS)
+          look[id] = { state, flash: state === 'damaged_1' ? 0.6 : 0, dx: 1.5, dy: -2 };
+        // Her face and her hair are not drawn by state: a head that is gone is a fight that is over.
+        look.Head = { state: 'intact', flash: 0, dx: 0, dy: 0 };
+        for (const time of [0, 1.234, 40]) {
+          drawHiyou(ctx, { x: 0, y: 0, time, face, look });
+        }
+      }
+    }
+    expect(faults.unread).toBe(before);
+    expect(bad).toEqual([]);
+  });
+
+  it('draws a part that is gone not at all', () => {
+    const whole = fakeCanvas();
+    const intact = restingLook();
+    drawHiyou(whole.ctx, { x: 0, y: 0, time: 0, face: 'idle', look: intact });
+    const hurt = fakeCanvas();
+    const damaged = restingLook();
+    for (const id of [
+      'LeftWing',
+      'RightWing',
+      'LeftArm',
+      'RightArm',
+      'LeftShoulder',
+      'RightShoulder',
+    ] as const) {
+      damaged[id] = { state: 'destroyed', flash: 0, dx: 0, dy: 0 };
+    }
+    drawHiyou(hurt.ctx, { x: 0, y: 0, time: 0, face: 'idle', look: damaged });
+    expect(hurt.fills()).toBeLessThan(whole.fills() / 2);
   });
 });

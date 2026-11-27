@@ -6,6 +6,8 @@ import { computeLayout, type Layout } from '../layout';
 import { Renderer } from '../renderer';
 import { drawScene, type SceneInfo } from '../scene';
 import { drawBackHair, drawHead } from './hiyou/draw/head';
+import { drawHiyou } from './hiyou/draw/figure';
+import { faults } from './hiyou/draw/brush';
 import { paintHiyou } from './hiyou/painters';
 import {
   restingLook,
@@ -28,15 +30,15 @@ import {
  *   damage = 0 | 1 | 2        右肩甲与右机翼的受损档。
  *   at     = 秒              定格的时刻;不传则走时钟(发丝与羽片在飘)。
  *   sheet  = faces | damage  并排对比:七个表情一排,或「完整 / 重损」两个并排。此时其余参数不用。
- *   art    = head | faces      不走 WebGL,把 Canvas 2D 画稿直接放大画出来:画稿阶段用它对着调。faces 是七个表情一排。
- *   focus  = x,y   zoom = 每单位像素数   配合 art=head:放大看人物坐标里的某一点(如 focus=21.6,-167.5&zoom=40 看右眼)。
+ *   art    = head | faces | figure  不走 WebGL,把 Canvas 2D 画稿直接放大画出来:画稿阶段用它对着调。faces 是七个表情一排,figure 是整身。
+ *   focus  = x,y   zoom = 每单位像素数   放大看人物坐标里的某一点(如 focus=21.6,-167.5&zoom=40 看右眼)。
  */
 
 const FACES: readonly FaceId[] = ['idle', 'smug', 'surprised', 'angry', 'hurt', 'awakened', 'defeated'];
 const STATES: readonly PartState[] = ['intact', 'damaged_1', 'damaged_2'];
 const VIEWS = ['figure', 'head', 'side', 'arena'] as const;
 const SHEETS = ['faces', 'damage'] as const;
-const ARTS = ['head', 'faces'] as const;
+const ARTS = ['head', 'faces', 'figure'] as const;
 
 const params = new URLSearchParams(location.search);
 const pick = <T extends string>(name: string, allowed: readonly T[], fallback: T): T => {
@@ -68,7 +70,7 @@ function pageCanvas(): HTMLCanvasElement {
 const canvas = pageCanvas();
 
 /** The Canvas 2D drawing itself, blown up on the page: no WebGL, no arena, just the art. */
-function runArt(mode: 'head' | 'faces'): void {
+function runArt(mode: (typeof ARTS)[number]): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas is not available.');
   const draw = (): void => {
@@ -81,12 +83,27 @@ function runArt(mode: 'head' | 'faces'): void {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#0b0818';
       ctx.fillRect(0, 0, w, h);
-      if (mode === 'faces') {
+      // `focus` (a figure point, "x,y") and `zoom` (px per unit) look at one detail instead.
+      const point = (params.get('focus') ?? '').split(',').map(Number);
+      const detail = params.has('zoom') && point.length === 2 && point.every(Number.isFinite);
+      const k = detail
+        ? Number(params.get('zoom'))
+        : Math.min(
+            w / (mode === 'figure' ? 680 : 156),
+            h / (mode === 'figure' ? 400 : mode === 'faces' ? 210 : 168),
+          );
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(k, k);
+      if (detail) ctx.translate(-point[0]!, -point[1]!);
+      else ctx.translate(0, mode === 'figure' ? 84 : 180);
+      if (mode === 'figure') {
+        // Her right pauldron and right wing take the damage: the parts the arena's balls reach first.
+        const look = restingLook();
+        look.RightShoulder.state = STATES[damage] ?? 'intact';
+        look.RightWing.state = STATES[damage] ?? 'intact';
+        drawHiyou(ctx, { x: 0, y: 0, time: frozen ? at : 0, face, look });
+      } else if (mode === 'faces') {
         // The seven faces in a row, each a head and its hair, 142 apart.
-        const k = Math.min(w / 1010, h / 210);
-        ctx.translate(w / 2, h / 2);
-        ctx.scale(k, k);
-        ctx.translate(0, 180);
         FACES.forEach((each, i) => {
           ctx.save();
           ctx.translate((i - 3) * 142, 0);
@@ -94,23 +111,15 @@ function runArt(mode: 'head' | 'faces'): void {
           drawHead(ctx, each);
           ctx.restore();
         });
-        return;
+      } else {
+        drawBackHair(ctx);
+        drawHead(ctx, face);
       }
-      // The head with its hair is about 150 wide and, from the halo to the collar, 165 tall. `focus`
-      // (a figure point, "x,y") and `zoom` (px per unit) look at one detail of it instead.
-      const point = (params.get('focus') ?? '').split(',').map(Number);
-      const detail = params.has('zoom') && point.length === 2 && point.every(Number.isFinite);
-      const k = detail ? Number(params.get('zoom')) : Math.min(w / 156, h / 168);
-      ctx.translate(w / 2, h / 2);
-      ctx.scale(k, k);
-      if (detail) ctx.translate(-point[0]!, -point[1]!);
-      else ctx.translate(0, 180);
-      drawBackHair(ctx);
-      drawHead(ctx, face);
     } catch (error) {
       debug.errors.push(error);
     }
   };
+  debug.stats = () => ({ unreadPaths: faults.unread });
   window.addEventListener('resize', draw);
   draw();
 }

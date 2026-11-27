@@ -71,6 +71,57 @@ export function mirrored(d: string): string {
   return out.join(' ');
 }
 
+/**
+ * A shape written from the middle of a figure, round one side of it and back to the middle, made
+ * into the closed outline of both sides: the path runs on as its own reflection in x = 0,
+ * backwards. `d` holds M and C only, and its last point must be on the middle.
+ */
+export function bothHalves(d: string): string {
+  const tokens = d.trim().split(/[\s,]+/);
+  const segments: number[][] = [];
+  const points: [number, number][] = [];
+  let at = 0;
+  while (at < tokens.length) {
+    const op = tokens[at++];
+    if (op === 'M') {
+      points.push([Number(tokens[at]), Number(tokens[at + 1])]);
+      at += 2;
+    } else if (op === 'C') {
+      const values = tokens.slice(at, at + 6).map(Number);
+      segments.push(values);
+      points.push([values[4]!, values[5]!]);
+      at += 6;
+    } else if (op !== 'Z') {
+      throw new Error(`bothHalves cannot read "${op}".`);
+    }
+  }
+  const out = [d];
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const [c1x, c1y, c2x, c2y] = segments[i]!;
+    const [px, py] = points[i]!;
+    out.push(`C ${-c2x} ${c2y} ${-c1x} ${c1y} ${-px} ${py}`);
+  }
+  out.push('Z');
+  return out.join(' ');
+}
+
+/**
+ * A path through cubics given in full — start, two control points, end, eight numbers each — every
+ * one running on from the last. It throws on a cubic that is not eight numbers: `trace` leaves out
+ * what it cannot read, and a path that quietly stops halfway draws a shape that is wrong in a way
+ * hard to see.
+ */
+export function chained(cubics: readonly (readonly number[])[], close = false): string {
+  const [first, ...rest] = cubics;
+  if (!first || cubics.some((c) => c.length !== 8)) {
+    throw new Error('chained wants every cubic as eight numbers.');
+  }
+  const out = [`M ${first[0]} ${first[1]}`, `C ${first.slice(2).join(' ')}`];
+  for (const c of rest) out.push(`C ${c.slice(2).join(' ')}`);
+  if (close) out.push('Z');
+  return out.join(' ');
+}
+
 /** Fills a path, mirrored first when `side` is the left. */
 export function fillPath(
   ctx: CanvasRenderingContext2D,

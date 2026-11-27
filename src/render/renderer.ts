@@ -4,6 +4,7 @@ import { BLUR_FRAG, BRIGHT_FRAG, COMPOSITE_FRAG, COPY_FRAG } from './shaders/pos
 import { BACKDROP_FRAG, NEBULA_FRAG } from './shaders/background';
 import { INSTANCE_FRAG, INSTANCE_VERT } from './shaders/instances';
 import { SPRITE_FRAG, SPRITE_VERT } from './shaders/sprites';
+import { PART_FRAG, PART_VERT } from './shaders/boss';
 import { TEXT_FRAG, TEXT_VERT } from './shaders/text';
 import type { View } from './camera';
 import { hexToRgb } from '../core/math';
@@ -57,6 +58,8 @@ export interface RenderStats {
   /** Theme sprites: in front of the surfaces, and beneath them. */
   sprites: number;
   spritesUnder: number;
+  /** Boss parts: the shapes a character boss is drawn from. */
+  parts: number;
   lights: number;
   glyphs: number;
 }
@@ -66,6 +69,8 @@ const TEXT_STRIDE = 12;
 const CORNERS = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 /** Theme sprites in flight per layer. The layer sheds before it overflows (see `themes/layer.ts`). */
 const SPRITE_CAPACITY = 8192;
+/** Boss parts in flight: a whole figure with its debris is a few hundred. */
+const PART_CAPACITY = 4096;
 
 /**
  * The rendering pipeline.
@@ -85,11 +90,14 @@ const SPRITE_CAPACITY = 8192;
  * surfaces: its sprites beneath them, and its sprites in front of them. Both are skipped when
  * empty, and their program is compiled the first time either has something to draw — a player in
  * the stock look never compiles it.
+ *
+ * A character boss on screen adds one more, beneath every surface: the parts its figure is drawn
+ * from. It too is skipped when empty and compiled the first time it is needed.
  */
 export class Renderer {
   readonly gl: GL;
   readonly pen: Pen;
-  readonly stats: RenderStats = { surfaces: 0, sprites: 0, spritesUnder: 0, lights: 0, glyphs: 0 };
+  readonly stats: RenderStats = { surfaces: 0, sprites: 0, spritesUnder: 0, parts: 0, lights: 0, glyphs: 0 };
   /**
    * Set when the WebGL context was lost and not yet reported restored (the app listens on the
    * canvas). Draw calls check it alongside `gl.isLost()` so a context that never fires
@@ -127,6 +135,16 @@ export class Renderer {
   private readonly spriteFront: InstanceBatch;
   private readonly spriteBack: InstanceBatch;
   private readonly spriteVaos: [WebGLVertexArrayObject, WebGLVertexArrayObject];
+  /** The boss parts' program, compiled the first time a frame has a part to draw. */
+  private progParts: WebGLProgram | null = null;
+  /**
+   * True once that program would not compile on this device. The parts then simply are not
+   * drawn — and the app, which reads this, draws the boss's hitboxes as plain surfaces instead:
+   * a fight whose boss cannot be seen where she is hit would be unplayable.
+   */
+  partsBroken = false;
+  private readonly parts: InstanceBatch;
+  private readonly partsVao: WebGLVertexArrayObject;
   private readonly instanceVaos: [WebGLVertexArrayObject, WebGLVertexArrayObject];
   private readonly textVao: WebGLVertexArrayObject;
   private readonly glyphTexture: WebGLTexture;
@@ -171,7 +189,8 @@ export class Renderer {
     const text = new TextBatch(capacity.glyphs);
     this.spriteFront = new InstanceBatch(SPRITE_CAPACITY);
     this.spriteBack = new InstanceBatch(SPRITE_CAPACITY);
-    this.pen = new Pen(surfaces, lights, text, glyphs, this.spriteFront, this.spriteBack);
+    this.parts = new InstanceBatch(PART_CAPACITY);
+    this.pen = new Pen(surfaces, lights, text, glyphs, this.spriteFront, this.spriteBack, this.parts);
 
     // One static corner buffer shared by every instanced VAO.
     const corners = g.createBuffer();
@@ -184,6 +203,7 @@ export class Renderer {
       this.makeInstanceVao(this.spriteFront, corners),
       this.makeInstanceVao(this.spriteBack, corners),
     ];
+    this.partsVao = this.makeInstanceVao(this.parts, corners);
     this.textVao = this.makeTextVao(text, corners);
 
     g.disable(g.DEPTH_TEST);
@@ -402,6 +422,9 @@ export class Renderer {
     // A theme's drifting layer and particles go down first: the surfaces paint over them.
     this.drawSprites(1);
     if (mark) mark('sprites under');
+    // A character boss stands behind the field too: whatever is summoned paints over her.
+    this.drawParts();
+    if (mark) mark('parts');
     this.drawInstances(0);
     if (mark) mark('surfaces');
     // …then a themed paddle's and ball's own sprites, in front of the bricks.
@@ -532,16 +555,48 @@ export class Renderer {
         return;
       }
     }
+    this.drawFamily(this.progSprite, this.spriteVaos[which], batch);
+  }
+
+  /**
+   * Draws the boss parts: the shapes a character boss is drawn from. Nothing happens while the
+   * batch is empty, which is every frame without a character boss on screen; like the sprites,
+   * its program is compiled the first time it is needed, and a failure here costs the boss her
+   * looks and nothing else.
+   */
+  private drawParts(): void {
+    const batch = this.parts;
+    this.stats.parts = batch.count;
+    if (batch.count === 0) return;
+    if (!this.progParts) {
+      if (this.partsBroken) return;
+      try {
+        this.progParts = this.gl.program('parts', PART_VERT, PART_FRAG);
+      } catch (error) {
+        console.error(error);
+        this.faults.push(error);
+        this.partsBroken = true;
+        return;
+      }
+    }
+    this.drawFamily(this.progParts, this.partsVao, batch);
+  }
+
+  /**
+   * Draws one batch with a program that takes the sprite uniforms — the frame's view, the clock
+   * and the pixel size — and leaves the game's own program current again.
+   */
+  private drawFamily(program: WebGLProgram, vao: WebGLVertexArrayObject, batch: InstanceBatch): void {
     const g = this.gl.gl;
-    g.useProgram(this.progSprite);
+    g.useProgram(program);
     const { layout, time } = this.lastInput;
     const dpr = layout.dpr;
     const view = this.lastView;
-    g.uniform4f(this.gl.uniform(this.progSprite, 'uView'), view.scale * dpr, view.tx * dpr, view.ty * dpr, 0);
-    g.uniform2f(this.gl.uniform(this.progSprite, 'uResolution'), this.width, this.height);
-    g.uniform1f(this.gl.uniform(this.progSprite, 'uTime'), time);
-    g.uniform1f(this.gl.uniform(this.progSprite, 'uPixel'), 1 / (view.scale * dpr));
-    this.drawBatch(this.spriteVaos[which], batch);
+    g.uniform4f(this.gl.uniform(program, 'uView'), view.scale * dpr, view.tx * dpr, view.ty * dpr, 0);
+    g.uniform2f(this.gl.uniform(program, 'uResolution'), this.width, this.height);
+    g.uniform1f(this.gl.uniform(program, 'uTime'), time);
+    g.uniform1f(this.gl.uniform(program, 'uPixel'), 1 / (view.scale * dpr));
+    this.drawBatch(vao, batch);
     // Back to the game's own program: its uniforms were set once above and live on the program.
     g.useProgram(this.progInstance);
   }

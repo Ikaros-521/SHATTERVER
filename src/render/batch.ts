@@ -1,6 +1,7 @@
 import type { GlyphAtlas } from './textAtlas';
 import { SHAPE_BOX, SHAPE_GLOW, SHAPE_RING, SHAPE_STROKE } from './shaders/instances';
 import { FLAG_MIRROR } from './shaders/sprites';
+import { FLAG_PART_MIRROR } from './shaders/boss';
 
 /** 0xRRGGBB, or an [r, g, b] triple for HDR colours that may exceed 1. */
 export type Color = number | readonly [number, number, number];
@@ -86,6 +87,29 @@ export interface SpriteOptions {
   pad?: number;
 }
 
+/** What a boss part may say about itself beyond its place and colour. Each shape reads its own subset. */
+export interface BossOptions {
+  /** First shape parameter. */
+  p0?: number;
+  /** Second shape parameter. */
+  p1?: number;
+  /** Third shape parameter. */
+  p2?: number;
+  /** White flash, 0..1. */
+  flash?: number;
+  /** Width of the ink outline around the shape, in world units. 0 draws none. */
+  outline?: number;
+  /** Mirror the shape across its own vertical axis. */
+  mirror?: boolean;
+  /** World units of quad padding beyond the half extents, which have to hold the outline. */
+  pad?: number;
+  /**
+   * A number fixed for the life of the part, from which its cracks are grown. Give parts that can
+   * be damaged different seeds, or they crack alike.
+   */
+  seed?: number;
+}
+
 // Scratch for the current colour, so drawing helpers never allocate.
 let cr = 0;
 let cg = 0;
@@ -109,7 +133,8 @@ function split(color: Color): void {
  * A pen has two layers for theme sprites, which are drawn in the alpha-blended pass with the
  * surfaces: `sprite` on this pen goes in front of every surface (a themed paddle over the
  * bricks), and the same call on {@link under} goes beneath them all (petals drifting behind the
- * field). Everything else lands where it always did.
+ * field). A character boss's parts ({@link bossPart}) go beneath every surface too, in the order
+ * they were written. Everything else lands where it always did.
  */
 export class Pen {
   /**
@@ -119,6 +144,8 @@ export class Pen {
   private readonly sprites: InstanceBatch;
   /** The same pen, for what belongs beneath the surfaces. It is its own `under`. */
   readonly under: Pen;
+  /** The batch of boss parts, when the renderer gave it one. A pen over bare batches has none. */
+  readonly boss: InstanceBatch | null;
 
   constructor(
     readonly box: InstanceBatch,
@@ -127,12 +154,14 @@ export class Pen {
     readonly glyphs: GlyphAtlas,
     readonly spritesFront: InstanceBatch,
     readonly spritesBack: InstanceBatch,
+    boss: InstanceBatch | null = null,
     sprites: InstanceBatch = spritesFront,
   ) {
     this.sprites = sprites;
+    this.boss = boss;
     this.under =
       sprites === spritesFront
-        ? new Pen(box, glow, text, glyphs, spritesFront, spritesBack, spritesBack)
+        ? new Pen(box, glow, text, glyphs, spritesFront, spritesBack, boss, spritesBack)
         : this;
   }
 
@@ -142,6 +171,7 @@ export class Pen {
     this.text.reset();
     this.spritesFront.reset();
     this.spritesBack.reset();
+    this.boss?.reset();
   }
 
   /** Hard surface: bricks, the paddle, shards. `hw`/`hh` are the shape's half extents. */
@@ -292,6 +322,52 @@ export class Pen {
     d[i + 16] = o.halo ?? 0;
     d[i + 17] = o.p2 ?? 0;
     d[i + 18] = 0;
+    d[i + 19] = 0;
+  }
+
+  /**
+   * A boss part: one of the character shapes (`PART_PLATE` and up, see `shaders/boss`), alpha
+   * blended like a surface. On every pen it goes into the same batch, which the renderer draws
+   * beneath every surface of the frame, in the order the parts were written. `hw`/`hh` are the
+   * shape's half extents.
+   */
+  bossPart(
+    shape: number,
+    x: number,
+    y: number,
+    hw: number,
+    hh: number,
+    rot: number,
+    color: Color,
+    alpha = 1,
+    o: BossOptions = {},
+  ): void {
+    const batch = this.boss;
+    if (!batch) return;
+    const i = batch.reserve();
+    if (i < 0) return;
+    split(color);
+    const d = batch.data;
+    const pad = o.pad ?? 4;
+    d[i] = x;
+    d[i + 1] = y;
+    d[i + 2] = hw + pad;
+    d[i + 3] = hh + pad;
+    d[i + 4] = rot;
+    d[i + 5] = cr;
+    d[i + 6] = cg;
+    d[i + 7] = cb;
+    d[i + 8] = alpha;
+    d[i + 9] = shape;
+    d[i + 10] = hw;
+    d[i + 11] = hh;
+    d[i + 12] = o.p0 ?? 0;
+    d[i + 13] = o.p1 ?? 0;
+    d[i + 14] = o.mirror ? FLAG_PART_MIRROR : 0;
+    d[i + 15] = o.flash ?? 0;
+    d[i + 16] = o.outline ?? 0;
+    d[i + 17] = o.p2 ?? 0;
+    d[i + 18] = o.seed ?? 0;
     d[i + 19] = 0;
   }
 

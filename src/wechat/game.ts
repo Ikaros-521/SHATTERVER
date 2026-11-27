@@ -21,6 +21,7 @@ import { GL } from '../render/gl';
 import { loadSave, storeSave, type SaveData, type Settings } from '../core/storage';
 import { setLang, type Lang } from '../core/i18n';
 import { AudioDirector } from '../audio/director';
+import { onPageVisible } from '../audio/page';
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
 import type { Starter } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
@@ -136,7 +137,9 @@ function boot(): void {
       ui.setTree(
         draftTree(
           {
-            intro: session.run.level === 1 && session.rerolls === 0 && session.phase === 'draft',
+            // The session knows: opening picks remain only while the intro draft is live.
+            // (level/reroll heuristics misfire — the level-1-cleared draft matches them too.)
+            intro: session.introPicks > 0,
             code: session.world.level.code,
             options: session.draft,
             levels: session.draft.map((def) => session.run.upgrades[def.id] ?? 0),
@@ -556,6 +559,10 @@ function boot(): void {
     audioStatus: () => audio.status,
     audio,
   };
+  // The automation bridge's evaluate runs in a different global scope than the game sandbox;
+  // GameGlobal is the minigame-wide shared object, so the handle rides there too.
+  const gameGlobal = (globalThis as { GameGlobal?: Record<string, unknown> }).GameGlobal;
+  if (gameGlobal) gameGlobal.__shell = (globalThis as { __shell?: unknown }).__shell;
 
   // Run-screen gesture state: a short still tap fires overdrive, a second tap pauses, a drag
   // steers the paddle. Everything else goes to the widget tree of the current screen.
@@ -684,7 +691,7 @@ function boot(): void {
       wrap.bind(null);
       wrap.gl.viewport(0, 0, wrap.gl.drawingBufferWidth, wrap.gl.drawingBufferHeight);
       layer.draw();
-      requestAnimationFrame(frame);
+      schedule();
       return;
     }
     if (ui.frame()) layer.upload();
@@ -693,9 +700,24 @@ function boot(): void {
     wrap.gl.viewport(0, 0, wrap.gl.drawingBufferWidth, wrap.gl.drawingBufferHeight);
     wrap.gl.clear(wrap.gl.COLOR_BUFFER_BIT);
     layer.draw();
-    requestAnimationFrame(frame);
+    schedule();
   }
-  requestAnimationFrame(frame);
+  // The runtime cancels pending rAF callbacks when the window is occluded (the simulator hides
+  // the game on any focus loss), which would kill a self-rescheduling loop forever — the canvas
+  // freezes mid-run while every touch handler keeps working. Bumping the epoch retires any
+  // zombie chain; one fresh frame re-enters the loop. dt clamps make the catch-up safe.
+  let rafEpoch = 0;
+  const schedule = (): void => {
+    const epoch = rafEpoch;
+    requestAnimationFrame((now) => {
+      if (epoch === rafEpoch) frame(now);
+    });
+  };
+  onPageVisible(() => {
+    rafEpoch++;
+    schedule();
+  });
+  schedule();
 }
 
 boot();

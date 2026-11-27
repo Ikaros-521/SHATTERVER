@@ -46,6 +46,10 @@ export interface CharacterBoss {
   quietFor: number;
   /** The line waiting to be said, if any. */
   pendingLine: LineMoment | null;
+  /** Seconds until her next attack. Ticks only while the fight runs. */
+  attackCd: number;
+  /** Which attack comes next: wings volley and core orb alternate. */
+  attackPattern: 0 | 1;
 }
 
 /** Starts her, whole, at the top of the arena. */
@@ -73,6 +77,8 @@ export function startCharacterBoss(): CharacterBoss {
     swayT: 0,
     quietFor: 0,
     pendingLine: 'intro',
+    attackCd: 2.4,
+    attackPattern: 0,
   };
 }
 
@@ -162,6 +168,31 @@ export function hitCharacterPart(
 
   boss.state.integrity = integrityOf(boss.state.look);
   return dealt;
+}
+
+/**
+ * Her next attack, due now: a volley from both wings, or a heavy orb from her core that bursts
+ * into scatter shots. Later phases attack faster and scatter wider.
+ */
+export interface CharacterAttack {
+  kind: 'wings' | 'orb';
+  /** Scatter shots the orb bursts into. 0 for a volley. */
+  scatter: number;
+}
+
+/** Her attack cadence, by phase: she gets quicker as she loses parts. */
+const ATTACK_CD: readonly number[] = [2.7, 2.3, 1.9, 1.5];
+
+/**
+ * The attack due now, advancing her pattern and winding the clock for the one after. Only asked
+ * while the fight runs — the world gates on that.
+ */
+export function characterAttack(boss: CharacterBoss): CharacterAttack {
+  const wings = boss.attackPattern === 0;
+  boss.attackPattern = wings ? 1 : 0;
+  boss.attackCd = ATTACK_CD[boss.state.phase - 1] ?? 2.7;
+  // The orb scatters wider the deeper the fight goes: eight shots early, ten late.
+  return { kind: wings ? 'wings' : 'orb', scatter: wings ? 0 : boss.state.phase >= 3 ? 10 : 8 };
 }
 
 /** The phase she has come to, and whether this step crossed into a new one. */

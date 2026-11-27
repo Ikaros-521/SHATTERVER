@@ -260,6 +260,13 @@ export interface Bullet {
   vy: number;
   r: number;
   dead: boolean;
+  /**
+   * A character boss's heavy orb: drawn larger, and after this many seconds it bursts into
+   * `splitN` scatter shots radiating from where it burst. Absent on an ordinary bullet.
+   */
+  big?: boolean;
+  splitT?: number;
+  splitN?: number;
 }
 
 /** A temporary gravity well that chews bricks and bends ball trajectories. */

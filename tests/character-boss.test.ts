@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  characterAttack,
   characterDefeated,
   characterDiscsOf,
   characterPhase,
@@ -163,5 +164,26 @@ describe('绯樱 as a fight', () => {
     boss.pendingLine = 'phase2';
     stepCharacterBoss(boss, 5);
     expect(boss.state.line).toBe('phase2');
+  });
+});
+
+describe('her attacks', () => {
+  it('alternates wings and core orb, resets the clock, and scatters wider late', () => {
+    const boss = startCharacterBoss();
+    expect(boss.attackCd).toBeGreaterThan(0);
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      boss.attackCd = 0;
+      const attack = characterAttack(boss);
+      seen.push(`${attack.kind}:${attack.scatter}`);
+      expect(boss.attackCd, `attack ${i}`).toBeGreaterThan(0);
+    }
+    expect(seen).toEqual(['wings:0', 'orb:8', 'wings:0', 'orb:8', 'wings:0', 'orb:8']);
+    // Late phases scatter wider.
+    boss.state.phase = 3;
+    boss.attackCd = 0;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'wings', scatter: 0 });
+    boss.attackCd = 0;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'orb', scatter: 10 });
   });
 });

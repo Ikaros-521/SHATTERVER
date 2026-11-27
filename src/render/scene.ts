@@ -444,6 +444,25 @@ function drawHazards(pen: Pen, world: World, time: number): void {
         2.5,
       );
     }
+    if (bullet.big) {
+      // Her heavy orb: a breathing pink sphere whose shell blinks faster the closer the burst is.
+      const fuse = bullet.splitT ?? 0;
+      const blink = fuse < 0.45 ? (Math.sin(time * 40) + 1) / 2 : (Math.sin(time * 8) + 1) / 2;
+      const pulse = 1 + 0.08 * Math.sin(time * 9);
+      pen.light(bullet.x, bullet.y, bullet.r * 2.6, bullet.r * 2.6, [2.2, 0.5, 2.5], 0.5, 0.55);
+      pen.surface(bullet.x, bullet.y, bullet.r * pulse, bullet.r * pulse, 0xff5fd8, {
+        rot: time * 2.2,
+        radius: 0.55,
+        halo: 0.7,
+      });
+      pen.surface(bullet.x, bullet.y, bullet.r * 0.62, bullet.r * 0.62, 0xffd0f4, {
+        rot: -time * 1.6,
+        radius: 0.5,
+        halo: 0.4,
+      });
+      pen.stroke(bullet.x, bullet.y, bullet.r * 1.25, 1.6, 0xff5fd8, 1.2, 0.25 + 0.55 * blink, 0);
+      return;
+    }
     pen.surface(bullet.x, bullet.y, 7, 7, 0xff2fb0, { rot: Math.PI / 4, radius: 1.6, halo: 0.6 });
     pen.light(bullet.x, bullet.y, 12, 12, [2.4, 0.5, 2.8], 0.85, 0.6);
     const angle = Math.atan2(bullet.vy, bullet.vx);

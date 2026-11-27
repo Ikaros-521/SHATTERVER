@@ -74,6 +74,7 @@ import {
   type ExplosionKind,
 } from './combat';
 import {
+  characterAttack,
   characterDefeated,
   startCharacterBoss,
   characterDiscsOf,
@@ -83,6 +84,7 @@ import {
   type CharacterBoss,
 } from './characterBoss';
 import type { BossDisc } from './hiyou';
+import type { BossPartId } from '../render/boss/types';
 import { BUFFS, BUFF_MAP, COVER, OFFENCE, type ActiveBuff, type BuffDef, type BuffId } from './buffs/defs';
 import { withBuffs } from './buffs/live';
 import {
@@ -804,6 +806,15 @@ export class World {
       if (bullet.dead) continue;
       bullet.x += bullet.vx * dt;
       bullet.y += bullet.vy * dt;
+      // Her heavy orb counts down its fuse and bursts into a fan of scatter shots.
+      if (bullet.splitT !== undefined) {
+        bullet.splitT -= dt;
+        if (bullet.splitT <= 0) {
+          bullet.dead = true;
+          this.scatterFrom(bullet, bullet.splitN ?? 8);
+          continue;
+        }
+      }
       // Side walls bounce bullets like balls: an aimed shot that misses wide stays in the field
       // instead of vanishing behind a wall and still claiming a hit from off-screen.
       if (bullet.x < WALL + bullet.r) {
@@ -968,7 +979,7 @@ export class World {
     }
   }
 
-  /** Steps her state machine: sway, hits fading, phases, her lines. */
+  /** Steps her state machine: sway, hits fading, phases, her lines — and her attacks. */
   private updateCharacter(dt: number): void {
     if (!this.character || this.state !== 'playing') return;
     stepCharacterBoss(this.character, dt);
@@ -979,6 +990,57 @@ export class World {
     if (this.character.state.face === 'hurt' && this.character.quietFor > 1.6) {
       this.character.state.face = this.character.state.phase >= 3 ? 'angry' : 'idle';
     }
+    // Her attacks fire from where her parts actually are this frame: the wings volley from their
+    // discs, the core's heavy orb grows from hers and bursts into scatter shots on a fuse.
+    this.character.attackCd -= dt;
+    if (this.character.attackCd > 0) return;
+    const discs = this.characterDiscs();
+    const discOf = (id: BossPartId): BossDisc => discs.find((disc) => disc.id === id)!;
+    const attack = characterAttack(this.character);
+    if (attack.kind === 'wings') {
+      for (const id of ['LeftWing', 'RightWing'] as BossPartId[]) {
+        const wing = discOf(id);
+        this.shoot(wing.x, wing.y + wing.radius * 0.4);
+        this.shoot(wing.x, wing.y + wing.radius * 0.4);
+      }
+    } else {
+      const core = discOf('Core');
+      const aim = Math.atan2(this.paddle.y - core.y, this.paddle.x - core.x);
+      const speed = 190 + this.level.index * 3;
+      this.bullets.push({
+        id: allocId(),
+        x: core.x,
+        y: core.y,
+        vx: Math.cos(aim) * speed,
+        vy: Math.sin(aim) * speed,
+        r: 16,
+        dead: false,
+        big: true,
+        // The fuse runs out while the orb is still over the open field, short of the paddle line.
+        splitT: 1.15,
+        splitN: attack.scatter,
+      });
+      this.events.emit('shoot', { x: core.x, y: core.y });
+    }
+  }
+
+  /** The scatter shots a burst produces: a fan across the lower half, from where the orb burst. */
+  private scatterFrom(bullet: Bullet, count: number): void {
+    const speed = 240 + this.level.index * 3;
+    for (let i = 0; i < count; i++) {
+      if (this.bullets.length >= MAX_BULLETS) return;
+      const angle = Math.PI * (0.12 + (0.76 * i) / (count - 1));
+      this.bullets.push({
+        id: allocId(),
+        x: bullet.x,
+        y: bullet.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: 7,
+        dead: false,
+      });
+    }
+    this.events.emit('shoot', { x: bullet.x, y: bullet.y });
   }
 
   private bossShoot(): void {

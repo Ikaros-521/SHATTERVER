@@ -55,6 +55,8 @@ export interface RowWidget extends Base {
   gap: number;
   /** Vertical alignment of children shorter than the row. */
   align: 'start' | 'center' | 'end';
+  /** True flows children onto further lines instead of overflowing (the menu footer). */
+  wrap?: boolean;
 }
 
 export interface LabelWidget extends Base {
@@ -68,6 +70,12 @@ export interface LabelWidget extends Base {
   align: Align;
   alpha: number;
   weight: string;
+  /** Extra px between characters; drawn char by char (the logo hero's wide tracking). */
+  spacing?: number;
+  /** Vertical gradient [top, mid, bottom] that replaces the flat colour (the logo hero). */
+  gradient?: [string, string, string];
+  /** Soft glow colour behind the glyphs (the logo hero's neon). */
+  glow?: string;
 }
 
 export interface ParagraphWidget extends Base {
@@ -89,6 +97,10 @@ export interface ButtonWidget extends Base {
   sub?: string;
   /** Small right-aligned note (an index, a count), vertically centred; omit when unneeded. */
   trailing?: string;
+  /** Left-column accent index (the menu's 01..08); reserves its own leading column. */
+  index?: string;
+  /** True cuts the frame's top-right corner (the menu's chamfered entries). */
+  chamfer?: boolean;
   /** True claims the full offered width (menu lists); false sizes to the content. */
   stretch: boolean;
   size: number;
@@ -149,13 +161,14 @@ export function panel(
 
 export function row(
   children: Widget[],
-  opts: { gap?: number; align?: 'start' | 'center' | 'end' } = {},
+  opts: { gap?: number; align?: 'start' | 'center' | 'end'; wrap?: boolean } = {},
 ): RowWidget {
   return {
     kind: 'row',
     children,
     gap: opts.gap ?? 8,
     align: opts.align ?? 'center',
+    wrap: opts.wrap ?? false,
     x: 0,
     y: 0,
     w: 0,
@@ -172,6 +185,9 @@ export function label(
     align?: Align;
     alpha?: number;
     weight?: string;
+    spacing?: number;
+    gradient?: [string, string, string];
+    glow?: string;
   } = {},
 ): LabelWidget {
   return {
@@ -183,6 +199,9 @@ export function label(
     align: opts.align ?? 'left',
     alpha: opts.alpha ?? 1,
     weight: opts.weight ?? '400',
+    spacing: opts.spacing,
+    gradient: opts.gradient,
+    glow: opts.glow,
     x: 0,
     y: 0,
     w: 0,
@@ -230,6 +249,8 @@ export function button(
     paddingH?: number;
     sub?: string;
     trailing?: string;
+    index?: string;
+    chamfer?: boolean;
     stretch?: boolean;
     strokeOverride?: string;
   } = {},
@@ -240,6 +261,8 @@ export function button(
     text,
     sub: opts.sub,
     trailing: opts.trailing,
+    index: opts.index,
+    chamfer: opts.chamfer,
     stretch: opts.stretch ?? false,
     size,
     strokeOverride: opts.strokeOverride,
@@ -319,6 +342,52 @@ export function layoutWidget(w: Widget, x: number, y: number, width: number, m: 
         for (const i of stretchIdx) widths[i] = share;
       }
       let height = 0;
+      if (w.wrap && stretchIdx.length === 0) {
+        // Greedy wrapping: children flow onto further lines once one is full (the DOM footer's
+        // flex-wrap). Line spacing reuses the row gap. Stretch cells never wrap — they share.
+        const lines: number[][] = [[]];
+        let used = 0;
+        for (let i = 0; i < w.children.length; i++) {
+          const cw = widths[i] as number;
+          const line = lines[lines.length - 1] as number[];
+          const need = (line.length > 0 ? w.gap : 0) + cw;
+          if (used + need > width && line.length > 0) {
+            lines.push([i]);
+            used = cw;
+          } else {
+            line.push(i);
+            used += need;
+          }
+        }
+        let cursorY = y;
+        for (const line of lines) {
+          let lineH = 0;
+          for (const i of line) {
+            lineH = Math.max(lineH, layoutWidget(w.children[i] as Widget, x, cursorY, widths[i] as number, m));
+          }
+          const total = line.reduce((sum, i) => sum + (widths[i] as number), 0) + w.gap * (line.length - 1);
+          let cx = x;
+          if (w.align === 'center') cx = x + (width - total) / 2;
+          else if (w.align === 'end') cx = x + width - total;
+          for (const i of line) {
+            const child = w.children[i] as Widget;
+            child.x = cx;
+            child.w = widths[i] as number;
+            child.y =
+              w.align === 'start'
+                ? cursorY
+                : w.align === 'end'
+                  ? cursorY + lineH - child.h
+                  : cursorY + (lineH - child.h) / 2;
+            cx += (widths[i] as number) + w.gap;
+          }
+          cursorY += lineH + w.gap;
+          height += lineH + w.gap;
+        }
+        w.w = width;
+        w.h = Math.max(0, height - w.gap);
+        return w.h;
+      }
       for (let i = 0; i < w.children.length; i++) {
         height = Math.max(height, layoutWidget(w.children[i] as Widget, x, y, widths[i] as number, m));
       }
@@ -454,6 +523,9 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
         align: w.align,
         alpha: w.alpha,
         weight: w.weight,
+        spacing: w.spacing,
+        glow: w.glow,
+        gradient: w.gradient,
       });
       return;
     case 'paragraph': {
@@ -479,18 +551,30 @@ export function drawWidget(w: Widget, s: Surface, theme: Theme): void {
         stroke: w.strokeOverride ?? colors.stroke,
         strokeW: 1,
         radius: theme.radius,
+        ...(w.chamfer ? { chamfer: 12 } : {}),
       });
+      // The index sits in its own leading column (the menu's 01..08), accent-coloured.
+      const labelX = w.x + w.paddingH + (w.index !== undefined ? 26 : 0);
+      if (w.index !== undefined) {
+        s.text(w.index, w.x + w.paddingH, w.y + (w.h - w.size * 1.15) / 2, {
+          size: 12,
+          color: rgba(theme.colors.accent, 1),
+          align: 'left',
+          alpha,
+          weight: '800',
+        });
+      }
       if (w.sub !== undefined) {
         // Two-line button: the label sits above centre, the caption below it.
         const top = w.y + (w.h - (w.size * 1.15 + w.subSize * 1.35)) / 2;
-        s.text(w.text, w.x + w.paddingH, top, {
+        s.text(w.text, labelX, top, {
           size: w.size,
           color: colors.text,
           align: 'left',
           alpha,
           weight: '600',
         });
-        s.text(w.sub, w.x + w.paddingH, top + w.size * 1.15 + w.size * 0.15, {
+        s.text(w.sub, labelX, top + w.size * 1.15 + w.size * 0.15, {
           size: w.subSize,
           color: colors.text,
           align: 'left',

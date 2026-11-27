@@ -24,11 +24,14 @@ const TAP_SLOP = 6;
 export interface CanvasUiDeps {
   surface: Surface;
   theme?: Theme;
+  /** Px of top inset (notch / status bar); every tree lays out below it. */
+  topInset?: number;
 }
 
 export class CanvasUi {
   private readonly surface: Surface;
   private readonly theme: Theme;
+  private readonly topInset: number;
   private tree: Widget | null = null;
   private dirty = false;
 
@@ -46,6 +49,7 @@ export class CanvasUi {
   constructor(deps: CanvasUiDeps) {
     this.surface = deps.surface;
     this.theme = deps.theme ?? DEFAULT_THEME;
+    this.topInset = Math.max(0, deps.topInset ?? 0);
   }
 
   /** Installs a rebuilt tree and lays it out across the surface's width. */
@@ -56,7 +60,7 @@ export class CanvasUi {
 
   /** The surface was resized (or the tree's data changed in a layout-visible way). */
   relayout(): void {
-    if (this.tree) layoutWidget(this.tree, 0, 0, this.surface.width, this.surface);
+    if (this.tree) layoutWidget(this.tree, 0, this.topInset, this.surface.width, this.surface);
     this.dirty = true;
   }
 

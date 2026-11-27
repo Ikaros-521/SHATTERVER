@@ -17,6 +17,8 @@ export interface BoxStyle {
   stroke?: string;
   strokeW?: number;
   radius?: number;
+  /** Cuts the top-right corner by this many px (the menu's chamfered entries); beats `radius`. */
+  chamfer?: number;
 }
 
 export interface TextStyle {
@@ -27,6 +29,12 @@ export interface TextStyle {
   alpha?: number;
   /** CSS font-weight digits as a string, e.g. '700'. */
   weight?: string;
+  /** Extra px between characters (the logo's wide tracking); drawn char by char. */
+  spacing?: number;
+  /** Soft glow behind the glyphs (colour); the logo hero's neon look. */
+  glow?: string;
+  /** Vertical gradient [top, mid, bottom] that replaces the flat colour (the logo hero). */
+  gradient?: [string, string, string];
 }
 
 export interface Surface {
@@ -62,11 +70,23 @@ export class CanvasSurface implements Surface {
   box(x: number, y: number, w: number, h: number, style: BoxStyle): void {
     const { ctx } = this;
     ctx.beginPath();
-    const r = Math.min(style.radius ?? 0, w / 2, h / 2);
-    if (r > 0 && typeof ctx.roundRect === 'function') {
-      ctx.roundRect(x, y, w, h, r);
+    const cut = style.chamfer ?? 0;
+    if (cut > 0) {
+      // Chamfered top-right corner (the DOM menu's clip-path look).
+      const c = Math.min(cut, w, h);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w - c, y);
+      ctx.lineTo(x + w, y + c);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.closePath();
     } else {
-      ctx.rect(x, y, w, h);
+      const r = Math.min(style.radius ?? 0, w / 2, h / 2);
+      if (r > 0 && typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, w, h, r);
+      } else {
+        ctx.rect(x, y, w, h);
+      }
     }
     if (style.fill) {
       ctx.fillStyle = style.fill;
@@ -95,8 +115,34 @@ export class CanvasSurface implements Surface {
     ctx.textAlign = style.align ?? 'left';
     ctx.textBaseline = 'top';
     ctx.globalAlpha = style.alpha ?? 1;
-    ctx.fillStyle = style.color;
-    ctx.fillText(str, x, y);
+    let fillStyle: string | CanvasGradient = style.color;
+    if (style.gradient) {
+      // Vertical gradient across the glyph height; the stops ride the text's own line box.
+      const grad = ctx.createLinearGradient(x, y, x, y + style.size * 1.05);
+      grad.addColorStop(0, style.gradient[0]);
+      grad.addColorStop(0.72, style.gradient[1]);
+      grad.addColorStop(1, style.gradient[2]);
+      fillStyle = grad;
+    }
+    const spacing = style.spacing ?? 0;
+    if (spacing > 0) {
+      // Per-character tracking (the ctx font above already carries the weight). A centered run
+      // is laid out from its total advance so the anchor stays the block's centre.
+      const chars = Array.from(str);
+      const width =
+        chars.reduce((sum, ch) => sum + ctx.measureText(ch).width, 0) +
+        spacing * Math.max(0, chars.length - 1);
+      let cursor = style.align === 'center' ? x - width / 2 : style.align === 'right' ? x - width : x;
+      const savedAlign = ctx.textAlign;
+      ctx.textAlign = 'left';
+      for (const ch of chars) {
+        this.glowText(ch, cursor, y, fillStyle, style.glow);
+        cursor += ctx.measureText(ch).width + spacing;
+      }
+      ctx.textAlign = savedAlign;
+    } else {
+      this.glowText(str, x, y, fillStyle, style.glow);
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -104,5 +150,17 @@ export class CanvasSurface implements Surface {
     // Weight barely moves widths in the UI's faces; measuring at 400 keeps one cache dimension.
     this.ctx.font = `400 ${size}px ${this.font}`;
     return this.ctx.measureText(str).width;
+  }
+
+  /** Fills one glyph/run with the style's colour — or its gradient, prepared by {@link text}. */
+  private glowText(ch: string, x: number, y: number, fill: string | CanvasGradient, glow?: string): void {
+    const { ctx } = this;
+    if (glow) {
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 12;
+    }
+    ctx.fillStyle = fill;
+    ctx.fillText(ch, x, y);
+    ctx.shadowBlur = 0;
   }
 }

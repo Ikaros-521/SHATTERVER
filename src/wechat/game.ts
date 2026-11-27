@@ -78,6 +78,10 @@ function boot(): void {
   const dpr = Math.min(DPR_CAP, sys.pixelRatio);
   const width = sys.windowWidth;
   const height = sys.windowHeight;
+  // 刘海/状态栏安全区：所有顶部 UI 下移，避免 iPhone 刘海遮挡（无刘海设备为 0）。
+  const safe = (sys as { safeArea?: { top?: number } }).safeArea;
+  const safeTop = Math.max(0, Math.min(120, Math.round(safe?.top ?? 0)));
+  const uiH = height - safeTop;
   const save: SaveData = loadSave();
 
   // First createCanvas = the on-screen canvas; second = offscreen, for the 2D UI.
@@ -96,7 +100,7 @@ function boot(): void {
   const hudCtx: CanvasRenderingContext2D = ctx;
 
   const surface = new CanvasSurface(ctx, width, height, DEFAULT_THEME.font);
-  const ui = new CanvasUi({ surface, theme: DEFAULT_THEME });
+  const ui = new CanvasUi({ surface, theme: DEFAULT_THEME, topInset: safeTop });
   const layer = new UITextureLayer(wrap, uiCanvas);
   // The audio stack: synthesized BGM and SFX through WeChat's WebAudio shim or the browser's
   // AudioContext (see `audio/page.ts`). Silent until the first touch unlocks it.
@@ -117,7 +121,7 @@ function boot(): void {
 
   const rebuild = (): void => {
     if (current.kind === 'menu') {
-      ui.setTree(menuTree(menuActions, buildMenuModel(save), width, height, surface));
+      ui.setTree(menuTree(menuActions, buildMenuModel(save), width, uiH, surface));
     } else if (current.kind === 'starter') {
       ui.setTree(
         starterTree(
@@ -125,12 +129,12 @@ function boot(): void {
           { mode: current.mode, difficulty: current.difficulty },
           starterActions,
           width,
-          height,
+          uiH,
           surface,
         ),
       );
     } else if (current.kind === 'history') {
-      ui.setTree(historyTree(save, { tab: current.tab }, historyActions, width, height, surface));
+      ui.setTree(historyTree(save, { tab: current.tab }, historyActions, width, uiH, surface));
     } else if (current.kind === 'draft') {
       const session = world?.session;
       if (!session) return;
@@ -150,16 +154,16 @@ function boot(): void {
           },
           draftActions,
           width,
-          height,
+          uiH,
           surface,
         ),
       );
     } else if (current.kind === 'results' && resultsModel) {
       ui.setTree(resultsTree(resultsModel, resultsActions, width, surface));
     } else if (current.kind === 'pause') {
-      ui.setTree(pauseTree(pauseActions, width, height, surface));
+      ui.setTree(pauseTree(pauseActions, width, uiH, surface));
     } else if (current.kind === 'settings') {
-      ui.setTree(settingsTree(save, settingsActions, width, height, surface));
+      ui.setTree(settingsTree(save, settingsActions, width, uiH, surface));
     } else if (current.kind === 'codex') {
       ui.setTree(
         codexTree(
@@ -176,7 +180,7 @@ function boot(): void {
             },
           },
           width,
-          height,
+          uiH,
           surface,
         ),
       );
@@ -225,7 +229,7 @@ function boot(): void {
             },
           },
           width,
-          height,
+          uiH,
           surface,
         ),
       );
@@ -248,7 +252,7 @@ function boot(): void {
             },
           },
           width,
-          height,
+          uiH,
           surface,
         ),
       );
@@ -259,7 +263,7 @@ function boot(): void {
           { tab: current.tab, views: current.views, loaded: current.loaded },
           cloudActions,
           width,
-          height,
+          uiH,
           surface,
         ),
       );
@@ -609,7 +613,7 @@ function boot(): void {
     audio.unlock();
     if (current.kind === 'run' && !paused) {
       // The pause button is the only tap target; everything else steers the paddle.
-      const rect = pauseButtonRect(width);
+      const rect = pauseButtonRect(width, safeTop);
       if (touch.clientX >= rect.x && touch.clientX <= rect.x + rect.w && touch.clientY <= rect.h + 10) {
         tapDragged = true; // a press on the button is never an overdrive tap
         pauseRun();
@@ -672,10 +676,28 @@ function boot(): void {
   const bg = DEFAULT_THEME.colors.bg;
   wrap.gl.clearColor(((bg >> 16) & 255) / 255, ((bg >> 8) & 255) / 255, (bg & 255) / 255, 1);
 
+  /** Set once the first frame throws: a broken render must not turn into a log flood. */
+  let frameErrorLogged = false;
   function frame(now: number): void {
+    try {
+      frameBody(now);
+    } catch (error) {
+      // A throw inside the render would otherwise kill the chain silently (a black screen with
+      // no console trace); log it once and keep the loop alive so the next frame can recover.
+      if (!frameErrorLogged) {
+        frameErrorLogged = true;
+        console.debug('[frameErr]', String((error as { stack?: string })?.stack ?? error));
+      }
+      schedule();
+    }
+  }
+
+  function frameBody(now: number): void {
     const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
     lastTime = now;
-    lastFrameAt = now;
+    // The watchdog compares against Date.now(), so the clock recorded here must be wall time
+    // too — the rAF timestamp is page-relative and a difference across the two is meaningless.
+    lastFrameAt = Date.now();
     if (current.kind === 'run' && world) {
       // The run renders itself, then the HUD overlay composites on top — its texture uploads
       // only when a displayed value changed (score ticks on hits, ~10 Hz, not per frame).
@@ -687,7 +709,7 @@ function boot(): void {
       const sig = hudSignature(session, dps);
       if (sig !== hudSig) {
         hudSig = sig;
-        drawHud(hudCtx, width, height, session, dps, DEFAULT_THEME.font);
+        drawHud(hudCtx, width, height, session, dps, DEFAULT_THEME.font, safeTop);
         layer.upload();
       }
       wrap.bind(null);

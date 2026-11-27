@@ -57,8 +57,8 @@ export function hudSignature(session: Session, dps: number): string {
 }
 
 /** The pause button's hit rectangle, in the overlay's CSS px space. */
-export function pauseButtonRect(width: number): { x: number; y: number; w: number; h: number } {
-  return { x: width - 56, y: 10, w: 46, h: 46 };
+export function pauseButtonRect(width: number, safeTop = 0): { x: number; y: number; w: number; h: number } {
+  return { x: width - 56, y: 10 + safeTop, w: 46, h: 46 };
 }
 
 /** The sector's code, counting its waves off on a wave sector (`4-1 · 2/3`). */
@@ -85,6 +85,7 @@ export function drawHud(
   session: Session,
   dps: number,
   font: string,
+  safeTop = 0,
 ): void {
   const world = session.world;
   const run = session.run;
@@ -94,14 +95,14 @@ export function drawHud(
 
   // ── top glass strip ──
   ctx.fillStyle = 'rgba(9, 13, 30, 0.82)';
-  ctx.fillRect(0, 0, width, 96);
+  ctx.fillRect(0, 0, width, 96 + safeTop);
 
   // Shield pips.
   const pipW = 16;
   const pipGap = 5;
   for (let i = 0; i < run.maxHp; i++) {
     ctx.beginPath();
-    ctx.arc(16 + pipW / 2 + i * (pipW + pipGap), 22, pipW / 2, 0, Math.PI * 2);
+    ctx.arc(16 + pipW / 2 + i * (pipW + pipGap), 22 + safeTop, pipW / 2, 0, Math.PI * 2);
     if (i < world.hp) {
       ctx.fillStyle = world.hp <= 1 ? '#ff3d5a' : '#27e0ff';
       ctx.fill();
@@ -116,8 +117,8 @@ export function drawHud(
   ctx.font = `700 15px ${font}`;
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffd24a';
-  ctx.fillText(`◆ ${formatNumber(run.crystals)}`, width - 62, 14);
-  drawPauseButton(ctx, width, font);
+  ctx.fillText(`◆ ${formatNumber(run.crystals)}`, width - 62, 14 + safeTop);
+  drawPauseButton(ctx, width, font, safeTop);
 
   // Row two: sector code + name, and the clear/boss progress line under them.
   const boss = world.boss && !world.boss.dead ? world.boss : null;
@@ -125,12 +126,12 @@ export function drawHud(
   ctx.font = `700 14px ${font}`;
   ctx.fillStyle = '#eaf2ff';
   if (boss) {
-    ctx.fillText(boss.def.id.toUpperCase(), 16, 44);
+    ctx.fillText(boss.def.id.toUpperCase(), 16, 44 + safeTop);
     ctx.font = `400 12px ${font}`;
     ctx.fillStyle = '#9fb0cf';
-    ctx.fillText(bossName(boss.def), 16, 62);
+    ctx.fillText(bossName(boss.def), 16, 62 + safeTop);
     ctx.fillStyle = boss.enraged ? '#ff3d5a' : '#ffd24a';
-    ctx.fillText(boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase }), 110, 62);
+    ctx.fillText(boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase }), 110, 62 + safeTop);
   } else {
     const code = hudCode(world);
     ctx.fillText(code, 16, 44);
@@ -143,18 +144,18 @@ export function drawHud(
   // Progress: brick clearance (of the whole sector), or the boss's remaining health in the same slot.
   const progress = boss ? boss.hp / boss.maxHp : hudProgress(world);
   ctx.fillStyle = 'rgba(39, 224, 255, 0.18)';
-  ctx.fillRect(16, 78, width - 32, 6);
+  ctx.fillRect(16, 78 + safeTop, width - 32, 6);
   ctx.fillStyle = boss ? '#ff9f2e' : '#27e0ff';
-  ctx.fillRect(16, 78, (width - 32) * Math.max(0, Math.min(1, progress)), 6);
+  ctx.fillRect(16, 78 + safeTop, (width - 32) * Math.max(0, Math.min(1, progress)), 6);
 
   // ── score + combo band ──
   ctx.font = `900 34px ${font}`;
   ctx.textAlign = 'left';
   ctx.fillStyle = '#eaf2ff';
-  ctx.fillText(formatScore(run.score), 16, 108);
+  ctx.fillText(formatScore(run.score), 16, 108 + safeTop);
   ctx.font = `400 12px ${font}`;
   ctx.fillStyle = '#66779c';
-  ctx.fillText(`DPS ${formatNumber(dps)}`, 18, 148);
+  ctx.fillText(`DPS ${formatNumber(dps)}`, 18, 148 + safeTop);
 
   const tier = world.comboTier >= 0 ? COMBO_TIERS[world.comboTier] : null;
   if (world.combo > 0) {
@@ -162,20 +163,20 @@ export function drawHud(
     ctx.textAlign = 'right';
     ctx.font = `900 26px ${font}`;
     ctx.fillStyle = tierColor;
-    ctx.fillText(`×${world.combo}`, width - 16, 106);
+    ctx.fillText(`×${world.combo}`, width - 16, 106 + safeTop);
     if (tier) {
       ctx.font = `700 12px ${font}`;
-      ctx.fillText(`${tier.cn} · ${comboTierLabel(world.comboTier)}`, width - 16, 140);
+      ctx.fillText(`${tier.cn} · ${comboTierLabel(world.comboTier)}`, width - 16, 140 + safeTop);
     }
     // Combo decay bar, draining towards the next-tier window closing.
     ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(width - 136, 158, 120, 4);
+    ctx.fillRect(width - 136, 158 + safeTop, 120, 4);
     ctx.fillStyle = tierColor;
     ctx.fillRect(width - 136, 158, 120 * Math.max(0, Math.min(1, world.comboTimer / COMBO_TIME)), 4);
   }
 
   // ── build strip + buff chips (below the score, wrapping left to right) ──
-  const chipsY = drawBuildStrip(ctx, width, run, font);
+  const chipsY = drawBuildStrip(ctx, width, run, font, safeTop);
   drawBuffChips(ctx, width, world, chipsY, font);
 
   // ── overdrive prompt ──
@@ -200,19 +201,19 @@ export function drawHud(
   }
 }
 
-function drawPauseButton(ctx: CanvasRenderingContext2D, width: number, font: string): void {
+function drawPauseButton(ctx: CanvasRenderingContext2D, width: number, font: string, safeTop: number): void {
   ctx.save();
   ctx.fillStyle = 'rgba(9, 13, 30, 0.82)';
   ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') ctx.roundRect(width - 56, 10, 46, 46, 12);
-  else ctx.rect(width - 56, 10, 46, 46);
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(width - 56, 10 + safeTop, 46, 46, 12);
+  else ctx.rect(width - 56, 10 + safeTop, 46, 46);
   ctx.fill();
   ctx.strokeStyle = 'rgba(39, 224, 255, 0.5)';
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = '#eaf2ff';
-  ctx.fillRect(width - 40, 24, 5, 18);
-  ctx.fillRect(width - 30, 24, 5, 18);
+  ctx.fillRect(width - 40, 24 + safeTop, 5, 18);
+  ctx.fillRect(width - 30, 24 + safeTop, 5, 18);
   ctx.restore();
   void font;
 }
@@ -230,10 +231,11 @@ function drawBuildStrip(
   width: number,
   run: Run,
   font: string,
+  safeTop: number,
 ): number {
   const owned = Object.entries(run.upgrades).filter(([, lv]) => (lv ?? 0) > 0);
   let x = STRIP_X;
-  let y = 168;
+  let y = 168 + safeTop;
   ctx.textAlign = 'left';
   if (owned.length === 0) {
     ctx.font = `400 11px ${font}`;

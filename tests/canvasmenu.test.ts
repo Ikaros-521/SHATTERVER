@@ -63,12 +63,16 @@ describe('menuTree', () => {
     expect(root.kind).toBe('panel');
     const [list, , footer] = (root as { children: Widget[] }).children;
     expect(list?.kind).toBe('scroll');
+    // The DOM narrow menu stacks its footer lines as centred paragraphs (each wraps).
     expect(footer?.kind).toBe('panel');
     const all = buttons(root);
     expect(all).toHaveLength(8);
-    // The shop entry carries the badge as its trailing note; the others carry their index.
+    // The shop entry carries the badge as its trailing note; the others carry none.
     expect(all[2]?.trailing).toBe('首礼');
-    expect(all[3]?.trailing).toBe('04');
+    expect(all[3]?.trailing).toBeUndefined();
+    // Every entry shows its index in the leading column, the DOM menu's 01..08.
+    expect(all[0]?.index).toBe('01');
+    expect(all[7]?.index).toBe('08');
     expect(all[0]?.sub).toBe('CAMPAIGN · 15 SECTORS');
   });
 

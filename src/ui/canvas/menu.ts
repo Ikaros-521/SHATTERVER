@@ -19,6 +19,7 @@ import {
   label,
   layoutWidget,
   panel,
+  paragraph,
   scroll,
   spacer,
   type ScrollWidget,
@@ -71,45 +72,70 @@ export function menuTree(
   height: number,
   m: TextMeasurer = uniformMeasurer(1),
 ): Widget {
-  const pad = Math.max(18, Math.min(28, width * 0.04));
-  const entrySize = 17;
+  // The DOM narrow/portrait menu: a ~92vw centred column, the list ~88vw inside it.
+  const pad = Math.max(20, Math.min(26, width * 0.055));
+  const entrySize = 18;
 
   const list = panel(
     [
-      entry('01', t('menu.campaign'), CAPTIONS.campaign, actions.campaign, 'primary', null),
-      entry('02', t('menu.endless'), CAPTIONS.endless, actions.endless, 'primary', null),
-      entry('03', t('shop.menuEntry'), CAPTIONS.shop, actions.shop, 'ghost', model.badgeText),
-      entry('04', t('menu.tutorial'), CAPTIONS.tutorial, actions.tutorial, 'ghost', null),
-      entry('05', t('menu.codex'), CAPTIONS.codex, actions.codex, 'ghost', null),
-      entry('06', t('menu.history'), CAPTIONS.history, actions.history, 'ghost', null),
-      entry('07', t('menu.cloud'), CAPTIONS.cloud, actions.cloud, 'ghost', null),
-      entry('08', t('menu.settings'), CAPTIONS.settings, actions.settings, 'ghost', null),
+      entry('01', t('menu.campaign'), CAPTIONS.campaign, actions.campaign, null),
+      entry('02', t('menu.endless'), CAPTIONS.endless, actions.endless, null),
+      entry('03', t('shop.menuEntry'), CAPTIONS.shop, actions.shop, model.badgeText),
+      entry('04', t('menu.tutorial'), CAPTIONS.tutorial, actions.tutorial, null),
+      entry('05', t('menu.codex'), CAPTIONS.codex, actions.codex, null),
+      entry('06', t('menu.history'), CAPTIONS.history, actions.history, null),
+      entry('07', t('menu.cloud'), CAPTIONS.cloud, actions.cloud, null),
+      entry('08', t('menu.settings'), CAPTIONS.settings, actions.settings, null),
     ],
-    { padding: 0, gap: 9, bg: false, stroke: false },
+    { padding: 0, gap: 8, bg: false, stroke: false },
   );
 
   const content = panel(
     [
-      label('碎界', { size: 46, weight: '900' }),
-      label('SHATTERVERSE', { size: 13, color: 'accent', alpha: 0.85, weight: '700' }),
-      label(t('menu.tagline'), { size: 13, color: 'inkDim' }),
-      spacer(14),
+      // The DOM hero: white → accent → blue vertical gradient, wide tracking, soft glow.
+      label('碎界', {
+        size: Math.round(Math.min(height * 0.088, width * 0.19)),
+        weight: '900',
+        align: 'center',
+        spacing: Math.round(width * 0.024),
+        gradient: ['#ffffff', '#27e0ff', '#5a86ff'],
+        glow: 'rgba(39, 224, 255, 0.55)',
+      }),
+      label('SHATTERVERSE', {
+        size: 17,
+        color: 'accent',
+        alpha: 0.9,
+        weight: '700',
+        align: 'center',
+        spacing: Math.round(width * 0.052),
+        glow: 'rgba(39, 224, 255, 0.7)',
+      }),
+      label(t('menu.tagline'), {
+        size: 14,
+        color: 'inkDim',
+        align: 'center',
+        spacing: Math.round(width * 0.012),
+      }),
+      spacer(12),
       list,
     ],
-    { padding: pad, gap: 6, bg: false, stroke: false },
+    { padding: pad, gap: 8, bg: false, stroke: false },
   );
 
-  const footerRows: Widget[] = [label(model.recordsText, { size: 12, color: 'inkFaint' })];
+  // The DOM narrow footer flows its lines centred under the list. Each line is a paragraph so a
+  // records run longer than the phone width wraps instead of running off the edge.
+  const footRows: Widget[] = [paragraph(model.recordsText, { size: 12, color: 'inkFaint', align: 'center' })];
   if (model.wishText !== null)
-    footerRows.push(label(model.wishText, { size: 12, color: 'gold', alpha: 0.85 }));
-  if (model.stardustText !== '') footerRows.push(label(model.stardustText, { size: 12, color: 'gold' }));
+    footRows.push(paragraph(model.wishText, { size: 12, color: 'gold', alpha: 0.85, align: 'center' }));
+  if (model.stardustText !== '')
+    footRows.push(paragraph(model.stardustText, { size: 12, color: 'gold', align: 'center' }));
 
   const build = (viewportH: number): Widget =>
     panel(
       [
         scroll(content, viewportH),
         spacer(6),
-        panel(footerRows, { padding: pad, gap: 3, bg: false, stroke: false }),
+        panel(footRows, { padding: 8, gap: 3, bg: false, stroke: false }),
       ],
       { padding: 0, gap: 0, bg: false, stroke: false },
     );
@@ -130,15 +156,15 @@ export function menuTree(
     text: string,
     caption: string,
     onTap: () => void,
-    variant: 'primary' | 'ghost',
     badge: string | null,
   ): Widget {
     return button(text, onTap, {
-      variant,
       size: entrySize,
-      paddingH: 16,
+      paddingH: 14,
       sub: caption,
-      trailing: badge ?? index,
+      trailing: badge ?? undefined,
+      index,
+      chamfer: true,
       stretch: true,
     });
   }

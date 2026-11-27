@@ -8,7 +8,10 @@ import { drawScene, type SceneInfo } from '../scene';
 import { drawBackHair, drawHead } from './hiyou/draw/head';
 import { drawHiyou } from './hiyou/draw/figure';
 import { faults } from './hiyou/draw/brush';
-import { bakeHiyou, paintHiyou } from './pictures';
+import { ATLAS_SCALE, bakeSheet, paintSheet } from './pictures';
+import { drawPlaced, imageSlots, place, sizeOf, type Placed, type Sheet } from './sheet';
+import { makeBakingCanvas } from '../textAtlas';
+import { HIYOU_SCALE, HIYOU_SHEET, hiyouFromImages } from './hiyou/draw/pieces';
 import {
   restingLook,
   type BossFrame,
@@ -36,6 +39,8 @@ import {
  *   sheet  = faces | damage  并排对比:七个表情一排,或「完整 / 重损」两个并排。此时其余参数不用。
  *   art    = head | faces | figure  不走 WebGL,把 Canvas 2D 画稿直接放大画出来:画稿阶段用它对着调。faces 是七个表情一排,figure 是整身。
  *   focus  = x,y   zoom = 每单位像素数   放大看人物坐标里的某一点(如 focus=21.6,-167.5&zoom=40 看右眼)。
+ *   source = image   场景模式下改走图片模式:先用 Canvas 2D 图层合成出一组「图」(当作生图模型的输出),
+ *                    再按图片规格装成图层表、烤图集、绘制——和真图片走同一条路。
  */
 
 const FACES: readonly FaceId[] = ['idle', 'smug', 'surprised', 'angry', 'hurt', 'awakened', 'defeated'];
@@ -56,6 +61,8 @@ const art = pick('art', ARTS, 'none');
 const damage = Math.min(2, Math.max(0, Math.floor(Number(params.get('damage') ?? 0)) || 0));
 const at = Number(params.get('at'));
 const frozen = params.has('at') && Number.isFinite(at);
+/** `source=image`: her from a set of images made for her, not the sheet drawn with Canvas 2D. */
+const source = params.get('source') === 'image' ? 'image' : 'draw';
 
 /** Where she stands in the arena. The anchor is the top of her breastbone. */
 const ANCHOR_X = 360;
@@ -66,6 +73,29 @@ const debug = {
   stats: (): unknown => ({}),
   step: (_seconds: number): void => {},
   pictures: 0,
+  /** Layers in the sheet on screen, and the pixels to a figure unit its atlas was baked at. */
+  layers: 0,
+  atlasScale: 0,
+  /** The boss batch of the last frame drawn, twenty floats a picture, to look at what was asked for. */
+  batch: (): number[] => [],
+  /** The atlas as it stands in the GPU, as a PNG at half size: to look at what was baked. */
+  atlasImage: (): string => '',
+  /** Where a picture lies in the atlas on screen. */
+  pictured: (_id: string): unknown => null,
+  /** The images of the last set made for her with `source=image`, to look at one by one. */
+  images: new Map<string, HTMLCanvasElement>(),
+  /** What a set of images made for her has to hold, each with its size in pixels. */
+  slots: (): unknown[] =>
+    imageSlots(HIYOU_SHEET).map((slot) => {
+      const [w, h] = sizeOf(slot.box);
+      return {
+        name: slot.name,
+        by: slot.by,
+        part: slot.part,
+        box: slot.box,
+        px: [Math.ceil(w * ATLAS_SCALE), Math.ceil(h * ATLAS_SCALE)],
+      };
+    }),
 };
 (window as unknown as { __bossHarness: typeof debug }).__bossHarness = debug;
 
@@ -133,13 +163,91 @@ function runArt(mode: (typeof ARTS)[number]): void {
   draw();
 }
 
+/**
+ * A set of images for her, made from the sheet drawn with Canvas 2D: what a model would have to
+ * draw, each the shape of its slot. Every picture of a group is drawn where it is anchored, turned
+ * as it is anchored, for the variant its image is named for.
+ */
+function mockImages(): (name: string) => CanvasImageSource | undefined {
+  const made = new Map<string, HTMLCanvasElement>();
+  const placed: Placed[] = [];
+  for (const slot of imageSlots(HIYOU_SHEET)) {
+    const look = restingLook();
+    if (slot.part && slot.by === 'state')
+      look[slot.part] = { ...look[slot.part], state: slot.variant as PartState };
+    const frame: BossFrame = {
+      x: 0,
+      y: 0,
+      time: 0,
+      face: slot.by === 'face' ? (slot.variant as FaceId) : 'idle',
+      look,
+    };
+    const [w, h] = sizeOf(slot.box);
+    const canvas = makeBakingCanvas();
+    canvas.width = Math.ceil(w * ATLAS_SCALE);
+    canvas.height = Math.ceil(h * ATLAS_SCALE);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas is not available.');
+    ctx.setTransform(ATLAS_SCALE, 0, 0, ATLAS_SCALE, -slot.box[0] * ATLAS_SCALE, -slot.box[1] * ATLAS_SCALE);
+    for (const each of place(HIYOU_SHEET, frame, placed, true)) {
+      // By the layer's group, not the picture's: a picture may serve two groups (the blades, both wings).
+      if (each.group === slot.group) drawPlaced(ctx, each);
+    }
+    made.set(slot.name, canvas);
+  }
+  debug.images = made;
+  return (name) => made.get(name);
+}
+
 function runScene(): void {
   const renderer = new Renderer(canvas, { surfaces: 16384, lights: 46000, glyphs: 4096 });
   debug.stats = () => ({ ...renderer.stats, unreadPaths: faults.unread });
-  // Her pieces are baked once, here at the start, and drawn from the atlas every frame.
-  const atlas = bakeHiyou(renderer.gl);
+  // Her pictures are baked once, here at the start, and drawn from the atlas every frame. With
+  // `source=image`, a set of images is made from the sheet drawn with Canvas 2D — standing in for a
+  // set a model drew — and her sheet is built from that instead: the road a set of images takes.
+  const sheetUsed: Sheet = source === 'image' ? hiyouFromImages(mockImages()) : HIYOU_SHEET;
+  const atlas = bakeSheet(renderer.gl, sheetUsed);
   renderer.bossAtlas = atlas.texture;
   debug.pictures = atlas.pictures.size;
+  debug.layers = sheetUsed.layers.length;
+  debug.atlasScale = atlas.scale;
+  debug.atlasImage = () => {
+    const g = renderer.gl.gl;
+    const side = (g.getParameter(g.MAX_TEXTURE_SIZE) as number) >= 2048 ? 2048 : 0;
+    const whole = g.createFramebuffer();
+    if (!whole) return '';
+    const before = g.getParameter(g.FRAMEBUFFER_BINDING);
+    g.bindFramebuffer(g.FRAMEBUFFER, whole);
+    g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, atlas.texture, 0);
+    const px = new Uint8Array(side * side * 4);
+    g.readPixels(0, 0, side, side, g.RGBA, g.UNSIGNED_BYTE, px);
+    g.bindFramebuffer(g.FRAMEBUFFER, before);
+    g.deleteFramebuffer(whole);
+    const half = side / 2;
+    const out = document.createElement('canvas');
+    out.width = half;
+    out.height = half;
+    const ctx = out.getContext('2d');
+    if (!ctx) return '';
+    const img = ctx.createImageData(half, half);
+    // Upside down in the GPU, and premultiplied: set both right, one pixel in two.
+    for (let y = 0; y < half; y++) {
+      for (let x = 0; x < half; x++) {
+        const from = ((side - 1 - y * 2) * side + x * 2) * 4;
+        const a = px[from + 3]! / 255;
+        const to = (y * half + x) * 4;
+        for (let c = 0; c < 3; c++) img.data[to + c] = a > 0 ? Math.min(255, px[from + c]! / a) : 0;
+        img.data[to + 3] = px[from + 3]!;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return out.toDataURL('image/png');
+  };
+  debug.batch = () => {
+    const batch = renderer.pen.boss!;
+    return Array.from(batch.data.subarray(0, batch.count * 20));
+  };
+  debug.pictured = (id) => atlas.pictures.get(id) ?? null;
   const fx = new Fx(2000, { shake: true, flashes: true, quality: 'high' });
   const info: SceneInfo = { danger: 0, energy: 0 };
 
@@ -215,7 +323,7 @@ function runScene(): void {
       if (sheet === 'none') drawScene(renderer.pen, world, fx, chapter, time, info);
       for (const figure of figures) {
         const shown: BossFrame = { x: figure.x, y: ANCHOR_Y, time, face: figure.face, look: figure.look };
-        paintHiyou(renderer.pen, shown, atlas);
+        paintSheet(renderer.pen, shown, sheetUsed, atlas, HIYOU_SCALE);
       }
       renderer.render({
         layout,

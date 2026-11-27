@@ -14,7 +14,12 @@ export function fakeCanvas(): { ctx: CanvasRenderingContext2D; bad: string[]; fi
     (name: string) =>
     (...values: number[]): void => {
       // The last argument of arc() and ellipse() is a flag, not a place.
-      if (!values.every((value) => typeof value === 'boolean' || Number.isFinite(value)))
+      // The first argument of drawImage() is the image; the last of arc() and ellipse() is a flag.
+      if (
+        !values.every(
+          (value) => typeof value === 'object' || typeof value === 'boolean' || Number.isFinite(value),
+        )
+      )
         bad.push(`${name}(${values.join(', ')})`);
     };
   let fills = 0;
@@ -52,6 +57,7 @@ export function fakeCanvas(): { ctx: CanvasRenderingContext2D; bad: string[]; fi
     'scale',
     'rotate',
     'setTransform',
+    'drawImage',
   ]) {
     ctx[name] = numbered(name);
   }

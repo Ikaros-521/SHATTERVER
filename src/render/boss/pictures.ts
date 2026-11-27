@@ -1,26 +1,21 @@
 import type { Pen, PictureRect } from '../batch';
 import type { GL } from '../gl';
-import {
-  AT_REST,
-  CORE_REACH,
-  PIECES,
-  PIECE_KEYS,
-  coreLight,
-  placeHiyou,
-  type Placed,
-} from './hiyou/draw/pieces';
+import { allShots, place, type Placed, type Sheet } from './sheet';
 import { makeBakingCanvas } from '../textAtlas';
 import type { BossFrame } from './types';
 
 /**
- * 绯樱 baked into one atlas, and drawn from it.
+ * A sheet baked into one atlas, and drawn from it.
  *
- * Her pieces (`hiyou/draw/pieces.ts`) are drawn once, at rest, into a square canvas with Canvas 2D
- * and uploaded as one texture — the way the damage numbers are (see `textAtlas.ts`). From then on a
- * frame costs no drawing at all: every piece she is showing is one quad that samples its rectangle
- * of the atlas, turned and put where `placeHiyou` says. Which is the whole of her motion, her damage
- * and her expressions: a cracked pauldron, a torn blade and a laughing face are each another
- * rectangle of the same texture.
+ * Every picture of the sheet (`sheet.ts`) is drawn once into a square canvas and uploaded as one
+ * texture — the way the damage numbers are (see `textAtlas.ts`). From then on a frame costs no
+ * drawing at all: every picture she is showing is one quad that samples its rectangle of the atlas,
+ * turned and put where `place` says. Which is the whole of her motion, her damage and her
+ * expressions: a cracked pauldron, a torn blade and a laughing face are each another rectangle of the
+ * same texture.
+ *
+ * It is the same for a sheet drawn with Canvas 2D and a sheet made of images: by the time a picture
+ * reaches here it is a `paint` and a box.
  *
  * Nothing is baked twice. The atlas is made when a boss first comes on screen and thrown away when
  * she is gone for good; a fight that never reaches her never pays for it.
@@ -35,20 +30,22 @@ export const ATLAS_SIZE = 2048;
 /** Transparent pixels kept between pictures, so that none bleeds into its neighbour when filtered. */
 export const GUTTER = 2;
 
-/** One piece in the atlas: the rectangle of it the quad samples, and the quad's middle and half extents in the piece's own frame. */
+/** One picture in the atlas: the rectangle of it the quad samples, and the quad's middle and half extents in its layer's frame. */
 export interface Picture extends PictureRect {
   /** Half extents, in figure units. */
   hw: number;
   hh: number;
-  /** The middle, in figure units: a piece's frame need not be the middle of what it draws. */
+  /** The middle, in figure units: a layer's frame need not be the middle of what it draws. */
   cx: number;
   cy: number;
 }
 
-/** Everything about her that the renderer needs beyond the pieces' painters. */
+/** Everything about a sheet that the renderer needs beyond its layers. */
 export interface PictureAtlas {
   texture: WebGLTexture;
   pictures: ReadonlyMap<string, Picture>;
+  /** Pixels to a figure unit the pictures were baked at. */
+  scale: number;
 }
 
 /**
@@ -61,7 +58,7 @@ export function packRows(
   gutter = GUTTER,
 ): Map<string, [number, number]> | null {
   const slots = new Map<string, [number, number]>();
-  // The sort is stable, so pieces of a height keep the order they were given in.
+  // The sort is stable, so pictures of a height keep the order they were given in.
   const order = [...sizes].sort((a, b) => b[2] - a[2]);
   let x = 0;
   let y = 0;
@@ -83,41 +80,76 @@ export function packRows(
   return slots;
 }
 
-/** The size each piece takes in the atlas, in pixels: [key, width, height]. */
-export function pieceSizes(scale: number): [string, number, number][] {
-  return PIECE_KEYS.map((key) => {
-    const [x0, y0, x1, y1] = PIECES.get(key)!.box;
-    return [key, Math.ceil((x1 - x0) * scale), Math.ceil((y1 - y0) * scale)];
+/** The size each picture of a sheet takes in the atlas, in pixels: [id, width, height]. */
+export function shotSizes(sheet: Sheet, scale: number): [string, number, number][] {
+  return allShots(sheet).map((shot) => {
+    const [x0, y0, x1, y1] = shot.box;
+    return [shot.id, Math.ceil((x1 - x0) * scale), Math.ceil((y1 - y0) * scale)];
   });
 }
 
-/** Draws every piece into a fresh atlas and uploads it. Throws if the pieces do not fit. */
-export function bakeHiyou(gl: GL, scale = ATLAS_SCALE, size = ATLAS_SIZE): PictureAtlas {
-  const slots = packRows(pieceSizes(scale), size);
-  if (!slots) throw new Error('Her pieces do not fit in the atlas.');
+/** The least density a sheet is baked at rather than refused. */
+const LEAST_SCALE = 0.25;
+
+/**
+ * The most pixels to a figure unit at which every picture of a sheet fits an atlas of `size`, never
+ * more than `most`. A sheet of images is coarser than one drawn with Canvas 2D — a whole wing to a
+ * picture, not a blade — and so takes more of the atlas to the picture: it is baked a little less
+ * dense rather than not baked at all. 0 if it fits at no density worth having.
+ */
+export function fitScale(sheet: Sheet, size = ATLAS_SIZE, most = ATLAS_SCALE): number {
+  if (packRows(shotSizes(sheet, most), size)) return most;
+  let low = LEAST_SCALE / 2;
+  let high = most;
+  if (!packRows(shotSizes(sheet, low), size)) return 0;
+  for (let i = 0; i < 10; i++) {
+    const mid = (low + high) / 2;
+    if (packRows(shotSizes(sheet, mid), size)) low = mid;
+    else high = mid;
+  }
+  // A density is only kept if it fits beyond doubt: rounded down, and a hundredth under.
+  return Math.max(LEAST_SCALE, Math.floor(low * 100) / 100 - 0.01);
+}
+
+/**
+ * Draws every picture of a sheet into a fresh atlas and uploads it, at `scale` pixels to a figure
+ * unit — the densest that fits (see `fitScale`) unless one is given. Throws if the one given does
+ * not fit, or if the sheet fits at no density worth having.
+ */
+export function bakeSheet(
+  gl: GL,
+  sheet: Sheet,
+  size = ATLAS_SIZE,
+  scale = fitScale(sheet, size),
+): PictureAtlas {
+  const shots = allShots(sheet);
+  if (scale < LEAST_SCALE) {
+    throw new Error(`The pictures of ${sheet.id} fit an atlas of ${size} at no density above ${scale}.`);
+  }
+  const slots = packRows(shotSizes(sheet, scale), size);
+  if (!slots) throw new Error(`The pictures of ${sheet.id} do not fit an atlas of ${size} at ${scale}.`);
   const canvas = makeBakingCanvas();
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas is not available.');
   const pictures = new Map<string, Picture>();
-  for (const key of PIECE_KEYS) {
-    const piece = PIECES.get(key)!;
-    const [sx, sy] = slots.get(key)!;
-    const [x0, y0, x1, y1] = piece.box;
+  for (const shot of shots) {
+    const [sx, sy] = slots.get(shot.id)!;
+    const [x0, y0, x1, y1] = shot.box;
     const w = x1 - x0;
     const h = y1 - y0;
-    // The piece's frame, scaled, with its bounds' corner at the slot's corner; and nothing of it
-    // outside its bounds, which would run into the gutter and the next piece.
+    // The layer's frame, scaled, with the box's corner at the slot's corner; and nothing drawn
+    // outside the box, which would run into the gutter and the next picture.
     ctx.setTransform(scale, 0, 0, scale, sx - x0 * scale, sy - y0 * scale);
     ctx.save();
     ctx.beginPath();
     ctx.rect(x0, y0, w, h);
     ctx.clip();
-    piece.paint(ctx, AT_REST);
+    shot.paint(ctx);
     ctx.restore();
     // A picture samples its slot from half a pixel in: the quad's edge then shows the first texel whole, not half of it and half of the gutter.
-    pictures.set(key, {
+    pictures.set(shot.id, {
       u0: (sx + 0.5) / size,
       v0: (sy + 0.5) / size,
       u1: (sx + w * scale - 0.5) / size,
@@ -145,29 +177,31 @@ export function bakeHiyou(gl: GL, scale = ATLAS_SCALE, size = ATLAS_SIZE): Pictu
   g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
   g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
   g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
-  return { texture, pictures };
+  return { texture, pictures, scale };
 }
-
-/** Figure units to world units: one place to change how big she stands in the arena. */
-export const HIYOU_SCALE = 0.92;
 
 /** The placement of one frame, kept from the last: placing is an action performed many times a second. */
 const placed: Placed[] = [];
 
 /**
- * Draws her for one frame from her atlas: every piece `placeHiyou` puts down, as a quad sampling
- * its rectangle of the atlas, back to front. `frame.x` and `frame.y` are where the top of her
- * breastbone stands, in world units.
+ * Draws a sheet for one frame from its atlas: every picture `place` puts down, as a quad sampling
+ * its rectangle of the atlas, back to front. `frame.x` and `frame.y` are where the origin of the
+ * figure stands, in world units; `scale` is world units to figure units.
  */
-export function paintHiyou(pen: Pen, frame: BossFrame, atlas: PictureAtlas, scale = HIYOU_SCALE): void {
+export function paintSheet(
+  pen: Pen,
+  frame: BossFrame,
+  sheet: Sheet,
+  atlas: PictureAtlas,
+  scale: number,
+): void {
   const k = scale;
   const ox = frame.x;
-  // She hangs in the air: the whole of her drifts up and down a little.
-  const oy = frame.y + Math.sin(frame.time * 1.1) * 3 * k;
-  for (const piece of placeHiyou(frame, placed)) {
-    const picture = atlas.pictures.get(piece.key);
+  const oy = frame.y + sheet.bob(frame.time) * k;
+  for (const piece of place(sheet, frame, placed)) {
+    const picture = atlas.pictures.get(piece.shot.id);
     if (!picture) continue;
-    // The quad's middle in the piece's frame; a piece flipped left to right has it the other way about.
+    // The quad's middle in the picture's frame; a picture flipped left to right has it the other way about.
     const cx = piece.mirror ? -picture.cx : picture.cx;
     const cy = picture.cy;
     const c = Math.cos(piece.rot);
@@ -184,9 +218,16 @@ export function paintHiyou(pen: Pen, frame: BossFrame, atlas: PictureAtlas, scal
       piece.mirror,
     );
   }
-  // The light the core throws goes down beneath the field, where it belongs.
-  const light = coreLight(frame);
-  if (light) {
-    pen.haze(ox + light.x * k, oy + light.y * k, CORE_REACH * k, CORE_REACH * k, 0xff5fd8, light.alpha, 0.35);
+  // What she throws on the field around her goes down beneath it, where it belongs.
+  for (const light of sheet.lights(frame)) {
+    pen.haze(
+      ox + light.x * k,
+      oy + light.y * k,
+      light.reach * k,
+      light.reach * k,
+      light.color,
+      light.alpha,
+      light.sharp,
+    );
   }
 }

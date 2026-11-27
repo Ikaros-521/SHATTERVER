@@ -108,6 +108,43 @@ function sweepBrick(
   return true;
 }
 
+/**
+ * Sweeps a point segment against a disc inflated by the ball radius — a part of a character boss.
+ * The same contract as `sweepBrick`, over a circle of her own.
+ */
+function sweepDisc(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  r: number,
+  cx: number,
+  cy: number,
+  radius: number,
+  out: Sweep,
+): boolean {
+  const reach = radius + r;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  // The place along the segment nearest the disc's middle.
+  const px = cx - x0;
+  const py = cy - y0;
+  const lenSq = dx * dx + dy * dy;
+  const tNear = lenSq > 0 ? (px * dx + py * dy) / lenSq : 0;
+  const t = Math.max(0, Math.min(1, tNear));
+  const nx0 = x0 + dx * t - cx;
+  const ny0 = y0 + dy * t - cy;
+  const distSq = nx0 * nx0 + ny0 * ny0;
+  if (distSq > reach * reach) return false;
+  // Overlapping at the start pushes out along the line between the middles.
+  out.inside = tNear <= 0;
+  out.t = out.inside ? 0 : t;
+  const dist = Math.sqrt(distSq) || 1;
+  out.nx = nx0 / dist;
+  out.ny = ny0 / dist;
+  return true;
+}
+
 function renormalize(ball: Ball): void {
   const len = Math.hypot(ball.vx, ball.vy) || 1;
   ball.vx *= ball.speed / len;
@@ -174,6 +211,8 @@ function collidePaddle(world: World, ball: Ball): void {
  *
  * The move is split into sub-steps of a few pixels each; per sub-step the whole brick list is swept
  * and the earliest contact wins. A ball either bounces off that brick or (pierce) phases through it.
+ * A character boss on the field adds her discs to the same sweep: the earliest of brick and part
+ * wins, and a part hit goes to her, not to the lattice.
  */
 export function stepBall(world: World, ball: Ball, dt: number): void {
   const stats = world.live;
@@ -203,6 +242,7 @@ export function stepBall(world: World, ball: Ball, dt: number): void {
     const y1 = ball.y + ball.vy * stepT;
 
     let target: Brick | null = null;
+    let partId: number | null = null;
     let bestT = 1;
     for (const brick of world.bricks) {
       if (brick.dead) continue;
@@ -211,10 +251,55 @@ export function stepBall(world: World, ball: Ball, dt: number): void {
       if (sweepBrick(ball.x, ball.y, x1, y1, ball.radius, brick, sweep) && sweep.t <= bestT) {
         bestT = sweep.t;
         target = brick;
+        partId = null;
         hitNx = sweep.nx;
         hitNy = sweep.ny;
         hitInside = sweep.inside;
       }
+    }
+    // Her discs are swept like the bricks, at a `t` of their own; the earliest contact wins either
+    // way. A part that is gone is not swept, and one the ball has just left is left alone a moment.
+    for (const disc of world.characterDiscs()) {
+      const until = ball.ignore.get(disc.key);
+      if (until !== undefined && until > world.time) continue;
+      if (
+        sweepDisc(ball.x, ball.y, x1, y1, ball.radius, disc.x, disc.y, disc.radius, sweep) &&
+        sweep.t <= bestT
+      ) {
+        bestT = sweep.t;
+        target = null;
+        partId = disc.key;
+        hitNx = sweep.nx;
+        hitNy = sweep.ny;
+        hitInside = sweep.inside;
+      }
+    }
+
+    if (partId) {
+      const used = stepT * bestT;
+      ball.x += ball.vx * used;
+      ball.y += ball.vy * used;
+      if (hitInside) {
+        ball.x += hitNx * 0.6;
+        ball.y += hitNy * 0.6;
+      }
+      const cx = ball.x - hitNx * ball.radius;
+      const cy = ball.y - hitNy * ball.radius;
+      world.onCharacterPartHit(ball, partId, hitNx, hitNy, cx, cy);
+      remaining -= Math.max(used, 1e-4);
+      // Parts are never pierced through: she is few, and a ball through her reads as a miss.
+      const into = ball.vx * hitNx + ball.vy * hitNy;
+      if (into < 0) {
+        ball.vx -= 2 * into * hitNx;
+        ball.vy -= 2 * into * hitNy;
+      }
+      ball.x += hitNx * 0.05;
+      ball.y += hitNy * 0.05;
+      ball.squash = 1;
+      ball.ignore.set(partId, world.time + 0.05);
+      world.events.emit('bounce', { x: cx, y: cy, nx: hitNx, ny: hitNy });
+      enforceAngle(ball);
+      continue;
     }
 
     if (target) {

@@ -73,6 +73,15 @@ import {
   type DamageSource,
   type ExplosionKind,
 } from './combat';
+import {
+  characterDefeated,
+  characterDiscsOf,
+  characterPhase,
+  hitCharacterPart,
+  stepCharacterBoss,
+  type CharacterBoss,
+} from './characterBoss';
+import type { BossDisc } from './hiyou';
 import { BUFFS, BUFF_MAP, COVER, OFFENCE, type ActiveBuff, type BuffDef, type BuffId } from './buffs/defs';
 import { withBuffs } from './buffs/live';
 import {
@@ -174,6 +183,10 @@ export interface WorldEvents {
   overdrive: 'ready' | 'start' | 'end';
   timeStop: 'start' | 'end';
   boss: { phase: 'phase' | 'enrage' | 'die' };
+  /** A part of a character boss changed how it looks, or fell off. */
+  characterPart: { id: string; state: 'intact' | 'damaged_1' | 'damaged_2' | 'destroyed' };
+  /** A character boss crossed into a new phase, or has spoken. */
+  character: { kind: 'phase' | 'line'; phase: number; moment: string | null };
   summon: { count: number };
   shoot: { x: number; y: number };
   bulletPop: { x: number; y: number; blocked: boolean };
@@ -241,6 +254,8 @@ export class World {
   shards: Shard[] = [];
   singularity: { t: number; tick: number } | null = null;
   boss: BossState | null = null;
+  /** The character boss of this level, when it has one. Null on every lattice level. */
+  character: CharacterBoss | null = null;
   /** The run's difficulty tier: paddle width, ball speed, fire rate, ball purges all scale from it. */
   readonly diff: Difficulty;
   /** Countdown to the next surplus-ball purge. Idle when the tier disables purges. */
@@ -335,6 +350,10 @@ export class World {
     if (this.stats.singularity) this.singularity = { t: 0, tick: 0 };
     this.paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
     if (this.diff.purgePeriod > 0) this.purgeT = this.diff.purgePeriod * 0.6;
+    // A level with a character boss has her. Which levels do is the level plan's business, and
+    // until that plan names her she stands on none: her fight is not playable without the layer
+    // and the HUD that show her, and a boss the player cannot see would be an unfair one.
+    this.character = null;
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();
@@ -672,6 +691,7 @@ export class World {
     if (!this.boss) this.fieldOffset += this.level.descent * pressure * descent * dt;
 
     this.updateBoss(dt);
+    this.updateCharacter(dt);
 
     for (const brick of this.bricks) {
       if (brick.dead) continue;
@@ -853,6 +873,90 @@ export class World {
         boss.shootCd = def.shootInterval / this.diff.bulletMult;
         this.bossShoot();
       }
+    }
+  }
+
+  /**
+   * Her discs this moment: what the ball sweep reads and the renderer draws. Empty without her.
+   * The buffer is reused, so read it before placing anything else over it.
+   */
+  private discBuffer: BossDisc[] = [];
+  characterDiscs(): BossDisc[] {
+    if (!this.character) return [];
+    this.discBuffer = characterDiscsOf(this.character);
+    return this.discBuffer;
+  }
+
+  /** One blow lands on a part of her: it scores, it flinches, and the fight knows. */
+  onCharacterPartHit(ball: Ball, key: number, nx: number, ny: number, cx: number, cy: number): void {
+    const boss = this.character;
+    if (!boss) return;
+    const s = this.live;
+    const power = ballPower(this, ball);
+    const crit = this.rng.chance(s.critChance);
+    // The sweep keys her parts by negative number; the part they name is looked up here.
+    const disc = this.characterDiscs().find((each) => each.key === key);
+    if (!disc) return;
+    const id = disc.id;
+    const dealt = hitCharacterPart(boss, id, power * (crit ? s.critMult : 1), nx, ny);
+    if (!(dealt > 0)) return;
+
+    ball.dryT = 0;
+    if (ball.guided > 0) ball.guided--;
+    ball.lock = 0;
+    if (s.momentumPerHit > 0) ball.momentum = Math.min(s.momentumMax, ball.momentum + s.momentumPerHit);
+
+    // Her armour is worth what a brick's is: score counts the damage dealt, as the lattice's does.
+    this.totalDamage += dealt;
+    this.run.score += dealt * (1 + this.combo * 0.01) * (1 + this.level.index * 0.25) * this.diff.scoreMult;
+    this.addCombo();
+    this.events.emit('hit', {
+      x: cx,
+      y: cy,
+      dmg: dealt,
+      crit,
+      execute: false,
+      source: 'ball',
+      brick: null as never,
+    });
+
+    const look = boss.state.look[id as keyof typeof boss.state.look];
+    const before = look.state;
+    const { changed } = characterPhase(boss);
+    if (look.state !== before) {
+      this.events.emit('characterPart', { id, state: look.state });
+      if (look.state === 'destroyed' && id !== 'Core') {
+        boss.state.face = 'hurt';
+        boss.state.line = 'partDown';
+        boss.quietFor = 0;
+      }
+    }
+    if (changed) {
+      this.events.emit('character', {
+        kind: 'phase',
+        phase: boss.state.phase,
+        moment: boss.pendingLine ?? null,
+      });
+      boss.state.face = boss.state.phase >= 4 ? 'awakened' : 'angry';
+    }
+    if (characterDefeated(boss) && !boss.state.defeated) {
+      boss.state.defeated = true;
+      boss.state.face = 'defeated';
+      boss.state.line = 'defeated';
+      this.events.emit('character', { kind: 'line', phase: boss.state.phase, moment: 'defeated' });
+    }
+  }
+
+  /** Steps her state machine: sway, hits fading, phases, her lines. */
+  private updateCharacter(dt: number): void {
+    if (!this.character || this.state !== 'playing') return;
+    stepCharacterBoss(this.character, dt);
+    const line = this.character.state.line;
+    if (line)
+      this.events.emit('character', { kind: 'line', phase: this.character.state.phase, moment: line });
+    // A part the fight has broken changes her face for a while; her phase's face claims it back.
+    if (this.character.state.face === 'hurt' && this.character.quietFor > 1.6) {
+      this.character.state.face = this.character.state.phase >= 3 ? 'angry' : 'idle';
     }
   }
 
@@ -1704,6 +1808,7 @@ export class World {
   private checkClear(): void {
     if (this.boss && !this.boss.dead && !this.bricks.some((b) => b.boss)) this.bossDefeated();
     if (this.boss && !this.boss.dead) return;
+    if (this.character && !this.character.state.defeated) return;
     if (this.brickCount() > 0) return;
     this.state = 'clearing';
     this.clearT = 1.25;

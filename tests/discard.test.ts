@@ -6,13 +6,13 @@ import { zh } from '../src/i18n/zh';
 import { MAX_HP_BASE } from '../src/game/config';
 import { Session, type SessionEvents } from '../src/game/session';
 import type { Starter } from '../src/game/starters';
-import { dependentsOf } from '../src/game/upgrades/draft';
+import { dependentsBrokenBy } from '../src/game/upgrades/draft';
 import { UPGRADES, UPGRADE_MAP } from '../src/game/upgrades/defs';
 import { computeStats } from '../src/game/upgrades/stats';
 
 /**
- * Discarding an owned upgrade at a draft (`Session.discard`): what it removes, what it refuses,
- * and what it does to the cards already on the table.
+ * Discarding a level off an owned upgrade at a draft (`Session.discard`): what it removes, what
+ * it refuses, and what it does to the cards already on the table.
  */
 
 const DT = 1 / 60;
@@ -56,22 +56,30 @@ function watch(session: Session): SessionEvents['discard'][] {
   return seen;
 }
 
-describe('dependentsOf', () => {
-  it('lists the owned upgrades that require the id, and nothing else', () => {
+describe('dependentsBrokenBy', () => {
+  it('lists the owned upgrades a drop would strip of their prerequisite', () => {
+    // 爆裂核心 2 → 1: 连锁反应 stands at `requires: explosive 1` and keeps it; 熔毁核心 wants 2.
     expect(
-      dependentsOf('explosive', { explosive: 2, chainreaction: 1, meltdown: 1, power: 1 }).map((d) => d.id),
+      dependentsBrokenBy('explosive', { explosive: 2, chainreaction: 1, meltdown: 1, power: 1 }, 1).map(
+        (d) => d.id,
+      ),
+    ).toEqual(['meltdown']);
+    // Full removal breaks everything that requires the id at all.
+    expect(
+      dependentsBrokenBy('explosive', { explosive: 2, chainreaction: 1, meltdown: 1, power: 1 }, 0).map(
+        (d) => d.id,
+      ),
     ).toEqual(['chainreaction', 'meltdown']);
-    // Not owned, so not holding anything back.
-    expect(dependentsOf('explosive', { explosive: 1 })).toEqual([]);
-    // A requirement on some other upgrade does not make it a dependent.
-    expect(dependentsOf('fire', { fire: 1, plague: 1 })).toEqual([]);
+    // Not owned, so not holding anything back; a requirement on some other id neither.
+    expect(dependentsBrokenBy('explosive', { explosive: 1 }, 0)).toEqual([]);
+    expect(dependentsBrokenBy('fire', { fire: 1, plague: 1 }, 0)).toEqual([]);
   });
 
   it('covers every prerequisite pair the pool defines', () => {
     for (const def of UPGRADES) {
       for (const id of Object.keys(def.requires ?? {})) {
         expect(
-          dependentsOf(id, { [def.id]: 1 }).map((d) => d.id),
+          dependentsBrokenBy(id, { [def.id]: 1 }, 0).map((d) => d.id),
           `${def.id} requires ${id}`,
         ).toEqual([def.id]);
       }
@@ -79,24 +87,34 @@ describe('dependentsOf', () => {
   });
 
   it('counts a dependent whatever level it asks for', () => {
-    // `meltdown` wants 爆裂核心 2; a build holding it at 1 (a grant, or a debug hook) is still blocked.
-    expect(dependentsOf('explosive', { explosive: 1, meltdown: 1 }).map((d) => d.id)).toEqual(['meltdown']);
+    // `meltdown` wants 爆裂核心 2; a build holding it at 1 (a grant, or a debug hook) is still broken by the removal.
+    expect(dependentsBrokenBy('explosive', { explosive: 1, meltdown: 1 }, 0).map((d) => d.id)).toEqual([
+      'meltdown',
+    ]);
   });
 });
 
 describe('session: discard', () => {
-  it('removes every level of the upgrade and rebuilds the stats from what is left', () => {
+  it('drops one level and rebuilds the stats from what is left', () => {
     const session = introDraft({ multiball: 2, speed: 3, shield: 1 });
     const seen = watch(session);
     expect(session.run.stats.ballCount).toBe(4 + 2);
 
     expect(session.discard('multiball')).toBe(true);
-    expect(session.run.upgrades).toEqual({ speed: 3, shield: 1 });
-    expect(session.run.stats).toEqual(computeStats({ speed: 3, shield: 1 }, 0));
+    expect(session.run.upgrades).toEqual({ multiball: 1, speed: 3, shield: 1 });
+    expect(session.run.stats).toEqual(computeStats({ multiball: 1, speed: 3, shield: 1 }, 0));
     expect(seen).toEqual([{ def: UPGRADE_MAP.multiball, level: 2 }]);
     // The draft is still open: a discard never spends the pick.
     expect(session.phase).toBe('draft');
     expect(session.introPicks).toBe(1);
+  });
+
+  it('removes the upgrade once its last level goes', () => {
+    const session = introDraft({ multiball: 2 });
+    expect(session.discard('multiball')).toBe(true);
+    expect(session.discard('multiball')).toBe(true);
+    expect(session.run.upgrades).toEqual({});
+    expect(session.run.stats.ballCount).toBe(4);
   });
 
   it('is free, and leaves the reroll counter alone', () => {
@@ -126,27 +144,14 @@ describe('session: discard', () => {
     expect(seen).toEqual([]);
   });
 
-  it('can empty the build back to its bare stats', () => {
+  it('can empty the build back to its bare stats, one level at a time', () => {
     const session = introDraft({ multiball: 2, speed: 1, shield: 1 });
-    for (const id of Object.keys(session.run.upgrades)) expect(session.discard(id), id).toBe(true);
+    for (const id of Object.keys(session.run.upgrades)) {
+      while ((session.run.upgrades[id] ?? 0) > 0) expect(session.discard(id), `${id}`).toBe(true);
+    }
     expect(session.run.upgrades).toEqual({});
     expect(session.run.stats).toEqual(computeStats({}, 0));
     expect(session.run.maxHp).toBe(MAX_HP_BASE);
-  });
-
-  it('drops the shield cap with the shield, clamping the lives in hand', () => {
-    const session = introDraft({ shield: 2 });
-    expect(session.run.maxHp).toBe(MAX_HP_BASE + 2);
-
-    session.run.hp = 3;
-    expect(session.discard('shield')).toBe(true);
-    expect(session.run.maxHp).toBe(MAX_HP_BASE);
-    expect(session.run.hp).toBe(3);
-
-    // A hand above the new cap is cut down to it.
-    const full = introDraft({ shield: 2 });
-    expect(full.discard('shield')).toBe(true);
-    expect(full.run.hp).toBe(MAX_HP_BASE);
   });
 
   it('lets the next sector be opened on the reduced build', () => {
@@ -154,8 +159,8 @@ describe('session: discard', () => {
     expect(session.discard('multiball')).toBe(true);
     session.skip();
     expect(session.phase).toBe('playing');
-    // Ball count is read when a world is built, so the new sector opens with the base four.
-    expect(session.world.balls).toHaveLength(4);
+    // Ball count is read when a world is built, so the new sector opens with five balls, not six.
+    expect(session.world.balls).toHaveLength(4 + 1);
   });
 
   it('works on the opening draft too, before sector one opens', () => {
@@ -163,7 +168,7 @@ describe('session: discard', () => {
     expect(session.discard('multiball')).toBe(true);
     expect(session.choose(session.draft[0]?.id ?? '')).toBe(true);
     expect(session.phase).toBe('playing');
-    expect(session.world.balls).toHaveLength(4);
+    expect(session.world.balls).toHaveLength(4 + 1);
   });
 
   it('changes neither the geography of the next sector nor the cards already drawn', () => {
@@ -177,36 +182,61 @@ describe('session: discard', () => {
     trimmed.skip();
     expect(trimmed.world.level).toEqual(plain.world.level);
   });
+
+  it('clamps the lives in hand when the shield cap drops with the level', () => {
+    const session = introDraft({ shield: 2 });
+    expect(session.run.maxHp).toBe(MAX_HP_BASE + 2);
+
+    session.run.hp = 3;
+    expect(session.discard('shield')).toBe(true);
+    expect(session.run.maxHp).toBe(MAX_HP_BASE + 1);
+    expect(session.run.hp).toBe(3);
+
+    // A hand above the new cap is cut down to it.
+    const full = introDraft({ shield: 2 });
+    expect(full.discard('shield')).toBe(true);
+    expect(full.run.maxHp).toBe(MAX_HP_BASE + 1);
+    expect(full.run.hp).toBe(MAX_HP_BASE + 1);
+  });
 });
 
 describe('session: discard and prerequisites', () => {
-  it('holds back an upgrade that an owned upgrade requires', () => {
+  it('holds back a level that an owned upgrade stands on', () => {
+    // 连锁反应 needs 爆裂核心 1; the second level may go, the first may not.
     const session = introDraft({ explosive: 2, chainreaction: 1, power: 1 });
     const seen = watch(session);
 
-    expect(session.discard('explosive')).toBe(false);
-    expect(session.run.upgrades.explosive).toBe(2);
+    expect(session.discard('explosive')).toBe(true);
+    expect(session.run.upgrades.explosive).toBe(1);
     expect(session.run.stats.explosionChain).toBe(true);
-    expect(seen).toEqual([]);
+    expect(seen).toEqual([{ def: UPGRADE_MAP.explosive, level: 2 }]);
+
+    expect(session.discard('explosive')).toBe(false);
+    expect(session.run.upgrades.explosive).toBe(1);
+    expect(session.run.stats.explosionChain).toBe(true);
+    expect(seen).toHaveLength(1);
 
     // Everything else is still free to go.
     expect(session.discard('power')).toBe(true);
   });
 
-  it('releases it once the dependent is gone', () => {
+  it('releases the last level once the dependent is gone', () => {
     const session = introDraft({ explosive: 2, chainreaction: 1, meltdown: 1 });
+    // 熔毁核心 needs 爆裂核心 2: even one level off is refused until it goes.
     expect(session.discard('explosive')).toBe(false);
     expect(session.discard('meltdown')).toBe(true);
+    expect(session.discard('explosive')).toBe(true);
     expect(session.discard('explosive')).toBe(false);
     expect(session.discard('chainreaction')).toBe(true);
     expect(session.discard('explosive')).toBe(true);
     expect(session.run.upgrades).toEqual({});
   });
 
-  it('takes the cards that needed it off the table, and leaves the rest', () => {
+  it('takes the cards that needed the level off the table, and leaves the rest', () => {
     const session = introDraft({ fire: 1 });
     session.draft = [UPGRADE_MAP.wildfire!, UPGRADE_MAP.power!, UPGRADE_MAP.crit!];
 
+    // The removal breaks 野火's prerequisite, so the card leaves with the level.
     expect(session.discard('fire')).toBe(true);
     expect(session.draft.map((def) => def.id)).toEqual(['power', 'crit']);
     // A card that left cannot be picked any more.
@@ -215,21 +245,21 @@ describe('session: discard and prerequisites', () => {
     expect(session.choose('power')).toBe(true);
   });
 
-  it('keeps a card whose requirement another owned upgrade still covers', () => {
-    // `supernova` needs both 熔毁核心 and 连锁反应; dropping one of the two is already refused.
-    const session = introDraft({ explosive: 2, chainreaction: 1, meltdown: 1 });
-    session.draft = [UPGRADE_MAP.supernova!];
-    expect(session.discard('explosive')).toBe(false);
-    expect(session.draft.map((def) => def.id)).toEqual(['supernova']);
+  it('leaves offered cards alone while their prerequisite still stands', () => {
+    // 野火 needs 烈焰附魔 1; a drop from 2 to 1 keeps it satisfied, so the card stays.
+    const session = introDraft({ fire: 2 });
+    session.draft = [UPGRADE_MAP.wildfire!, UPGRADE_MAP.power!];
+    expect(session.discard('fire')).toBe(true);
+    expect(session.draft.map((def) => def.id)).toEqual(['wildfire', 'power']);
   });
 
-  it('leaves a card of the discarded upgrade itself on the table, to be taken again from level one', () => {
+  it('leaves a card of the discarded upgrade itself on the table, to be taken again', () => {
     const session = introDraft({ power: 2 });
     session.draft = [UPGRADE_MAP.power!, UPGRADE_MAP.crit!];
     expect(session.discard('power')).toBe(true);
     expect(session.draft.map((def) => def.id)).toEqual(['power', 'crit']);
     expect(session.choose('power')).toBe(true);
-    expect(session.run.upgrades.power).toBe(1);
+    expect(session.run.upgrades.power).toBe(2);
   });
 });
 
@@ -263,19 +293,26 @@ describe('discard copy stays inside the platform review vocabulary', () => {
     for (const [name, locale] of Object.entries({ zh, en, ja, ko })) {
       const draft = locale.draft;
       expect(draft.buildHint.trim(), `${name}: buildHint`).not.toBe('');
+      expect(draft.buildToggle.trim(), `${name}: buildToggle`).not.toBe('');
+      expect(draft.discardAsk.trim(), `${name}: discardAsk`).not.toBe('');
+      expect(draft.discardAsk, `${name}: discardAsk`).toContain('{name}');
+      expect(draft.discardAskLower, `${name}: discardAskLower`).toContain('{name}');
+      expect(draft.discardAskLower, `${name}: discardAskLower`).toContain('{lv}');
+      expect(draft.discardAskLower, `${name}: discardAskLower`).toContain('{next}');
+      expect(draft.discardAskDeps.trim(), `${name}: discardAskDeps`).not.toBe('');
+      expect(draft.discardAskDeps, `${name}: discardAskDeps`).toContain('{deps}');
       expect(draft.discardConfirm.trim(), `${name}: discardConfirm`).not.toBe('');
       expect(draft.discardCancel.trim(), `${name}: discardCancel`).not.toBe('');
       expect(draft.discardBack.trim(), `${name}: discardBack`).not.toBe('');
-      expect(draft.discardAsk, `${name}: discardAsk`).toContain('{name}');
-      expect(draft.discardAsk, `${name}: discardAsk`).toContain('{lv}');
-      expect(draft.discardAskDeps, `${name}: discardAskDeps`).toContain('{name}');
-      expect(draft.discardAskDeps, `${name}: discardAskDeps`).toContain('{deps}');
       expect(draft.discardLocked, `${name}: discardLocked`).toContain('{name}');
       expect(draft.discardLocked, `${name}: discardLocked`).toContain('{deps}');
       // Nothing left to interpolate once `t()` is done with it.
-      const filled = [locale.draft.discardAsk, locale.draft.discardAskDeps, locale.draft.discardLocked].map(
-        (text) => text.replace(/\{\w+\}/g, 'x'),
-      );
+      const filled = [
+        locale.draft.discardAsk,
+        locale.draft.discardAskLower,
+        locale.draft.discardAskDeps,
+        locale.draft.discardLocked,
+      ].map((text) => text.replace(/\{\w+\}/g, 'x'));
       for (const text of filled) expect(text, `${name}`).not.toMatch(/\{|\}/);
     }
   });

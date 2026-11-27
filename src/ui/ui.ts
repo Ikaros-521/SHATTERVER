@@ -46,7 +46,7 @@ import { MILESTONES } from '../game/economy/milestones';
 import { DAILY_MISSION_REWARD, dailyMissionsFor } from '../game/economy/dailies';
 import { dayKey } from '../game/economy/coins';
 import { UPGRADES, UPGRADE_MAP } from '../game/upgrades/defs';
-import { dependentsOf } from '../game/upgrades/draft';
+import { dependentsBrokenBy } from '../game/upgrades/draft';
 import { RARITY_INFO, RARITY_ORDER, TAG_INFO, upgradeColor } from '../game/upgrades/present';
 import type { UpgradeDef } from '../game/upgrades/types';
 import type { Leaderboard } from '../net/leaderboard';
@@ -656,8 +656,8 @@ export class UI implements HudHost {
     this.renderDraftBar(session);
     byId('draft-build-icons').replaceChildren(
       ...owned.map(({ def, level }) => {
-        const holders = dependentsOf(def.id, session.run.upgrades);
-        // An owned upgrade that requires it keeps it in the build: the tile says why, and that is all it does.
+        // A level another owned upgrade stands on cannot go: the tile says why, and that is all it does.
+        const holders = dependentsBrokenBy(def.id, session.run.upgrades, level - 1);
         const reason =
           holders.length > 0
             ? t('draft.discardLocked', { name: upgradeName(def), deps: this.nameList(holders) })
@@ -713,6 +713,8 @@ export class UI implements HudHost {
       return null;
     }
     const name = upgradeName(ask.def);
+    const level = session.run.upgrades[ask.def.id] ?? 0;
+    const next = Math.max(0, level - 1);
     if (ask.holders.length > 0) {
       const back = this.stripButton(t('draft.discardBack'), 'btn-ghost', () => this.cancelDiscard());
       bar.replaceChildren(
@@ -724,18 +726,15 @@ export class UI implements HudHost {
       );
       return back;
     }
-    // Cards on the table that need this upgrade leave with it: said here, before the click that does it.
-    const leaves = session.draft.filter((option) => (option.requires?.[ask.def.id] ?? 0) > 0);
-    const level = session.run.upgrades[ask.def.id] ?? 0;
+    // Cards on the table that need this level leave with it: said here, before the click that does it.
+    const leaves = session.draft.filter((option) => (option.requires?.[ask.def.id] ?? 0) > next);
+    // The last level comes off outright; any other drops the upgrade one step.
+    const askText =
+      level === 1 ? t('draft.discardAsk', { name }) : t('draft.discardAskLower', { name, lv: level, next });
+    const depsText = leaves.length > 0 ? t('draft.discardAskDeps', { deps: this.nameList(leaves) }) : '';
     const confirm = this.stripButton(t('draft.discardConfirm'), 'btn-discard', () => this.confirmDiscard());
     bar.replaceChildren(
-      el('span', {
-        class: 'draft-build-ask',
-        text:
-          leaves.length > 0
-            ? t('draft.discardAskDeps', { name, lv: level, deps: this.nameList(leaves) })
-            : t('draft.discardAsk', { name, lv: level }),
-      }),
+      el('span', { class: 'draft-build-ask', text: askText + depsText }),
       confirm,
       this.stripButton(t('draft.discardCancel'), 'btn-ghost', () => this.cancelDiscard()),
     );
@@ -760,7 +759,7 @@ export class UI implements HudHost {
     this.discardOpen = true;
     this.discardAsk = {
       def,
-      holders: dependentsOf(def.id, session.run.upgrades),
+      holders: dependentsBrokenBy(def.id, session.run.upgrades, (session.run.upgrades[def.id] ?? 0) - 1),
       keyboard: tile.matches(':focus-visible'),
     };
     const answer = this.renderDraftBar(session);
@@ -783,8 +782,15 @@ export class UI implements HudHost {
         : -1;
 
     if (!this.actions.discard(ask.def.id)) {
-      // Nothing left the build — another upgrade holds it now, say. The strip says what.
-      this.discardAsk = { ...ask, holders: dependentsOf(ask.def.id, session.run.upgrades) };
+      // Nothing left the build — another upgrade stands on it now, say. The strip says what.
+      this.discardAsk = {
+        ...ask,
+        holders: dependentsBrokenBy(
+          ask.def.id,
+          session.run.upgrades,
+          (session.run.upgrades[ask.def.id] ?? 0) - 1,
+        ),
+      };
       this.audio.ui('deny');
       const back = this.renderDraftBar(session);
       if (ask.keyboard) back?.focus();
@@ -823,6 +829,7 @@ export class UI implements HudHost {
       rerollCost: session.rerollCost,
       skipReward: session.skipReward,
       intro,
+      reward: session.sectorReward,
     };
   }
 

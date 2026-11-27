@@ -11,7 +11,7 @@ import { difficultyOf, type Difficulty } from './difficulty';
 import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, sectorStart, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
 import type { Starter } from './starters';
-import { dependentsOf, meetsRequires, rollDraft } from './upgrades/draft';
+import { dependentsBrokenBy, meetsRequires, rollDraft } from './upgrades/draft';
 import { UPGRADE_MAP } from './upgrades/defs';
 import { computeStats } from './upgrades/stats';
 import type { UpgradeDef } from './upgrades/types';
@@ -51,7 +51,7 @@ export interface SessionEvents {
     reward: SectorReward | null;
   };
   pick: { def: UpgradeDef; level: number };
-  /** An owned upgrade left the build; `level` is what it was. */
+  /** A level was discarded off an owned upgrade; `level` is what it was before the drop. */
   discard: { def: UpgradeDef; level: number };
   skip: Record<string, never>;
 }
@@ -212,20 +212,23 @@ export class Session {
   }
 
   /**
-   * Removes an owned upgrade from the build, every level of it at once, for the rest of the run.
-   * Draft time only: the next level is built from whatever the build is by then, so nothing has
-   * to change under a world in play.
+   * Discards one level off an owned upgrade, for the rest of the run; the last level removes it
+   * outright. Draft time only: the next sector is built from whatever the build is by then, so
+   * nothing has to change under a world in play.
    *
-   * An upgrade that another owned one requires stays put until that one is gone — dropping the
-   * base would leave the payoff sitting in the build doing nothing. Cards on the table that needed
-   * what went leave with it, since they could no longer be taken.
+   * A level that another owned one stands on stays put — dropping the prerequisite would leave a
+   * payoff (a mythic usually) sitting in the build doing nothing. Cards on the table that needed
+   * the level leave with it, since they could no longer be taken.
    */
   discard(id: string): boolean {
     if (this.phase !== 'draft') return false;
     const def = UPGRADE_MAP[id];
     const level = this.run.upgrades[id] ?? 0;
-    if (!def || level <= 0 || dependentsOf(id, this.run.upgrades).length > 0) return false;
-    delete this.run.upgrades[id];
+    if (!def || level <= 0) return false;
+    const next = level - 1;
+    if (dependentsBrokenBy(id, this.run.upgrades, next).length > 0) return false;
+    if (next <= 0) delete this.run.upgrades[id];
+    else this.run.upgrades[id] = next;
     this.draft = this.draft.filter((option) => meetsRequires(option, this.run.upgrades));
     this.refreshStats();
     this.events.emit('discard', { def, level });
@@ -415,9 +418,7 @@ export class Session {
       levels: this.run.upgrades,
       level: this.draftLevel(),
       rng: this.rng,
-      ...(intro
-        ? { count: this.introRarities ? 4 : 3, rarities: this.introRarities }
-        : {}),
+      ...(intro ? { count: this.introRarities ? 4 : 3, rarities: this.introRarities } : {}),
       ...(intro && this.introTaken > 0 ? { exclude: Object.keys(this.run.upgrades) } : {}),
     });
     // A copy per draft, its counter filled in: an event is a snapshot, and whoever held on to

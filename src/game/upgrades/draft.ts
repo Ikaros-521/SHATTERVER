@@ -34,11 +34,16 @@ export function availableUpgrades(levels: Record<string, number>): UpgradeDef[] 
 }
 
 /**
- * Owned upgrades that list `id` in their `requires`: they only work while it is in the build, so
- * it cannot be discarded until they are gone.
+ * Owned upgrades whose requirement on `id` outlives dropping `id` to `nextLevel`: they would sit
+ * in the build without their prerequisite, so the drop cannot happen until they are gone. For a
+ * full removal pass 0; for a one-level discard pass the level it would fall to.
  */
-export function dependentsOf(id: string, levels: Record<string, number>): UpgradeDef[] {
-  return UPGRADES.filter((u) => (levels[u.id] ?? 0) > 0 && (u.requires?.[id] ?? 0) > 0);
+export function dependentsBrokenBy(
+  id: string,
+  levels: Record<string, number>,
+  nextLevel: number,
+): UpgradeDef[] {
+  return UPGRADES.filter((u) => (levels[u.id] ?? 0) > 0 && (u.requires?.[id] ?? 0) > nextLevel);
 }
 
 function synergyBoost(def: UpgradeDef, owned: Set<string>): number {

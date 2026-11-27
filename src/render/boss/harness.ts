@@ -29,6 +29,7 @@ import {
  *   at     = 秒              定格的时刻;不传则走时钟(发丝与羽片在飘)。
  *   sheet  = faces | damage  并排对比:七个表情一排,或「完整 / 重损」两个并排。此时其余参数不用。
  *   art    = head | faces      不走 WebGL,把 Canvas 2D 画稿直接放大画出来:画稿阶段用它对着调。faces 是七个表情一排。
+ *   focus  = x,y   zoom = 每单位像素数   配合 art=head:放大看人物坐标里的某一点(如 focus=21.6,-167.5&zoom=40 看右眼)。
  */
 
 const FACES: readonly FaceId[] = ['idle', 'smug', 'surprised', 'angry', 'hurt', 'awakened', 'defeated'];
@@ -95,11 +96,15 @@ function runArt(mode: 'head' | 'faces'): void {
         });
         return;
       }
-      // The head with its hair is about 150 wide and, from the halo to the collar, 165 tall.
-      const k = Math.min(w / 156, h / 168);
+      // The head with its hair is about 150 wide and, from the halo to the collar, 165 tall. `focus`
+      // (a figure point, "x,y") and `zoom` (px per unit) look at one detail of it instead.
+      const point = (params.get('focus') ?? '').split(',').map(Number);
+      const detail = params.has('zoom') && point.length === 2 && point.every(Number.isFinite);
+      const k = detail ? Number(params.get('zoom')) : Math.min(w / 156, h / 168);
       ctx.translate(w / 2, h / 2);
       ctx.scale(k, k);
-      ctx.translate(0, 180);
+      if (detail) ctx.translate(-point[0]!, -point[1]!);
+      else ctx.translate(0, 180);
       drawBackHair(ctx);
       drawHead(ctx, face);
     } catch (error) {

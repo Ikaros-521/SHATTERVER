@@ -59,6 +59,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     statCrit: '치명타율',
     buffs: '파워업',
     pauseAria: '일시정지',
+    wave: '웨이브 {n}/{total}',
   },
   starter: {
     title: '초기 프로토콜 선택',
@@ -75,6 +76,12 @@ export const ko: UiDict & { content: ContentOverrides } = {
     skip: '건너뛰기',
     newUpgrade: 'NEW',
     maxed: 'MAX',
+    // A wave sector's clear bonus, shown on each of the drafts it granted.
+    rewardEyebrow: 'SECTOR {code} CLEAR · 보상 {n}/{total}',
+    rewardTitle: '섹터 클리어 보상',
+    rewardCrystals: '크리스털 +{n}',
+    rewardShield: '실드 +{n}',
+    rewardPicks: '선택 횟수 ×{n}',
   },
   pause: {
     title: '일시정지',
@@ -238,6 +245,8 @@ export const ko: UiDict & { content: ContentOverrides } = {
     overdriveSub: '오버드라이브',
     timeStopSub: '시간 정지',
     sectorClearSub: '섹터 클리어',
+    waveClearSub: '다음 웨이브로',
+    waveCount: '총 {n}웨이브',
     buffSub: '{name} · {n}초',
     buffTwinSub: '{name} · 쌍공명 {n}초',
     dodgeSub: '실드 무사',

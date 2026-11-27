@@ -35,10 +35,10 @@ export function hudSignature(session: Session, dps: number): string {
   return [
     world.hp,
     run.maxHp,
-    world.level.code,
+    hudCode(world),
     boss
       ? `B${boss.def.id}${boss.phase}${Math.round((boss.hp / boss.maxHp) * 60)}`
-      : Math.round((1 - world.brickCount() / Math.max(1, world.brickTotal)) * 100),
+      : Math.round(hudProgress(world) * 100),
     formatNumber(run.crystals),
     formatScore(run.score),
     world.combo,
@@ -58,6 +58,19 @@ export function hudSignature(session: Session, dps: number): string {
 /** The pause button's hit rectangle, in the overlay's CSS px space. */
 export function pauseButtonRect(width: number): { x: number; y: number; w: number; h: number } {
   return { x: width - 56, y: 10, w: 46, h: 46 };
+}
+
+/** The sector's code, counting its waves off on a wave sector (`4-1 · 2/3`). */
+function hudCode(world: World): string {
+  const { code, wave, waves } = world.level;
+  return waves > 1 ? `${code} · ${wave}/${waves}` : code;
+}
+
+/** How far the sector is cleared. On a wave sector the bar spans all its waves, not the one on screen. */
+function hudProgress(world: World): number {
+  const cleared = 1 - world.brickCount() / Math.max(1, world.brickTotal);
+  const { wave, waves } = world.level;
+  return waves > 1 ? (wave - 1 + cleared) / waves : cleared;
 }
 
 /**
@@ -118,13 +131,16 @@ export function drawHud(
     ctx.fillStyle = boss.enraged ? '#ff3d5a' : '#ffd24a';
     ctx.fillText(boss.enraged ? t('hud.enraged') : t('hud.phase', { n: boss.phase }), 110, 62);
   } else {
-    ctx.fillText(world.level.code, 16, 44);
+    const code = hudCode(world);
+    ctx.fillText(code, 16, 44);
     ctx.font = `400 12px ${font}`;
     ctx.fillStyle = '#9fb0cf';
-    ctx.fillText(levelName(world.level.chapter, world.level.name), 50, 46);
+    // The name clears the code; on a wave sector the code runs longer to count the waves.
+    const after = world.level.waves > 1 ? 16 + ctx.measureText(code).width + 8 : 50;
+    ctx.fillText(levelName(world.level.chapter, world.level.name), after, 46);
   }
-  // Progress: brick clearance, or the boss's remaining health in the same slot.
-  const progress = boss ? boss.hp / boss.maxHp : 1 - world.brickCount() / Math.max(1, world.brickTotal);
+  // Progress: brick clearance (of the whole sector), or the boss's remaining health in the same slot.
+  const progress = boss ? boss.hp / boss.maxHp : hudProgress(world);
   ctx.fillStyle = 'rgba(39, 224, 255, 0.18)';
   ctx.fillRect(16, 78, width - 32, 6);
   ctx.fillStyle = boss ? '#ff9f2e' : '#27e0ff';

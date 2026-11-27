@@ -143,6 +143,7 @@ function boot(): void {
             crystals: session.run.crystals,
             rerollCost: session.rerollCost,
             skipReward: session.skipReward,
+            reward: session.sectorReward,
           },
           draftActions,
           width,

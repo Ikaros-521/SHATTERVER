@@ -126,6 +126,29 @@ export const OVERDRIVE_DURATION = 6;
 export const OVERDRIVE_FILL_SECONDS = 11;
 export const COMBO_TIME = 2.6;
 
+/**
+ * Wave sectors (`levels/generator.ts` → `wavesInLevel`). Past the campaign the endless mode pairs
+ * consecutive ordinary levels into sectors of this many waves: the next wave opens as soon as one
+ * falls, with no draft between them, and the sector pays at its end.
+ *
+ * Every wave is still a level in its own right — the same brick toughness, its own place on the
+ * boss roster, its own draft when the sector settles — so difficulty climbs exactly as it did
+ * when every level drafted on its own. What does change is that a sector's first draft arrives
+ * one wall late, a small cost the sector bonus below pays back. And it is two because it has to
+ * divide the four ordinary levels between two bosses, or a sector would straddle a boss.
+ */
+export const ENDLESS_WAVES = 2;
+
+/**
+ * What clearing a wave sector pays on top of the drafts its waves earned (`session.ts`): one
+ * crystal share per wave, the share growing with depth, and a point of shield back. The crystals
+ * are sized against a reroll — the only thing crystals buy mid-run — so a cleared sector is worth
+ * about seventy per cent of one.
+ */
+export const SECTOR_CLEAR_CRYSTALS_BASE = 8;
+export const SECTOR_CLEAR_CRYSTALS_PER_LEVEL = 2;
+export const SECTOR_CLEAR_SHIELD = 1;
+
 /** Safety valves. They should never bind in normal play; they exist so a runaway build cannot freeze the frame. */
 export const MAX_BALLS = 180;
 export const MAX_BULLETS = 36;

@@ -59,6 +59,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     statCrit: 'クリティカル率',
     buffs: 'パワーアップ',
     pauseAria: '一時停止',
+    wave: 'WAVE {n}/{total}',
   },
   starter: {
     title: '初期プロトコルを選択',
@@ -75,6 +76,12 @@ export const ja: UiDict & { content: ContentOverrides } = {
     skip: 'スキップ',
     newUpgrade: 'NEW',
     maxed: 'MAX',
+    // A wave sector's clear bonus, shown on each of the drafts it granted.
+    rewardEyebrow: 'SECTOR {code} CLEAR · 報酬 {n}/{total}',
+    rewardTitle: 'セクタークリア報酬',
+    rewardCrystals: 'クリスタル +{n}',
+    rewardShield: 'シールド +{n}',
+    rewardPicks: '選択回数 ×{n}',
   },
   pause: {
     title: '一時停止',
@@ -237,6 +244,8 @@ export const ja: UiDict & { content: ContentOverrides } = {
     overdriveSub: 'オーバードライブ',
     timeStopSub: '時停',
     sectorClearSub: 'セクター制覇',
+    waveClearSub: '次のウェーブへ',
+    waveCount: '全{n}ウェーブ',
     buffSub: '{name} · {n}秒',
     buffTwinSub: '{name} · 双共鳴 {n}秒',
     dodgeSub: 'シールド無傷',

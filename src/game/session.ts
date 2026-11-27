@@ -1,9 +1,14 @@
 import { Emitter } from '../core/emitter';
 import { hashCombine, RNG } from '../core/rng';
-import { MAX_HP_BASE } from './config';
+import {
+  MAX_HP_BASE,
+  SECTOR_CLEAR_CRYSTALS_BASE,
+  SECTOR_CLEAR_CRYSTALS_PER_LEVEL,
+  SECTOR_CLEAR_SHIELD,
+} from './config';
 import { isSupplyId, PRECHARGE_ENERGY, SUPPLY_CRYSTALS, type ShopProtocol } from './economy/catalog';
 import { difficultyOf, type Difficulty } from './difficulty';
-import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, type LevelPlan } from './levels/generator';
+import { buildLevel, CAMPAIGN_LENGTH, isBossLevel, sectorStart, type LevelPlan } from './levels/generator';
 import { createRun, type Run, type RunMode } from './run';
 import type { Starter } from './starters';
 import { rollDraft } from './upgrades/draft';
@@ -14,11 +19,37 @@ import { World } from './world';
 
 export type SessionPhase = 'playing' | 'draft' | 'over' | 'won';
 
+/**
+ * What clearing a wave sector paid, and how far into spending it the player is. Rides along on
+ * every draft the sector's clear granted.
+ */
+export interface SectorReward {
+  crystals: number;
+  /** Shield actually restored; 0 when the shield was already full. */
+  shield: number;
+  /** Drafts the clear granted: one per wave. */
+  picks: number;
+  /** 1-based index of the draft it was handed out with, among those picks. */
+  pick: number;
+}
+
 export interface SessionEvents {
   phase: { phase: SessionPhase; previous: SessionPhase };
+  /** A wave opened: the run's first, or the next wave of a sector — with no draft in between. */
   level: { plan: LevelPlan; first: boolean };
-  /** `intro` marks the opening draft (head start or a protocol's self-picks) before sector one. */
-  draft: { options: UpgradeDef[]; rerollCost: number; skipReward: number; intro: boolean };
+  /** The last wave of a wave sector fell. Its drafts follow, one per wave, through `draft`. */
+  sectorClear: { plan: LevelPlan; crystals: number; shield: number; picks: number };
+  /**
+   * `intro` marks the opening draft (head start or a protocol's self-picks) before sector one;
+   * `reward` marks the drafts a wave sector's clear granted.
+   */
+  draft: {
+    options: UpgradeDef[];
+    rerollCost: number;
+    skipReward: number;
+    intro: boolean;
+    reward: SectorReward | null;
+  };
   pick: { def: UpgradeDef; level: number };
   skip: Record<string, never>;
 }
@@ -45,6 +76,12 @@ export interface SessionOptions {
  * run at construction, free reroll and pre-charge and second wind ride along into each level,
  * and the head start (or a protocol's own self-picks, see `ShopProtocol.introPicks`) holds the
  * run in an opening draft until every pick is spent.
+ *
+ * Past the campaign the endless mode's ordinary levels come two to a sector (`wavesInLevel`):
+ * the next wave opens as soon as one falls, with nothing in between, and the sector settles once,
+ * at its end. Each wave is still the level it always was — same toughness, same place on the
+ * boss roster — and still earns the draft it always did; it is just dealt at the sector's end,
+ * both waves' drafts back to back, behind a sector-clear bonus.
  */
 export class Session {
   readonly events = new Emitter<SessionEvents>();
@@ -63,6 +100,9 @@ export class Session {
   readonly introRarities?: UpgradeDef['rarity'][];
   /** Opening picks already spent; past the first one, follow-up drafts skip what is owned. */
   private introTaken = 0;
+  /** Drafts still owed from the wave sector just cleared, the one on screen included. */
+  private rewardPicks = 0;
+  private reward: SectorReward | null = null;
 
   constructor(mode: RunMode, seed: number, options: SessionOptions = {}) {
     this.bot = options.bot ?? false;
@@ -120,13 +160,19 @@ export class Session {
   }
 
   get rerollCost(): number {
-    const base = 15 + this.run.level * 6 + this.rerolls * 12;
+    const base = 15 + this.draftLevel() * 6 + this.rerolls * 12;
     // 「保底刷新」: the first reroll of every draft is on the house; the second pays full price.
     return this.supplies.has('reroll') && this.rerolls === 0 ? 0 : base;
   }
 
   get skipReward(): number {
     return Math.round(20 * this.run.stats.crystalMult);
+  }
+
+  /** The wave sector bonus whose drafts are on the table — which of them, included; null on every other draft. */
+  get sectorReward(): SectorReward | null {
+    const earned = this.introPicks > 0 ? null : this.reward;
+    return earned ? { ...earned, pick: earned.picks - this.rewardPicks + 1 } : null;
   }
 
   choose(id: string): boolean {
@@ -138,7 +184,7 @@ export class Session {
     this.refreshStats();
     this.events.emit('pick', { def, level });
     if (this.introPicks > 0) return this.spendIntroPick();
-    return this.advance();
+    return this.spendRewardPick();
   }
 
   reroll(): boolean {
@@ -160,7 +206,7 @@ export class Session {
     this.events.emit('skip', {});
     if (this.introPicks > 0) return this.spendIntroPick();
     this.run.crystals += this.skipReward;
-    return this.advance();
+    return this.spendRewardPick();
   }
 
   /** Takes the rarest option. Used by the attract-mode demo. */
@@ -185,12 +231,20 @@ export class Session {
     // Levels get their own stream so build choices never change the layout of a given seed.
     const rng = new RNG(hashCombine(run.seed, run.level, 0x1e5e1));
     const plan = buildLevel(run.level, rng, this.difficulty);
+    // A sector is one place: its second wave keeps the name the first opened with.
+    if (plan.wave > 1) plan.name = this.sectorOpening(plan).name;
     return new World(run, plan, rng.fork(), {
       bot: this.bot,
       difficulty: this.difficulty,
       startEnergy: this.supplies.has('precharge') ? PRECHARGE_ENERGY : 0,
       secondWind: this.supplies.has('secondwind'),
     });
+  }
+
+  /** The plan of the sector's first wave — the level a wave sector takes its name from. */
+  private sectorOpening(later: LevelPlan): LevelPlan {
+    const first = sectorStart(later.index);
+    return buildLevel(first, new RNG(hashCombine(this.run.seed, first, 0x1e5e1)), this.difficulty);
   }
 
   /**
@@ -234,19 +288,39 @@ export class Session {
     run.bosses += world.bosses;
   }
 
+  /**
+   * A wave fell, and with it its level: counted, folded into the run, written to its history.
+   *
+   * A wave sector's first wave hands straight on to the second — no draft, no pause, which is
+   * what makes it a wave — and only the sector's last wave ends the level proper, with the
+   * drafts both waves earned and the sector's bonus on top. Everything a level did on its own
+   * it still does here, in the same order; the drafts are merely held until the sector is done.
+   */
   private finishLevel(): void {
     const run = this.run;
     const world = this.world;
+    const plan = world.level;
     run.levelsCleared++;
     this.collect();
     run.history.push({
       level: run.level,
-      name: world.level.name,
+      name: plan.name,
       time: world.time,
       killed: world.killed,
       maxCombo: world.maxCombo,
       damageTaken: world.damageTaken,
     });
+
+    if (plan.wave < plan.waves) {
+      // The level count moved, so the build's per-level growth moves with it — as it would
+      // behind a draft, minus the draft.
+      this.refreshStats();
+      run.level++;
+      this.world = this.openLevel();
+      // No phase change: to the interface it is the same run of play, a new wall.
+      this.events.emit('level', { plan: this.world.level, first: false });
+      return;
+    }
 
     if (run.mode === 'campaign' && run.level >= CAMPAIGN_LENGTH) {
       this.endRun(true);
@@ -257,8 +331,56 @@ export class Session {
 
     this.rerolls = 0;
     this.refreshStats();
+    this.reward = this.grantSectorReward(plan);
     this.setPhase('draft');
     this.rollNewDraft();
+  }
+
+  /**
+   * Books a wave sector's clear bonus and arms its drafts — one per wave, exactly the drafts the
+   * waves would each have been dealt had they settled on their own, handed out together now.
+   * Returns null on single-wave sectors, which pay the way they always did.
+   */
+  private grantSectorReward(plan: LevelPlan): SectorReward | null {
+    if (plan.waves <= 1) return null;
+    const run = this.run;
+    const crystals = Math.round(
+      plan.waves *
+        (SECTOR_CLEAR_CRYSTALS_BASE + SECTOR_CLEAR_CRYSTALS_PER_LEVEL * plan.index) *
+        run.stats.crystalMult,
+    );
+    const shield = Math.max(0, Math.min(SECTOR_CLEAR_SHIELD, run.maxHp - run.hp));
+    run.crystals += crystals;
+    run.hp += shield;
+    const reward: SectorReward = { crystals, shield, picks: plan.waves, pick: 1 };
+    this.rewardPicks = plan.waves;
+    this.events.emit('sectorClear', { plan, crystals, shield, picks: plan.waves });
+    return reward;
+  }
+
+  /**
+   * Spends one of the sector's drafts. While picks remain another goes up — each starts its
+   * rerolls afresh, as the draft of a level of its own would; at zero the next sector opens.
+   */
+  private spendRewardPick(): boolean {
+    this.rewardPicks = Math.max(0, this.rewardPicks - 1);
+    if (this.rewardPicks > 0) {
+      this.rerolls = 0;
+      this.rollNewDraft();
+      return true;
+    }
+    // Spent in full: nothing of this sector's reward carries into the next one's drafts.
+    this.reward = null;
+    return this.advance();
+  }
+
+  /**
+   * The depth a draft is dealt at. A wave sector's drafts are dealt together, but each stands
+   * for the wave that earned it: the first is dealt at the depth of the sector's first wave,
+   * which is what keeps the cards — and what a reroll costs — as if that wave had drafted itself.
+   */
+  private draftLevel(): number {
+    return this.rewardPicks > 1 ? this.run.level - (this.rewardPicks - 1) : this.run.level;
   }
 
   private rollNewDraft(): void {
@@ -268,18 +390,23 @@ export class Session {
     const intro = this.introPicks > 0;
     this.draft = rollDraft({
       levels: this.run.upgrades,
-      level: this.run.level,
+      level: this.draftLevel(),
       rng: this.rng,
       ...(intro
         ? { count: this.introRarities ? 4 : 3, rarities: this.introRarities }
         : {}),
       ...(intro && this.introTaken > 0 ? { exclude: Object.keys(this.run.upgrades) } : {}),
     });
+    // A copy per draft, its counter filled in: an event is a snapshot, and whoever held on to
+    // the last one must not see it change under them.
+    const earned = intro ? null : this.reward;
+    const reward = earned ? { ...earned, pick: earned.picks - this.rewardPicks + 1 } : null;
     this.events.emit('draft', {
       options: this.draft,
       rerollCost: this.rerollCost,
       skipReward: this.skipReward,
       intro,
+      reward,
     });
   }
 

@@ -90,6 +90,7 @@ export const zh = {
   },
   characterBoss: {
     name: '樱之誓约·绯樱',
+    title: '崩界绽放的誓约之樱',
     code: 'HIYOU',
     armor: '装甲完整度',
     shieldUp: '护盾未破',

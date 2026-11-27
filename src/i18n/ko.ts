@@ -65,6 +65,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
   },
   characterBoss: {
     name: '벚꽃 서약·희벚꽃',
+    title: '무너지는 세계에 피어나는 서약의 벚꽃',
     code: 'HIYOU',
     armor: '장갑 게이지',
     shieldUp: '방어막 유지',

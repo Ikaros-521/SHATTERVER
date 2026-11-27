@@ -65,6 +65,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
   },
   characterBoss: {
     name: '桜の誓約・緋桜',
+    title: '崩れゆく世界に咆く誓いの桜',
     code: 'HIYOU',
     armor: '装甲ゲージ',
     shieldUp: '盾は健在',

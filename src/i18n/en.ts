@@ -65,6 +65,7 @@ export const en: UiDict & { content: ContentOverrides } = {
   },
   characterBoss: {
     name: 'Vow of Sakura · Hiyou',
+    title: 'The vow that blooms through the fall',
     code: 'HIYOU',
     armor: 'Armour integrity',
     shieldUp: 'Shield up',

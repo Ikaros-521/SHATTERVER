@@ -849,15 +849,12 @@ export class UI implements HudHost {
     const price = `◆${formatNumber(cost)}`;
     const host = el('div', { class: 'card-ban' });
     if (this.banAsk?.def.id === def.id) {
-      const confirm = el(
-        'button',
-        {
-          class: 'btn btn-small card-ban-confirm',
-          type: 'button',
-          text: `${t('draft.banConfirm')} ${price}`,
-          onClick: () => this.confirmBan(),
-        },
-      );
+      const confirm = el('button', {
+        class: 'btn btn-small card-ban-confirm',
+        type: 'button',
+        text: `${t('draft.banConfirm')} ${price}`,
+        onClick: () => this.confirmBan(),
+      });
       host.append(
         confirm,
         el('button', {
@@ -871,17 +868,14 @@ export class UI implements HudHost {
       return host;
     }
     const locked = session.run.crystals < cost || session.draft.length <= 1;
-    const ask = el(
-      'button',
-      {
-        class: 'card-ban-btn',
-        type: 'button',
-        text: `${t('draft.ban')} ${price}`,
-        title: t('draft.banHint'),
-        'aria-label': `${t('draft.banHint')} · ${price}`,
-        onClick: () => this.askBan(def, session),
-      },
-    );
+    const ask = el('button', {
+      class: 'card-ban-btn',
+      type: 'button',
+      text: `${t('draft.ban')} ${price}`,
+      title: t('draft.banHint'),
+      'aria-label': `${t('draft.banHint')} · ${price}`,
+      onClick: () => this.askBan(def, session),
+    });
     if (locked) ask.disabled = true;
     host.append(ask);
     return host;
@@ -2293,7 +2287,16 @@ export class UI implements HudHost {
     const mutator = plan.modifier
       ? t('callouts.bannerMutator', { name: mutatorName(plan.modifier), desc: mutatorDesc(plan.modifier) })
       : undefined;
-    if (plan.boss) {
+    // Her sector opens with her name, not the lattice def the plan still carries.
+    if (session.world.character) {
+      this.banner({
+        title: t('characterBoss.code'),
+        sub: t('characterBoss.name'),
+        note: t('characterBoss.title'),
+        color: 0xff5fd8,
+        duration: 2.6,
+      });
+    } else if (plan.boss) {
       this.banner({
         title: plan.boss.en,
         sub: bossName(plan.boss),

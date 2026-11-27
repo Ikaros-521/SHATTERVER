@@ -142,6 +142,13 @@ export interface Placed {
   look: PartLook;
 }
 
+/**
+ * How much higher her body rides on her neck than it was first drawn, in figure units. Drawn to
+ * the collar, her neck was long. Everything below her head is placed this much higher; her face,
+ * her hair and what she wears on her head are not.
+ */
+export const BODY_Y = -6;
+
 /** How far the head leans, in radians: positive droops towards her right shoulder. */
 function headTilt(face: FaceId, time: number): number {
   switch (face) {
@@ -193,34 +200,41 @@ export function placeHiyou(frame: BossFrame, out: Placed[] = []): Placed[] {
       put(
         `blade.${i}${torn ? '~' : ''}`,
         side * (rootX + wing.dx),
-        rootY + wing.dy,
+        rootY + wing.dy + BODY_Y,
         wing,
         side * angle,
         side < 0,
       );
     }
-    put(`spar.${tag}.${wing.state}`, side * wing.dx, wing.dy, wing);
+    put(`spar.${tag}.${wing.state}`, side * wing.dx, wing.dy + BODY_Y, wing);
   }
 
   // The hair behind her goes where her head goes.
   if (look.Head.state !== 'destroyed') put('backHair', look.Head.dx, look.Head.dy, look.Head);
 
-  put('hover', 0, 0, AT_REST);
+  put('hover', 0, BODY_Y, AT_REST);
 
-  if (look.Body.state !== 'destroyed') put(`torso.${look.Body.state}`, look.Body.dx, look.Body.dy, look.Body);
+  if (look.Body.state !== 'destroyed')
+    put(`torso.${look.Body.state}`, look.Body.dx, look.Body.dy + BODY_Y, look.Body);
 
   // The arms hang a little away from the body and sway with her breathing; the pauldrons float,
-  // drifting a little out of step with her and with each other.
+  // drifting a little out of step with her and with each other, and sit a little lower than the
+  // rest of her body rides: at its full height they came up to her chin.
   for (const [side, tag] of SIDES) {
     const arm = side < 0 ? look.LeftArm : look.RightArm;
     if (arm.state !== 'destroyed') {
       const sway = Math.sin(time * 1.4 + (side > 0 ? 0 : 0.9)) * 1.2;
-      put(`arm.${tag}.${arm.state}`, side * (arm.dx + sway), arm.dy, arm);
+      put(`arm.${tag}.${arm.state}`, side * (arm.dx + sway), arm.dy + BODY_Y, arm);
     }
     const pauldron = side < 0 ? look.LeftShoulder : look.RightShoulder;
     if (pauldron.state !== 'destroyed') {
       const drift = Math.sin(time * 1.3 + (side > 0 ? 1.7 : 0)) * 1.6;
-      put(`pauldron.${tag}.${pauldron.state}`, side * pauldron.dx, pauldron.dy + drift, pauldron);
+      put(
+        `pauldron.${tag}.${pauldron.state}`,
+        side * pauldron.dx,
+        pauldron.dy + drift + BODY_Y + 3,
+        pauldron,
+      );
     }
   }
 
@@ -237,16 +251,16 @@ export function placeHiyou(frame: BossFrame, out: Placed[] = []): Placed[] {
   // The core turns in its socket, with two arcs of light going round it; the shield shimmers.
   const core = look.Core;
   if (core.state !== 'destroyed') {
-    put('coreGem', core.dx, CORE_Y + core.dy, core, time * 0.3);
-    put('coreArc0', core.dx, CORE_Y + core.dy, core, time * 1.7);
-    put('coreArc1', core.dx, CORE_Y + core.dy, core, time * 1.7 + Math.PI);
+    put('coreGem', core.dx, CORE_Y + core.dy + BODY_Y, core, time * 0.3);
+    put('coreArc0', core.dx, CORE_Y + core.dy + BODY_Y, core, time * 1.7);
+    put('coreArc1', core.dx, CORE_Y + core.dy + BODY_Y, core, time * 1.7 + Math.PI);
   }
   const shield = look.CoreShield;
   if (shield.state !== 'destroyed') {
     put(
       'shield',
       shield.dx,
-      CORE_Y + shield.dy,
+      CORE_Y + shield.dy + BODY_Y,
       shield,
       0,
       false,
@@ -262,7 +276,7 @@ export function coreLight(frame: BossFrame): { x: number; y: number; alpha: numb
   if (core.state === 'destroyed') return null;
   return {
     x: core.dx,
-    y: CORE_Y + core.dy,
+    y: CORE_Y + core.dy + BODY_Y,
     alpha:
       (0.26 + 0.08 * (0.5 + 0.5 * Math.sin(frame.time * 4.2))) * (1 - core.flash * 0.5) + core.flash * 0.3,
   };

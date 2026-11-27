@@ -150,13 +150,15 @@ describe("绯樱's head, by the proportions it is drawn to", () => {
     expect(halfAt(-122) / (width / 2)).toBeLessThan(0.6);
   });
 
-  it('sets the eyes wide apart, their outer corners at the edge of the face', () => {
+  // As wide apart as the reference face (0.41 of the width between the inner corners) she looked
+  // strange: her pupils too far apart.
+  it('sets the eyes a touch under the width of one eye apart, well in from the edge of the face', () => {
     const eyeWidth = span(eye, 0);
     expect(eyeWidth / width).toBeCloseTo(0.285, 1);
     expect(span(eye, 1) / width).toBeCloseTo(0.21, 1);
     const gap = 2 * (ex - eyeWidth / 2);
-    expect(gap / width).toBeGreaterThan(0.36);
-    expect(gap / width).toBeLessThan(0.42);
+    expect(gap / width).toBeGreaterThan(0.21);
+    expect(gap / width).toBeLessThan(0.27);
     expect(ex + eyeWidth / 2).toBeLessThan(width / 2);
   });
 

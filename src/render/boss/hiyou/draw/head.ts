@@ -26,9 +26,10 @@ import { INK } from './palette';
  * proportions measured off drawn anime faces, in widths of the face itself (W, the face across the
  * eyes):
  *
- *   the eyes   0.6 W below the crown, their middles 0.35 W out from the middle of the face, so
- *              that 0.41 W lies between their inner corners and their outer corners reach the edge
- *              of the face; each opening 0.28 W wide and 0.22 W tall
+ *   the eyes   0.6 W below the crown, their middles 0.26 W out from the middle of the face, so
+ *              that 0.24 W — a touch under one eye's width — lies between their inner corners;
+ *              each opening 0.28 W wide and 0.22 W tall. As wide apart as the reference (0.41 W)
+ *              she looked strange: her pupils too far apart.
  *   the iris   a tall oval, 0.17 W wide, set towards the inner corner: as tall as the eye is open
  *   the nose   a third of the way from the eyes to the chin; the mouth a little over half way
  *   the chin   small: the jaw is full to the level of the nose, then drawn in to a rounded point
@@ -44,7 +45,7 @@ const SIDES: readonly Side[] = [-1, 1];
 
 /** Where the eyes sit: the middle of each opening, and how far it is from the middle of the face. */
 const EYE_Y = -165.5;
-const EYE_X = 26.8;
+const EYE_X = 21.2;
 
 /** The same, as the tests read them. */
 export const EYE_AT: readonly [number, number] = [EYE_X, EYE_Y];
@@ -62,10 +63,10 @@ export const FACE = bothHalves(
 const JAW = 'M 40.3 -169 C 40.4 -145 31 -131 17.7 -124.5 C 13 -123.5 5 -117 0 -117';
 
 /** The neck, from under the jaw down to the collar. */
-const NECK = 'M -13.5 -128 L -14.5 -98 L 14.5 -98 L 13.5 -128 Z';
+const NECK = 'M -14.5 -128 L -15.5 -97 L 15.5 -97 L 14.5 -128 Z';
 
 /** The shadow the jaw throws on the neck. */
-const NECK_SHADOW = 'M -15 -128 L 15 -128 L 15 -108 Q 0 -102.5 -15 -108 Z';
+const NECK_SHADOW = 'M -15.5 -128 L 15.5 -128 L 15.5 -105 Q 0 -99.5 -15.5 -105 Z';
 
 /** The upper lid of the open right eye, about the eye's middle: in from its inner corner, up to its peak. */
 const LID_IN: readonly number[] = [-11.5, 1.2, -9.9, -4.2, -6.2, -8.6, -0.6, -8.6];
@@ -208,18 +209,18 @@ interface Brow {
 }
 
 const BROWS: Record<FaceId, Brow> = {
-  idle: { from: [7.4, -185], by: [15.5, -188.4], to: [23.6, -186.8] },
-  smug: { from: [7.4, -188.2], by: [15.5, -190.8], to: [23.6, -189.6] },
-  surprised: { from: [7.4, -189.2], by: [15.5, -193.2], to: [23.6, -190.8] },
-  angry: { from: [6.8, -182.2], by: [14.4, -184.6], to: [24, -190] },
-  hurt: { from: [7, -188.2], by: [14.4, -186.8], to: [23.4, -184] },
-  awakened: { from: [6.8, -181.4], by: [14.4, -185.2], to: [24, -191] },
-  defeated: { from: [7, -186.6], by: [14.4, -185.4], to: [23.4, -185.2] },
+  idle: { from: [5.2, -185], by: [12.8, -188.4], to: [20.4, -186.8] },
+  smug: { from: [5.2, -188.2], by: [12.8, -190.8], to: [20.4, -189.6] },
+  surprised: { from: [5.2, -189.2], by: [12.8, -193.2], to: [20.4, -190.8] },
+  angry: { from: [3.2, -182.2], by: [10.8, -184.6], to: [20.4, -190] },
+  hurt: { from: [3.4, -188.2], by: [10.8, -186.8], to: [19.8, -184] },
+  awakened: { from: [3.2, -181.4], by: [10.8, -185.2], to: [20.4, -191] },
+  defeated: { from: [3.4, -186.6], by: [10.8, -185.4], to: [19.8, -185.2] },
 };
 
 /** The brow that disagrees on a lopsided face: the left one. */
 const LEFT_BROWS: Partial<Record<FaceId, Brow>> = {
-  smug: { from: [7.4, -183.2], by: [15.5, -184.8], to: [23.6, -185] },
+  smug: { from: [5.2, -183.2], by: [12.8, -184.8], to: [20.4, -185] },
 };
 
 /** A width read from keyframes of [how far along, width], straight between them. */
@@ -478,7 +479,7 @@ function drawEye(ctx: CanvasRenderingContext2D, eye: EyeLook, side: Side): void 
   // The iris: taller than the eye is open — the lid takes its top, the lower lid its foot — and
   // set towards the inner corner, so that most of the white shows on the outer side.
   const iris = eye.iris;
-  const ix = -3.2;
+  const ix = -2.2;
   const iy = 0.9;
   const rx = 6.9 * iris;
   const ry = 9.1 * iris;
@@ -730,14 +731,14 @@ export function drawBackHair(ctx: CanvasRenderingContext2D): void {
 /** The blush: a soft flush with three strokes of red drawn across it, as a comic draws one. */
 function drawBlush(ctx: CanvasRenderingContext2D, side: Side): void {
   ctx.save();
-  ctx.translate(side * 23.5, -149.5);
+  ctx.translate(side * 21, -149.5);
   ctx.scale(1, 0.5);
   ctx.fillStyle = glow(ctx, 0, 0, rgba(0xff9db2, 0.34), 6, 13.5);
   ctx.fillRect(-14, -14, 28, 28);
   ctx.restore();
   // The strokes rise the same way on both cheeks.
   for (let i = 0; i < 3; i++) {
-    const x = side * 23.5 - 5.6 + i * 2.8;
+    const x = side * 21 - 5.6 + i * 2.8;
     tapered(
       ctx,
       [

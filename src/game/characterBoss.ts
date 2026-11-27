@@ -195,8 +195,17 @@ export function characterAttack(boss: CharacterBoss): CharacterAttack {
   return { kind: wings ? 'wings' : 'orb', scatter: wings ? 0 : boss.state.phase >= 3 ? 10 : 8 };
 }
 
-/** The phase she has come to, and whether this step crossed into a new one. */
-export function characterPhase(boss: CharacterBoss): { phase: number; changed: boolean } {
+/**
+ * The phase she has come to, and whether this step crossed into a new one. Crossing into the third
+ * tears her shield off for good, if it is still on her — `fell` names it when it did — and from
+ * there the core is fair game.
+ */
+export function characterPhase(boss: CharacterBoss): {
+  phase: number;
+  changed: boolean;
+  /** The part this step tore off by itself, if any. */
+  fell: BossPartId | null;
+} {
   let standing = 0;
   let total = 0;
   for (const part of HIYOU_PARTS) {
@@ -210,15 +219,25 @@ export function characterPhase(boss: CharacterBoss): { phase: number; changed: b
   const lost = 1 - standing / total;
   const phase = lost >= 0.85 ? 4 : lost >= 0.55 ? 3 : lost >= 0.215 ? 2 : 1;
   const changed = phase > boss.state.phase;
+  let fell: BossPartId | null = null;
   if (changed) {
     boss.state.phase = phase;
-    // The shield is down for good from the third phase: the core is fair game.
-    if (phase >= 3) boss.state.shielded = false;
+    // The shield is down for good from the third phase: it comes off her, and the core is fair game.
+    if (phase >= 3) {
+      boss.state.shielded = false;
+      const shield = boss.state.look.CoreShield;
+      if (shield.state !== 'destroyed') {
+        shield.state = 'destroyed';
+        boss.wear.CoreShield = 0;
+        boss.state.integrity = integrityOf(boss.state.look);
+        fell = 'CoreShield';
+      }
+    }
     if (phase === 2) boss.pendingLine = 'phase2';
     if (phase === 3) boss.pendingLine = 'phase3';
     if (phase === 4) boss.pendingLine = 'phase4';
   }
-  return { phase, changed };
+  return { phase, changed, fell };
 }
 
 /** True once every part of her is gone. */

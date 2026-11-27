@@ -134,7 +134,8 @@ export function discsOf(
 ): BossDisc[] {
   const c = Math.cos(tilt);
   const s = Math.sin(tilt);
-  return HIT_ORDER.map((part) => {
+  // A part that is torn off is not there: no ball sweeps it, and nothing draws it.
+  return HIT_ORDER.filter((part) => look[part.id].state !== 'destroyed').map((part) => {
     const at = look[part.id];
     const fx = part.fx + at.dx + swayX;
     const fy = part.fy + at.dy;

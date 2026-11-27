@@ -929,10 +929,14 @@ export class World {
     const s = this.live;
     const power = ballPower(this, ball);
     const crit = this.rng.chance(s.critChance);
-    // The sweep keys her parts by negative number; the part they name is looked up here.
-    const disc = this.characterDiscs().find((each) => each.key === key);
+    // The sweep keys her parts by negative number; the part they name is looked up here. Where
+    // every part sits is taken first: one this blow tears off is gone from the list after.
+    const before = this.characterDiscs();
+    const disc = before.find((each) => each.key === key);
     if (!disc) return;
     const id = disc.id;
+    const look = boss.state.look[id as keyof typeof boss.state.look];
+    const was = look.state;
     const dealt = hitCharacterPart(boss, id, power * (crit ? s.critMult : 1), nx, ny);
     if (!(dealt > 0)) return;
 
@@ -957,23 +961,31 @@ export class World {
       color: 0xff5fd8,
     });
 
-    const look = boss.state.look[id as keyof typeof boss.state.look];
-    const before = look.state;
-    const { changed } = characterPhase(boss);
-    if (look.state !== before) {
-      // Where the part sits this frame, so the feedback lands on it as it sways.
-      const disc = this.characterDiscs().find((each) => each.id === id);
+    const { changed, fell } = characterPhase(boss);
+    // Where a part sat as it was torn off, so the feedback lands on it where it sways.
+    const sat = (part: string): BossDisc | undefined => before.find((each) => each.id === part);
+    if (look.state !== was) {
+      const where = sat(id);
       this.events.emit('characterPart', {
         id,
         state: look.state,
-        x: disc?.x ?? cx,
-        y: disc?.y ?? cy,
+        x: where?.x ?? cx,
+        y: where?.y ?? cy,
       });
       if (look.state === 'destroyed' && id !== 'Core') {
         boss.state.face = 'hurt';
         boss.state.line = 'partDown';
         boss.quietFor = 0;
       }
+    }
+    if (fell) {
+      const where = sat(fell);
+      this.events.emit('characterPart', {
+        id: fell,
+        state: 'destroyed',
+        x: where?.x ?? cx,
+        y: where?.y ?? cy,
+      });
     }
     if (changed) {
       this.events.emit('character', {
@@ -1017,20 +1029,23 @@ export class World {
       this.character.state.face = this.character.state.phase >= 3 ? 'angry' : 'idle';
     }
     // Her attacks fire from where her parts actually are this frame: the wings volley from their
-    // discs, the core's heavy orb grows from hers and bursts into scatter shots on a fuse.
+    // discs, the core's heavy orb grows from hers and bursts into scatter shots on a fuse. A part
+    // that is torn off fires nothing.
     this.character.attackCd -= dt;
     if (this.character.attackCd > 0) return;
     const discs = this.characterDiscs();
-    const discOf = (id: BossPartId): BossDisc => discs.find((disc) => disc.id === id)!;
+    const discOf = (id: BossPartId): BossDisc | undefined => discs.find((disc) => disc.id === id);
     const attack = characterAttack(this.character);
     if (attack.kind === 'wings') {
       for (const id of ['LeftWing', 'RightWing'] as BossPartId[]) {
         const wing = discOf(id);
+        if (!wing) continue;
         this.shoot(wing.x, wing.y + wing.radius * 0.4);
         this.shoot(wing.x, wing.y + wing.radius * 0.4);
       }
     } else {
       const core = discOf('Core');
+      if (!core) return;
       const aim = Math.atan2(this.paddle.y - core.y, this.paddle.x - core.x);
       const speed = 190 + this.level.index * 3;
       this.bullets.push({

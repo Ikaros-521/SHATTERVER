@@ -110,6 +110,52 @@ describe('绯樱 as a fight', () => {
     expect(hitCharacterPart(boss, 'Core', 100, 0, 1)).toBeGreaterThan(0);
   });
 
+  it('tears the shield off herself at the third phase, if it is still on her', () => {
+    const boss = startCharacterBoss();
+    const wearOut = (id: BossPartId): void => {
+      const part = HIYOU_PARTS.find((each) => each.id === id)!;
+      for (let i = 0; i < Math.ceil(part.hp / 3) * 3; i++) hitCharacterPart(boss, id, 100, 0, 1);
+    };
+    for (const id of [
+      'LeftArm',
+      'RightArm',
+      'Head',
+      'LeftShoulder',
+      'RightShoulder',
+      'LeftWing',
+      'RightWing',
+    ] as BossPartId[]) {
+      wearOut(id);
+    }
+    // Still whole, and counted in her standing: the shield comes off with the phase.
+    expect(boss.state.look.CoreShield.state).toBe('intact');
+    const before = boss.state.integrity;
+    const crossed = characterPhase(boss);
+    expect(crossed).toMatchObject({ phase: 3, changed: true, fell: 'CoreShield' });
+    expect(boss.state.look.CoreShield.state).toBe('destroyed');
+    expect(boss.state.integrity).toBeCloseTo(before - PART_WEIGHT.CoreShield, 5);
+    // Asked again, it has nothing more to tear off.
+    expect(characterPhase(boss)).toMatchObject({ phase: 3, changed: false, fell: null });
+  });
+
+  it('has nothing where a torn-off part was', () => {
+    const boss = startCharacterBoss();
+    const whole = characterDiscsOf(boss);
+    expect(whole).toHaveLength(10);
+    for (let i = 0; i < 18; i++) hitCharacterPart(boss, 'Head', 100, 0, 1);
+    expect(boss.state.look.Head.state).toBe('destroyed');
+    const left = characterDiscsOf(boss);
+    expect(left).toHaveLength(9);
+    expect(left.map((disc) => disc.id)).not.toContain('Head');
+    // The keys of the rest are as they were: a ball's memory of a part is still its own.
+    expect(left.map((disc) => disc.key)).toEqual(
+      whole.filter((disc) => disc.id !== 'Head').map((disc) => disc.key),
+    );
+    // A part still on her, worn or whole, is still swept.
+    for (let i = 0; i < 7; i++) hitCharacterPart(boss, 'LeftArm', 100, 0, 1);
+    expect(characterDiscsOf(boss).find((disc) => disc.id === 'LeftArm')?.state).toBe('damaged_1');
+  });
+
   it('is not beaten while one part stands, whatever the rest', () => {
     const boss = startCharacterBoss();
     for (const part of HIT_ORDER) {

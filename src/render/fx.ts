@@ -338,35 +338,28 @@ export class Fx {
 
   private onHit(e: WorldEvents['hit']): void {
     this.frameEvents++;
-    const brick = e.brick;
+    // A hit on a character boss's part carries no brick: the event names the colour instead.
+    const color = e.color ?? e.brick?.color ?? 0xffffff;
 
     if (e.source === 'dot') {
-      if (Math.random() < 0.08) this.popup(e.x, e.y, e.dmg, brick.color, 15, false, true);
+      if (Math.random() < 0.08) this.popup(e.x, e.y, e.dmg, color, 15, false, true);
       return;
     }
     if (e.source === 'ball') {
       const crit = e.crit;
-      const color = crit ? 0xffd24a : e.execute ? 0xd9a6ff : 0xffffff;
+      const pop = crit ? 0xffd24a : e.execute ? 0xd9a6ff : 0xffffff;
       if (crit || this.popups.length < 90 || Math.random() < 0.3) {
-        this.popup(e.x, e.y, e.dmg, color, crit ? 40 : e.execute ? 32 : 26, crit, false);
+        this.popup(e.x, e.y, e.dmg, pop, crit ? 40 : e.execute ? 32 : 26, crit, false);
       }
-      this.sparks(
-        e.x,
-        e.y,
-        crit ? 10 : 4,
-        crit ? 0xffd24a : brick.color,
-        crit ? 420 : 260,
-        0.4,
-        crit ? 3 : 2,
-      );
+      this.sparks(e.x, e.y, crit ? 10 : 4, crit ? 0xffd24a : color, crit ? 420 : 260, 0.4, crit ? 3 : 2);
       this.camera.shake(crit ? 0.03 : 0.012);
       return;
     }
     // Secondary and area damage share one number per neighbourhood.
     if (Math.random() < (e.source === 'secondary' ? 0.34 : 0.1) * this.quality()) {
-      this.popup(e.x, e.y, e.dmg, brick.color, 17, false, true);
+      this.popup(e.x, e.y, e.dmg, color, 17, false, true);
     }
-    if (e.source === 'secondary') this.sparks(e.x, e.y, 2, brick.color, 180, 0.3, 1.6);
+    if (e.source === 'secondary') this.sparks(e.x, e.y, 2, color, 180, 0.3, 1.6);
   }
 
   private onKill(brick: Brick, big: boolean): void {

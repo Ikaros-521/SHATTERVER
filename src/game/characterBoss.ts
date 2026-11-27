@@ -72,7 +72,7 @@ export function startCharacterBoss(): CharacterBoss {
     tilt: 0,
     swayT: 0,
     quietFor: 0,
-    pendingLine: null,
+    pendingLine: 'intro',
   };
 }
 

@@ -103,7 +103,7 @@ import {
   type Shard,
 } from './entities';
 import { CHAPTERS, COMBO_TIERS, type BossDef, type ReactionId, type SummonKind } from './levels/definitions';
-import type { LevelPlan } from './levels/generator';
+import { CAMPAIGN_LENGTH, type LevelPlan } from './levels/generator';
 import type { Run } from './run';
 import type { BuildStats } from './upgrades/stats';
 
@@ -158,6 +158,8 @@ export interface WorldEvents {
     execute: boolean;
     source: DamageSource;
     brick: Brick;
+    /** The colour to draw the impact in, when it is not the brick's own (a character boss's part). */
+    color?: number;
   };
   kill: { brick: Brick; big: boolean };
   /** A brick sank past the danger line. */
@@ -358,11 +360,14 @@ export class World {
     if (this.stats.singularity) this.singularity = { t: 0, tick: 0 };
     this.paddle.halfW = (PADDLE_W / 2) * this.stats.paddleWidth * this.diff.paddleMult;
     if (this.diff.purgePeriod > 0) this.purgeT = this.diff.purgePeriod * 0.6;
-    // A level with a character boss has her. Which levels do is the level plan's business, and
-    // until that plan names her she stands on none: her fight is not playable without the layer
-    // and the HUD that show her, and a boss the player cannot see would be an unfair one.
-    // `opts.character` stands in for that plan while the layer is still being built.
-    this.character = opts.character ? startCharacterBoss() : null;
+    // A character boss rules the campaign's last sector: there she takes the lattice boss's
+    // place — same slot, same slot number, a very different fight. The plan still carries the
+    // lattice def (its name and code stay), and the world below spawns her instead of its bricks.
+    // `opts.character` is the build's hand raised: only a build that can show her offers her.
+    this.character =
+      opts.character && this.level.boss !== null && this.level.index === CAMPAIGN_LENGTH
+        ? startCharacterBoss()
+        : null;
     this.buildBricks();
     this.spawnBalls();
     this.dockBalls();
@@ -380,7 +385,10 @@ export class World {
   // ───────────────────────────── setup ─────────────────────────────
 
   private buildBricks(): void {
-    const { cells, hpUnit, modifier, bossScale } = this.level;
+    const { hpUnit, modifier, bossScale } = this.level;
+    // Where she stands, the lattice boss's body is not built: its cells all carry boss roles, and
+    // those are her fight now. Nothing else is skipped.
+    const cells = this.character ? this.level.cells.filter((cell) => !cell.role) : this.level.cells;
     for (const cell of cells) {
       const part = cell.role ? BOSS_HP[cell.role] * bossScale : BRICK_HP[cell.type];
       const hp = Math.max(1, Math.round(hpUnit * part));
@@ -397,7 +405,9 @@ export class World {
       this.bricks.push(brick);
     }
     this.brickTotal = this.bricks.length;
-    const boss = this.level.boss;
+    // Where she stands there is no lattice boss state: its sway loop, summons and shots all hang
+    // off it, and her fight runs instead.
+    const boss = this.character ? null : this.level.boss;
     if (boss) {
       const maxHp = this.bricks.reduce((sum, brick) => sum + brick.hp, 0);
       this.boss = {
@@ -926,7 +936,9 @@ export class World {
       crit,
       execute: false,
       source: 'ball',
+      // No brick: the part is hers, and the impact draws in her energy colour.
       brick: null as never,
+      color: 0xff5fd8,
     });
 
     const look = boss.state.look[id as keyof typeof boss.state.look];

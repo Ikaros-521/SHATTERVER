@@ -8,9 +8,9 @@
  * the CJK labels ride the 2D canvas for free.
  *
  * Visible content, top to bottom: shield pips, the sector code and its clear/boss progress, the
- * crystal count, the big score, the combo readout, the build strip (one rarity-tinted tile per
- * owned upgrade), the buff chips (codename + countdown + drain bar), the overdrive prompt, and
- * the pause button.
+ * crystal count, the big score, the combo readout, the build strip (one procedural sigil icon per
+ * owned upgrade with its level), the buff chips (sigil + countdown + drain bar), the overdrive
+ * prompt, and the pause button.
  */
 
 import { t } from '../core/i18n';
@@ -19,9 +19,10 @@ import { COMBO_TIME } from '../game/config';
 import { COMBO_TIERS } from '../game/levels/definitions';
 import { BUFF_MAP } from '../game/buffs/defs';
 import { UPGRADE_MAP } from '../game/upgrades/defs';
-import { RARITY_INFO } from '../game/upgrades/present';
+import { RARITY_INFO, upgradeColor } from '../game/upgrades/present';
 import { bossName, comboTierLabel, levelName } from '../i18n/content';
 import { rgba } from '../ui/canvas/theme';
+import { sigilCanvas } from '../ui/sigil';
 import type { Session } from '../game/session';
 import type { Run } from '../game/run';
 import type { World } from '../game/world';
@@ -244,25 +245,21 @@ function drawBuildStrip(
     const def = UPGRADE_MAP[id];
     if (!def) continue;
     const tint = rgba(RARITY_INFO[def.rarity].color, 1);
-    const code = (def.code || id).slice(0, 3);
+    const levelText = String(lv ?? 1);
     ctx.font = `700 10px ${font}`;
-    const codeW = ctx.measureText(code).width;
-    const levelText = (lv ?? 1) > 1 ? `×${lv}` : '';
-    ctx.font = `700 9px ${font}`;
-    const levelW = levelText ? ctx.measureText(levelText).width : 0;
-    const w = 10 + codeW + (levelText ? 6 + levelW : 0) + 10;
+    const levelW = ctx.measureText(levelText).width;
+    const w = 4 + 18 + 3 + levelW + 8;
     if (x + w > width - STRIP_X) {
       x = STRIP_X;
       y += CHIP_STEP;
     }
     drawChip(ctx, x, y, w, tint);
-    ctx.fillStyle = '#eaf2ff';
-    ctx.font = `700 10px ${font}`;
-    ctx.fillText(code, x + 10, y + 6);
-    if (levelText) {
-      ctx.fillStyle = '#ffd24a';
-      ctx.fillText(levelText, x + 10 + codeW + 6, y + 7);
-    }
+    // The same procedural sigil the DOM build panel shows, drawn from an offscreen canvas.
+    const sig = sigilCanvas(def.id, upgradeColor(def.tags, def.rarity));
+    const size = sig.size * (18 / sig.size);
+    ctx.drawImage(sig.canvas, x + 4, y + 2, size, size);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillText(levelText, x + 4 + 18 + 3, y + 6);
     x += w + 6;
   }
   return y + CHIP_STEP;
@@ -282,16 +279,20 @@ function drawBuffChips(
     const def = BUFF_MAP[buff.id];
     if (!def) continue;
     const tint = rgba(def.color, 1);
-    const text = `${def.code} ${Math.ceil(buff.t)}`;
+    const text = `${Math.ceil(buff.t)}`;
     ctx.font = `700 10px ${font}`;
-    const w = 10 + ctx.measureText(text).width + 10;
+    const textW = ctx.measureText(text).width;
+    const w = 3 + 16 + 3 + textW + 7;
     if (x + w > width - STRIP_X) {
       x = STRIP_X;
       y += CHIP_STEP;
     }
     drawChip(ctx, x, y, w, tint);
+    const sig = sigilCanvas(`buff:${buff.id}`, def.color);
+    const size = sig.size * (16 / sig.size);
+    ctx.drawImage(sig.canvas, x + 3, y + 3, size, size);
     ctx.fillStyle = '#eaf2ff';
-    ctx.fillText(text, x + 10, y + 6);
+    ctx.fillText(text, x + 3 + 16 + 3, y + 6);
     const frac = Math.max(0, Math.min(1, buff.t / Math.max(0.001, buff.max)));
     ctx.fillStyle = tint;
     ctx.fillRect(x + 1, y + CHIP_H - 3, (w - 2) * frac, 2);

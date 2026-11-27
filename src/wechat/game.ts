@@ -21,7 +21,7 @@ import { GL } from '../render/gl';
 import { loadSave, storeSave, type SaveData, type Settings } from '../core/storage';
 import { setLang, type Lang } from '../core/i18n';
 import { AudioDirector } from '../audio/director';
-import { onPageVisible } from '../audio/page';
+
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
 import type { Starter } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
@@ -675,6 +675,7 @@ function boot(): void {
   function frame(now: number): void {
     const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
     lastTime = now;
+    lastFrameAt = now;
     if (current.kind === 'run' && world) {
       // The run renders itself, then the HUD overlay composites on top — its texture uploads
       // only when a displayed value changed (score ticks on hits, ~10 Hz, not per frame).
@@ -707,17 +708,24 @@ function boot(): void {
   // the game on any focus loss), which would kill a self-rescheduling loop forever — the canvas
   // freezes mid-run while every touch handler keeps working. Bumping the epoch retires any
   // zombie chain; one fresh frame re-enters the loop. dt clamps make the catch-up safe.
+  //
+  // The revive is driven by a watchdog timer rather than wx.onShow: inside the developer tools
+  // a mere window focus switch does not fire show/hide events, so the only observable sign of a
+  // dead chain is the frame clock itself going silent.
   let rafEpoch = 0;
+  let lastFrameAt = 0;
   const schedule = (): void => {
     const epoch = rafEpoch;
     requestAnimationFrame((now) => {
       if (epoch === rafEpoch) frame(now);
     });
   };
-  onPageVisible(() => {
-    rafEpoch++;
-    schedule();
-  });
+  setInterval(() => {
+    if (lastFrameAt > 0 && Date.now() - lastFrameAt > 1500) {
+      rafEpoch++;
+      schedule();
+    }
+  }, 1000);
   schedule();
 }
 

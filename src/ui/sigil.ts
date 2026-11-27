@@ -7,24 +7,19 @@ import { hashString, RNG } from '../core/rng';
  * Rather than forty hand-drawn glyphs (or emojis), each upgrade gets a "sigil": a radially
  * symmetric geometric mark generated from a hash of its id. They are all built from the same
  * vocabulary — rings, ticks, star polygons, dots — so the set looks like one system while every
- * upgrade is individually recognisable. Drawn once into a canvas and cached as a data URL.
+ * upgrade is individually recognisable.
+ *
+ * `drawSigil` is the platform-neutral core (a plain 2D context, no DOM); the DOM build wraps it
+ * in a data URL for `<img>`, and the WeChat shell calls it directly on an offscreen canvas for
+ * `drawImage` onto the HUD.
  */
 
-const cache = new Map<string, string>();
 const SIZE = 128;
 
-export function sigil(id: string, color: number): string {
-  const key = `${id}:${color}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-
+/** A 2D context whose canvas this function fully owns (no clearing needed — drawn once). */
+export function drawSigil(ctx: CanvasRenderingContext2D, id: string, color: number): void {
   const rng = new RNG(hashString(id));
   const pick = <T>(items: readonly T[]): T => rng.pick(items);
-  const canvas = document.createElement('canvas');
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
   const css = cssHex(color);
   const center = SIZE / 2;
   ctx.translate(center, center);
@@ -142,8 +137,57 @@ export function sigil(id: string, color: number): string {
   ctx.shadowColor = css;
   ctx.shadowBlur = 16;
   ctx.fill();
+}
+
+const cache = new Map<string, string>();
+
+/** DOM build: the sigil baked into a data URL for an `<img>` element. */
+export function sigil(id: string, color: number): string {
+  const key = `${id}:${color}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  drawSigil(ctx, id, color);
 
   const url = canvas.toDataURL();
   cache.set(key, url);
   return url;
+}
+
+// ─── WeChat build: offscreen canvases drawn straight onto the HUD ───
+
+interface SigilCanvas {
+  canvas: HTMLCanvasElement;
+  size: number;
+}
+const canvasCache = new Map<string, SigilCanvas>();
+
+/** An offscreen canvas works on the browser (`document`) and the minigame runtime (`wx`). */
+function makeBakingCanvas(): HTMLCanvasElement {
+  if (typeof document !== 'undefined') return document.createElement('canvas');
+  const api = (globalThis as { wx?: { createCanvas(): HTMLCanvasElement } }).wx;
+  return api!.createCanvas();
+}
+
+/** WeChat build: the sigil rendered onto a cached offscreen canvas, for HUD `drawImage`. */
+export function sigilCanvas(id: string, color: number): SigilCanvas {
+  const key = `${id}:${color}`;
+  const cached = canvasCache.get(key);
+  if (cached) return cached;
+
+  const canvas = makeBakingCanvas();
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas is not available');
+  drawSigil(ctx, id, color);
+
+  const made: SigilCanvas = { canvas, size: SIZE };
+  canvasCache.set(key, made);
+  return made;
 }

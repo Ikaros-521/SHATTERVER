@@ -63,6 +63,20 @@ export const en: UiDict & { content: ContentOverrides } = {
     pauseAria: 'Pause',
     wave: 'Wave {n}/{total}',
   },
+  characterBoss: {
+    name: 'Vow of Sakura · Hiyou',
+    code: 'HIYOU',
+    armor: 'Armour integrity',
+    shieldUp: 'Shield up',
+    lines: {
+      intro: 'Another visitor to my garden of sakura. Come — let the petals light your way.',
+      phase2: 'Interesting. Go deeper, then.',
+      phase3: 'The shield is down. Look closely: all of me.',
+      phase4: 'When the next strike falls, the sky will bloom.',
+      partDown: 'A plate… cracked. That one stung.',
+      defeated: 'The petals fall. This round is yours.',
+    },
+  },
   starter: {
     title: 'Pick a starting protocol',
     sub: 'The protocol is where your build begins. Every three-way draft after that is yours to call.',

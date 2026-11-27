@@ -63,6 +63,20 @@ export const ko: UiDict & { content: ContentOverrides } = {
     pauseAria: '일시정지',
     wave: '웨이브 {n}/{total}',
   },
+  characterBoss: {
+    name: '벚꽃 서약·희벚꽃',
+    code: 'HIYOU',
+    armor: '장갑 게이지',
+    shieldUp: '방어막 유지',
+    lines: {
+      intro: '또 내 벚꽃 정원에 온 손님이네. 좋아요 — 꽃잎이 길을 비춰줄 거예요.',
+      phase2: '제법하네요. 더 깊이 들어와 보세요.',
+      phase3: '방어막을 내렸어요. 잘 보세요, 이게 저의 전부예요.',
+      phase4: '다음 일격이 닿으면, 하늘 가득 벚꽃이 필 거예요.',
+      partDown: '장갑에 금이 갔어요…… 조금 아리네요.',
+      defeated: '꽃잎이 흩어졌어요…… 이번 승리는 당신의 거예요.',
+    },
+  },
   starter: {
     title: '초기 프로토콜 선택',
     sub: '프로토콜은 빌드의 출발점입니다. 이후의 모든 3택은 당신이 결정합니다.',

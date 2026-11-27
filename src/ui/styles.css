@@ -356,6 +356,38 @@ kbd {
   box-shadow: 0 0 10px #ff2fb0;
 }
 
+/* A character boss's line: a small plate under the level bar, shown while she speaks. */
+.hud-character {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 86vw);
+  padding: 10px 16px;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  background: rgba(14, 8, 24, 0.72);
+  border: 1px solid rgba(255, 95, 216, 0.45);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.hud-character-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ffa6ec;
+}
+
+.hud-character-line {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #fff;
+}
+
 #hud-progress-track::after {
   content: attr(data-phase);
   position: absolute;

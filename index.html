@@ -107,6 +107,12 @@
           </div>
         </header>
 
+        <!-- A character boss's line, spoken under the level bar and fading after a beat. -->
+        <div id="hud-character" class="hud-character" hidden>
+          <b id="hud-character-name" class="hud-character-name"></b>
+          <span id="hud-character-line" class="hud-character-line"></span>
+        </div>
+
         <aside id="panel-build" class="panel">
           <h3 class="panel-title">BUILD<span data-i18n="hud.build">构筑</span></h3>
           <div id="build-icons" class="build-icons"></div>
@@ -221,7 +227,13 @@
               协议决定这局构筑的起点。之后的每一次三选一，都由你决定。
             </p>
           </header>
-          <div id="diff-row" class="diff-row" role="group" aria-label="难度" data-i18n-aria="starter.diffRowLabel"></div>
+          <div
+            id="diff-row"
+            class="diff-row"
+            role="group"
+            aria-label="难度"
+            data-i18n-aria="starter.diffRowLabel"
+          ></div>
           <p id="diff-detail" class="diff-detail"></p>
           <div id="loadout-row" class="loadout-row" hidden></div>
           <div id="starter-grid" class="cards cards-starter"></div>
@@ -339,18 +351,10 @@
             <span id="shop-balance" class="shop-balance"></span>
           </header>
           <div class="tabs" id="shop-tabs">
-            <button class="tab" type="button" data-tab="protocols" data-i18n="shop.tabProtocols">
-              协议
-            </button>
-            <button class="tab" type="button" data-tab="supplies" data-i18n="shop.tabSupplies">
-              补给
-            </button>
-            <button class="tab" type="button" data-tab="skins" data-i18n="shop.tabSkins">
-              涂装
-            </button>
-            <button class="tab" type="button" data-tab="progress" data-i18n="shop.tabProgress">
-              进度
-            </button>
+            <button class="tab" type="button" data-tab="protocols" data-i18n="shop.tabProtocols">协议</button>
+            <button class="tab" type="button" data-tab="supplies" data-i18n="shop.tabSupplies">补给</button>
+            <button class="tab" type="button" data-tab="skins" data-i18n="shop.tabSkins">涂装</button>
+            <button class="tab" type="button" data-tab="progress" data-i18n="shop.tabProgress">进度</button>
           </div>
           <div id="shop-body" class="history-body shop-body"></div>
           <footer class="dialog-foot">

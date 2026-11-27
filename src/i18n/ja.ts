@@ -63,6 +63,20 @@ export const ja: UiDict & { content: ContentOverrides } = {
     pauseAria: '一時停止',
     wave: 'WAVE {n}/{total}',
   },
+  characterBoss: {
+    name: '桜の誓約・緋桜',
+    code: 'HIYOU',
+    armor: '装甲ゲージ',
+    shieldUp: '盾は健在',
+    lines: {
+      intro: 'また花見の客が来たのね。いいわ——花びらが道しるべになるから。',
+      phase2: 'なかなかやるじゃない。もっと深く。',
+      phase3: '盾は下ろした。よく見て、これが私の全て。',
+      phase4: '次の一撃の後、空いっぱいに桜が咲くわ。',
+      partDown: '装甲がひび割れた……。少し痛いわ。',
+      defeated: '花は散った……この勝ち、あなたのものよ。',
+    },
+  },
   starter: {
     title: '初期プロトコルを選択',
     sub: 'プロトコルはビルドの起点。その後の3択はすべて、あなたが決めます。',

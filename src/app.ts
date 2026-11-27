@@ -725,9 +725,10 @@ export class App implements UiActions {
       level,
       difficulty: difficultyOf(difficulty),
       supplies,
-      // She stands on boss levels while the web build can show her; the level plan will name her
-      // in time. The WeChat shell has no layer for her, so it never turns this on.
-      characterBoss: level >= 15,
+      // For now she rules only the fifteenth sector, the campaign's last; a deeper run of endless
+      // will meet her there once and move on. The formal level plan replaces this, and the WeChat
+      // shell has no layer for her, so it never turns this on.
+      characterBoss: level === 15,
     });
     this.ui.clearCallouts();
     this.adopt(session, false);

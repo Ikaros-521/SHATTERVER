@@ -88,6 +88,20 @@ export const zh = {
     pauseAria: '暂停',
     wave: '波次 {n}/{total}',
   },
+  characterBoss: {
+    name: '樱之誓约·绯樱',
+    code: 'HIYOU',
+    armor: '装甲完整度',
+    shieldUp: '护盾未破',
+    lines: {
+      intro: '又有人闯进我的樱园了。请便——就让花瓣为你引路。',
+      phase2: '有点意思。那就，再深一点。',
+      phase3: '护盾放下了。看清楚，这才是我的全貌。',
+      phase4: '下一击之后，天空会开满樱花。',
+      partDown: '装甲……碎了一片，还有点疼。',
+      defeated: '花落了。这一局，是你赢了。',
+    },
+  },
   starter: {
     title: '选择初始协议',
     sub: '协议决定这局构筑的起点。之后的每一次三选一，都由你决定。',

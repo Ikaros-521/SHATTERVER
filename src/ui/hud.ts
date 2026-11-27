@@ -52,6 +52,12 @@ export class HUD {
   private readonly odHint = byId('od-hint');
   private readonly statsPanel = byId('panel-stats');
   private readonly buildPanel = byId('panel-build');
+  /** A character boss's line, shown while she speaks and hidden after a beat. */
+  private readonly characterBox = byId('hud-character');
+  private readonly characterName = byId('hud-character-name');
+  private readonly characterLine = byId('hud-character-line');
+  private characterLineUntil = 0;
+  private lastCharacterLine = '';
 
   private readonly text = new Map<HTMLElement, string>();
   private buildSignature = '';
@@ -117,6 +123,33 @@ export class HUD {
       this.progressTrack.dataset.phase = '';
       const cleared = 1 - world.brickCount() / Math.max(1, world.brickTotal);
       setWidth(this.progress, waves > 1 ? (plan.wave - 1 + cleared) / waves : cleared);
+    }
+
+    // ── a character boss: her name and arm gauge in the boss slot, her line in the plate ──
+    const char = world.character;
+    if (char) {
+      this.put(this.levelCode, t('characterBoss.code'));
+      this.put(this.levelName, t('characterBoss.name'));
+      this.progressTrack.title = t('characterBoss.armor');
+      this.progressTrack.dataset.phase = char.state.shielded
+        ? t('characterBoss.shieldUp')
+        : t('hud.phase', { n: char.state.phase });
+      // The gauge reads how much of her is standing, by her parts' weights.
+      setWidth(this.progress, char.state.integrity);
+      const line = char.state.line;
+      if (line && line !== this.lastCharacterLine) {
+        this.lastCharacterLine = line;
+        this.characterLineUntil = now + 3800;
+        this.put(this.characterName, t('characterBoss.name'));
+        this.put(this.characterLine, t(`characterBoss.lines.${line}`));
+        this.characterBox.hidden = false;
+        pop(this.characterBox, 1.04, 160);
+      } else if (this.characterBox.hidden === false && now > this.characterLineUntil) {
+        this.characterBox.hidden = true;
+      }
+    } else if (this.characterBox.hidden === false) {
+      this.characterBox.hidden = true;
+      this.lastCharacterLine = '';
     }
 
     this.put(this.crystals, formatNumber(run.crystals));
@@ -206,6 +239,9 @@ export class HUD {
     this.owned = new Set();
     this.maxLivesDrawn = -1;
     this.odHint.hidden = true;
+    this.characterBox.hidden = true;
+    this.lastCharacterLine = '';
+    this.characterLineUntil = 0;
     this.buffs.reset();
     // The signatures alone would leave the last run's chips on screen, since an empty build makes
     // the same '' signature. Clear the panels the signatures feed, so a new run starts bare.

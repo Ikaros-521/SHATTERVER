@@ -72,6 +72,12 @@ export interface Layer {
   group: string;
   variants: Variants;
   shots: readonly Shot[];
+  /**
+   * Another group whose images serve this one too: the two are the same thing the other way about
+   * (a wing and its twin), so one picture is made for both. They must agree on their variants, and
+   * this group lies in its box as the other's does in its own.
+   */
+  shares?: string;
   /** Which of its pictures shows this frame. Null: none. Not asked while the part is destroyed. */
   show: (frame: BossFrame, look: PartLook) => Shot | null;
   /**
@@ -218,6 +224,12 @@ export interface ImageSlot {
    * variant of it is drawn to another scale than the rest.
    */
   box: Box;
+  /**
+   * The group whose image serves this one: then this group has no image of its own. The image of
+   * the other lies over this box the other way about — stretched over it with its left and right
+   * exchanged — and so the two boxes must be each other's reflection.
+   */
+  shared?: string | null;
 }
 
 /** The width and height of a box. */
@@ -229,14 +241,19 @@ export const sizeOf = ([x0, y0, x1, y1]: Box): readonly [number, number] => [x1 
  */
 export function imageSlots(sheet: Sheet): ImageSlot[] {
   // The groups in the order their lowest layer is drawn.
-  const groups = new Map<string, { part: BossPartId | null; by: Variants; layers: Layer[] }>();
+  const groups = new Map<
+    string,
+    { part: BossPartId | null; by: Variants; layers: Layer[]; shares: string | undefined }
+  >();
   for (const layer of sheet.layers) {
     let entry = groups.get(layer.group);
     if (!entry) {
-      entry = { part: layer.part, by: layer.variants, layers: [] };
+      entry = { part: layer.part, by: layer.variants, layers: [], shares: layer.shares };
       groups.set(layer.group, entry);
-    } else if (entry.part !== layer.part || entry.by !== layer.variants) {
-      throw new Error(`The layers of ${layer.group} disagree about their part or their variants.`);
+    } else if (entry.part !== layer.part || entry.by !== layer.variants || entry.shares !== layer.shares) {
+      throw new Error(
+        `The layers of ${layer.group} disagree about their part, their variants or what they share.`,
+      );
     }
     entry.layers.push(layer);
   }
@@ -269,8 +286,32 @@ export function imageSlots(sheet: Sheet): ImageSlot[] {
     const variants =
       by === 'state' ? DRAWN : by === 'face' ? sheet.faces : [layers[0]!.shots[0]?.variant ?? 'whole'];
     for (const variant of variants) {
-      if (box) slots.push({ name: `${group}.${variant}`, group, variant, by, part, box });
+      if (box) slots.push({ name: `${group}.${variant}`, group, variant, by, part, box, shared: null });
     }
+  }
+  // A group that shares has no image of its own: the other's lies over its box the other way about.
+  // The one asked for the picture first: not itself sharing one, or sharing with a group that is.
+  const pictureOf = (group: string, seen: readonly string[] = []): string => {
+    if (seen.includes(group))
+      throw new Error(`The groups ${[...seen, group].join(' and ')} share each other's images.`);
+    const shares = groups.get(group)!.shares;
+    return shares ? pictureOf(shares, [...seen, group]) : group;
+  };
+  for (const slot of slots) {
+    const with_ = groups.get(slot.group)!.shares;
+    if (!with_) continue;
+    const other = slots.find((each) => each.group === pictureOf(slot.group) && each.variant === slot.variant);
+    if (!other)
+      throw new Error(`The group ${slot.group} shares with ${with_}, which has no image "${slot.variant}".`);
+    // The picture lies over this box with its left and right exchanged: so the two boxes must be
+    // each other's reflection, or it would be drawn to another shape than it was made for.
+    const mirrored: Box = [-other.box[2], other.box[1], -other.box[0], other.box[3]];
+    if (mirrored.some((value, at) => Math.abs(value - slot.box[at]!) > 0.01)) {
+      throw new Error(
+        `The image of ${other.group} cannot lie over ${slot.group} the other way about: their boxes are not each other's reflection (${other.group} ${mirrored.join(', ')}; ${slot.group} ${slot.box.join(', ')}).`,
+      );
+    }
+    slot.shared = pictureOf(slot.group);
   }
   return slots;
 }
@@ -300,17 +341,34 @@ export function sheetFromImages(
   for (const slot of slots) byGroup.set(slot.group, [...(byGroup.get(slot.group) ?? []), slot]);
   const layers: Layer[] = [];
   for (const [group, own] of byGroup) {
-    const images = own.map((slot) => ({ slot, image: image(slot.name) }));
+    // The picture of a group that shares is the other's, flipped.
+    const images = own.map((slot) => ({
+      slot,
+      image: image(slot.shared ? `${slot.shared}.${slot.variant}` : slot.name),
+    }));
     if (images.some((each) => !each.image)) continue;
     const first = own[0]!;
     const shots: Shot[] = images.map(({ slot, image: source }) => {
-      const [x0, y0] = slot.box;
+      const [x0, y0, x1] = slot.box;
       const [w, h] = sizeOf(slot.box);
       return {
         id: slot.name,
         variant: slot.variant,
         box: slot.box,
-        paint: (ctx) => ctx.drawImage(source!, x0, y0, w, h),
+        paint: (ctx) => {
+          if (!slot.shared) {
+            ctx.drawImage(source!, x0, y0, w, h);
+            return;
+          }
+          // The other way about: drawn from 0 to its width, flipped, it lies from this point back
+          // towards the left — so its left edge is put along this box's right edge, and it covers
+          // the box exactly.
+          ctx.save();
+          ctx.translate(x1, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(source!, 0, y0, w, h);
+          ctx.restore();
+        },
       };
     });
     layers.push({
@@ -321,7 +379,6 @@ export function sheetFromImages(
       shots,
       show: first.by === 'state' ? byState(shots) : first.by === 'face' ? byFace(shots) : whole(shots),
       move: motion.move?.(group, first),
-      home: motion.home?.(group, first),
     });
   }
   // Her expressions are whatever the face group's images are named for.

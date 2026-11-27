@@ -94,6 +94,7 @@ const debug = {
         part: slot.part,
         box: slot.box,
         px: [Math.ceil(w * ATLAS_SCALE), Math.ceil(h * ATLAS_SCALE)],
+        shared: slot.shared,
       };
     }),
 };
@@ -172,6 +173,8 @@ function mockImages(): (name: string) => CanvasImageSource | undefined {
   const made = new Map<string, HTMLCanvasElement>();
   const placed: Placed[] = [];
   for (const slot of imageSlots(HIYOU_SHEET)) {
+    // A group that shares has no image of its own: the other's is made, and flipped when placed.
+    if (slot.shared) continue;
     const look = restingLook();
     if (slot.part && slot.by === 'state')
       look[slot.part] = { ...look[slot.part], state: slot.variant as PartState };

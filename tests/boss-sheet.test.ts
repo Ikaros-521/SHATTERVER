@@ -178,6 +178,80 @@ describe('the brief for a set of images', () => {
     expect(slots.map((slot) => slot.name)).toEqual([...FACES.map((face) => `face.${face}`), 'hover.whole']);
   });
 
+  it('has one picture made for a group and the one that shares it, the other way about', () => {
+    const sheet = sheetOf([
+      wholeLayer('r', 'RightWing', 'wing.R', [shot('w', [20, -10, 40, 10], 'intact')], {
+        variants: 'state',
+      }),
+      wholeLayer('r1', 'RightWing', 'wing.R', [shot('w1', [20, -10, 40, 10], 'damaged_1')], {
+        variants: 'state',
+      }),
+      wholeLayer('l', 'LeftWing', 'wing.L', [shot('l', [-40, -10, -20, 10], 'intact')], {
+        variants: 'state',
+        shares: 'wing.R',
+      }),
+      wholeLayer('l1', 'LeftWing', 'wing.L', [shot('l1', [-40, -10, -20, 10], 'damaged_1')], {
+        variants: 'state',
+        shares: 'wing.R',
+      }),
+    ]);
+    const slots = imageSlots(sheet);
+    // A group comes in every state, whether a layer for each was spelled out or not.
+    const states = ['intact', 'damaged_1', 'damaged_2'];
+    expect(slots.map((slot) => [slot.name, slot.shared ?? null])).toEqual([
+      ...states.map((state) => [`wing.R.${state}`, null] as const),
+      ...states.map((state) => [`wing.L.${state}`, 'wing.R'] as const),
+    ]);
+    // The image is asked for once, by the group that has it.
+    const asked: string[] = [];
+    const made = sheetFromImages(
+      'toy',
+      slots,
+      (name) => {
+        asked.push(name);
+        return {} as CanvasImageSource;
+      },
+      { bob: () => 0, lights: () => [] },
+    );
+    expect(asked).toEqual([
+      ...states.map((state) => `wing.R.${state}`),
+      ...states.map((state) => `wing.R.${state}`),
+    ]);
+    // …and drawn over the left box the other way about: its right edge along the box's left.
+    const calls: [string, ...number[]][] = [];
+    const ctx = {
+      save: () => {},
+      restore: () => {},
+      translate: (x: number) => calls.push(['translate', x]),
+      scale: (x: number) => calls.push(['scale', x]),
+      drawImage: (_image: unknown, ...args: number[]) => calls.push(['draw', ...args]),
+    } as unknown as CanvasRenderingContext2D;
+    made.layers.find((layer) => layer.id === 'wing.L')!.shots[0]!.paint(ctx);
+    // …and drawn over the left box the other way about: the picture's left edge along the box's
+    // right edge (-20), so that its 20 wide lie back from there to -40.
+    expect(calls).toEqual([
+      ['translate', -20],
+      ['scale', -1],
+      ['draw', 0, -10, 20, 20],
+    ]);
+  });
+
+  it('refuses to stretch a shared picture over a box that is not the other one’s reflection', () => {
+    const sheet = sheetOf([
+      wholeLayer('r', 'RightWing', 'wing.R', [shot('w', [20, -10, 40, 10])], { variants: 'state' }),
+      wholeLayer('l', 'LeftWing', 'wing.L', [shot('l', [-40, -12, -20, 10])], {
+        variants: 'state',
+        shares: 'wing.R',
+      }),
+    ]);
+    expect(() => imageSlots(sheet)).toThrow(/not each other's reflection/);
+    const round = sheetOf([
+      wholeLayer('a', null, 'a', [shot('a', [-1, 0, 1, 1])], { shares: 'b' }),
+      wholeLayer('b', null, 'b', [shot('b', [-1, 0, 1, 1])], { shares: 'a' }),
+    ]);
+    expect(() => imageSlots(round)).toThrow(/share each other's images/);
+  });
+
   it('refuses a group whose layers disagree about their part or their variants', () => {
     const sheet = sheetOf([
       wholeLayer('x', 'Head', 'g', [shot('x', [0, 0, 1, 1])]),
@@ -247,9 +321,12 @@ describe('a sheet made of images', () => {
     look.Core = { state: 'damaged_2', flash: 0, dx: 0, dy: 0 };
     const shown = place(sheet, frameWith(look, 'smug'), []);
     expect(shown.map((placed) => placed.shot.id)).toEqual(['face.smug', 'core.whole']);
-    // Anchored where it is told, and moved: the face leans, the core sits where it is put.
+    // Moved as it is told: the face leans. A sheet made of images is not told where a group is
+    // anchored — its boxes say where everything lies — so the core sits where its box has it.
     expect(shown[0]).toMatchObject({ x: 0, y: 0, rot: 0.3, mirror: false });
-    expect(shown[1]).toMatchObject({ x: 0, y: 9, rot: 0, mirror: false });
+    expect(shown[1]).toMatchObject({ x: 0, y: 0, rot: 0, mirror: false });
+    const [x0, y0, x1, y1] = shown[1]!.shot.box;
+    expect(near(where(shown[1]!, (x0 + x1) / 2, (y0 + y1) / 2))).toEqual([0, 0]);
   });
 });
 
@@ -416,10 +493,12 @@ describe('绯樱 from a set of images', () => {
     expect(shown.filter((id) => id.startsWith('shield.'))).toEqual([]);
   });
 
-  it('leaves a group out altogether when one of its images is missing', () => {
+  it('leaves a group out altogether when one of its images is missing — and the group that shares it', () => {
     const hole = hiyouFromImages((name) => (name === 'pauldron.R.damaged_1' ? undefined : images[name]));
+    // The left pauldron is drawn from the right's picture: with one of them gone, neither can be.
     expect(hole.layers.map((layer) => layer.id)).not.toContain('pauldron.R');
-    expect(hole.layers).toHaveLength(12);
+    expect(hole.layers.map((layer) => layer.id)).not.toContain('pauldron.L');
+    expect(hole.layers).toHaveLength(11);
   });
 
   it('is baked less dense than the sheet drawn with Canvas 2D, and fits at that density', () => {

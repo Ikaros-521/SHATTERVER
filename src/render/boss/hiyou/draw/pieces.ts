@@ -104,7 +104,9 @@ const layer = (
   show: Layer['show'],
   move?: Layer['move'],
   home?: Partial<Pose>,
-): Layer => ({ id, part, group, variants, shots, show, move, home });
+  /** For a group on her left that is a group on her right the other way about: the right's picture serves it. */
+  shares?: string,
+): Layer => ({ id, part, group, variants, shots, show, move, home, shares });
 
 // ───────────────────────────── the pictures ─────────────────────────────
 
@@ -238,6 +240,7 @@ const bladeLayer = (index: number, side: -1 | 1, tag: 'L' | 'R'): Layer => {
         : whole,
     (frame) => ({ rot: side * breath(index, frame.time) * DEG }),
     { x: side * rootX, y: rootY + BODY_Y, rot: side * degrees * DEG, mirror: side < 0 },
+    side < 0 ? 'wing.R' : undefined,
   );
 };
 
@@ -252,6 +255,7 @@ const sparLayer = (side: -1 | 1, tag: 'L' | 'R', shots: readonly Shot[]): Layer 
     byState(shots),
     undefined,
     bodyHome,
+    side < 0 ? 'wing.R' : undefined,
   );
 
 /** One wing: its blades, the lowest first so each above lies over the root of the last, then its spar. */
@@ -292,7 +296,7 @@ export const HIYOU_SHEET: Sheet = {
     layer('backHair', 'Head', 'hairBack', 'whole', [backHair], () => backHair),
     layer('hover', null, 'hover', 'whole', [hover], () => hover),
     layer('torso', 'Body', 'torso', 'state', torso, byState(torso), undefined, bodyHome),
-    layer('arm.L', 'LeftArm', 'arm.L', 'state', armL, byState(armL), armMove(-1), armHome),
+    layer('arm.L', 'LeftArm', 'arm.L', 'state', armL, byState(armL), armMove(-1), armHome, 'arm.R'),
     layer(
       'pauldron.L',
       'LeftShoulder',
@@ -302,6 +306,7 @@ export const HIYOU_SHEET: Sheet = {
       byState(pauldronL),
       pauldronMove(-1),
       pauldronHome,
+      'pauldron.R',
     ),
     layer('arm.R', 'RightArm', 'arm.R', 'state', armR, byState(armR), armMove(1), armHome),
     layer(

@@ -96,9 +96,9 @@ export const ko: UiDict & { content: ContentOverrides } = {
     discardLocked: '먼저 「{deps}」을(를) 버려야 「{name}」을(를) 버릴 수 있습니다.',
     discardBack: '확인',
     // The ban corner over an offered card: pay crystals and it never deals again this run.
-    ban: '봉인',
-    banHint: '봉인하면 이번 판에서 다시 나오지 않습니다',
-    banConfirm: '봉인 확인',
+    ban: '제외',
+    banHint: '제외하면 이번 판에서 다시 나오지 않습니다',
+    banConfirm: '제외 확인',
     banCancel: '취소',
   },
   pause: {
@@ -1204,24 +1204,24 @@ export const ko: UiDict & { content: ContentOverrides } = {
         desc: '배경 테마: 달 아래 정원. 먼 산, 돌등롱, 작은 다리, 느긋하게 흩날리는 벚꽃.',
       },
       ocean_paddle: {
-        name: '해신의 물살',
+        name: '조수의 물살',
         desc: '패들 테마: 응집된 물의 기운. 양끝 물살이 말려 올라가고, 움직이면 거품이 피어올라요.',
       },
       ocean_ball: {
         name: '심해 수정',
         desc: '공 테마: 투명한 물막에 싸인 파란 수정. 거품 꼬리를 끌고 나아가요.',
       },
-      ocean_bg: { name: '심해 유적', desc: '배경 테마: 내리쬐는 빛줄기 속 잠든 해저 신전, 산호, 해초.' },
+      ocean_bg: { name: '심해 유적', desc: '배경 테마: 내리쬐는 빛줄기 속 잠든 해저 고성, 산호, 해초.' },
       forest_paddle: {
-        name: '정령 나뭇가지',
-        desc: '패들 테마: 휘어진 마법 나뭇가지. 양옆에 잎, 한가운데 생명 보석.',
+        name: '푸른 잎 가지',
+        desc: '패들 테마: 휘어진 자연 나뭇가지. 양옆에 잎, 한가운데 생명 보석.',
       },
       forest_ball: {
         name: '생명 보석',
         desc: '공 테마: 안에서 기운이 흐르는 초록 보석. 반딧불이 뒤따라와요.',
       },
       forest_bg: {
-        name: '마법의 숲',
+        name: '푸른 숲',
         desc: '배경 테마: 오래된 나무, 덩굴, 폭포. 나뭇잎 사이 햇살, 떠다니는 반딧불.',
       },
     },
@@ -1235,8 +1235,8 @@ export const ko: UiDict & { content: ContentOverrides } = {
         name: '벚꽃 판타지',
         desc: '분홍과 보라빛 밤벚꽃 정원. 벚꽃 부채, 벚꽃 코어, 그리고 보름달.',
       },
-      ocean: { name: '심해 판타지', desc: '파랑과 청록빛 심해의 꿈. 해신의 물살, 심해 수정, 잠든 유적.' },
-      forest: { name: '숲의 판타지', desc: '초록빛 치유의 숲. 정령 나뭇가지, 생명 보석, 빛 가득한 숲터.' },
+      ocean: { name: '심해 판타지', desc: '파랑과 청록빛 심해의 꿈. 조수의 물살, 심해 수정, 잠든 유적.' },
+      forest: { name: '숲의 판타지', desc: '초록빛 치유의 숲. 푸른 잎 가지, 생명 보석, 빛 가득한 숲터.' },
     },
     ms: {
       perfect: '첫 퍼펙트 캐치｜패들 정중앙으로 공을 받아내기',

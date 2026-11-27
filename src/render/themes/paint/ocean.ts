@@ -8,7 +8,7 @@ const CREST_WIDTH = 15;
 const CREST_RADIUS = CREST_WIDTH * 0.82;
 
 /**
- * 海神水流. The collision box is water gathered into a bar of light, a little see-through, as
+ * 潮汐水流. The collision box is water gathered into a bar of light, a little see-through, as
  * water is. From just outside either tip a crest rises and hooks over, away from the paddle;
  * both grow and flare when a ball lands. The bubbles come from the theme's effects.
  */

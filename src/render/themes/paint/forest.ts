@@ -18,7 +18,7 @@ const LEAVES: readonly { along: number; up: boolean; angle: number }[] = [
 ];
 
 /**
- * 精灵树枝. The collision box is the bough itself: a rod that bows up at its ends and bends a
+ * 翠叶枝条. The collision box is the bough itself: a rod that bows up at its ends and bends a
  * touch further into a swipe, with a life gem set in its middle. A landing scatters the leaves
  * (as particles, see the theme's effects); they grow back with a small overshoot.
  */

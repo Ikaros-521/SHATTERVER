@@ -6,9 +6,9 @@ import type { ThemeFacts } from '../types';
  */
 export const FOREST: ThemeFacts<'forest'> = {
   id: 'forest',
-  name: '精灵森林',
+  name: '翠影森林',
   en: 'FOREST FANTASY',
-  desc: '绿色的治愈森林：精灵树枝、生命宝石与洒满光束的林间空地。',
+  desc: '绿色的治愈森林：翠叶枝条、生命宝石与洒满光束的林间空地。',
   price: 4800,
   colors: {
     primary: 0x7dff9b,
@@ -19,9 +19,9 @@ export const FOREST: ThemeFacts<'forest'> = {
   },
   paddle: {
     price: 1200,
-    name: '精灵树枝',
-    en: 'ELVEN BOUGH',
-    desc: '弹板主题：一根弯曲的魔法树枝，两侧生着叶片，中央嵌着生命宝石。',
+    name: '翠叶枝条',
+    en: 'VERDANT BOUGH',
+    desc: '弹板主题：一根弯曲的天然枝条，两侧生着叶片，中央嵌着生命宝石。',
   },
   ball: {
     price: 1600,
@@ -33,8 +33,8 @@ export const FOREST: ThemeFacts<'forest'> = {
   },
   bg: {
     price: 3000,
-    name: '魔法森林',
-    en: 'ENCHANTED FOREST',
-    desc: '背景主题：古树、藤蔓与瀑布的魔法森林，阳光穿过树叶，萤火漂浮。',
+    name: '幽绿森林',
+    en: 'VERDANT FOREST',
+    desc: '背景主题：古树、藤蔓与瀑布的幽绿森林，阳光穿过树叶，萤火漂浮。',
   },
 };

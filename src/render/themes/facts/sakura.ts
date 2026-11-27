@@ -8,7 +8,7 @@ export const SAKURA: ThemeFacts<'sakura'> = {
   id: 'sakura',
   name: '樱花物语',
   en: 'SAKURA FANTASY',
-  desc: '粉紫色的夜樱庭院：樱花魔法扇、樱花核心与一轮明月。',
+  desc: '粉紫色的夜樱庭院：夜樱折扇、樱花核心与一轮明月。',
   price: 4800,
   colors: {
     primary: 0xff91c8,
@@ -19,7 +19,7 @@ export const SAKURA: ThemeFacts<'sakura'> = {
   },
   paddle: {
     price: 1200,
-    name: '樱花魔法扇',
+    name: '夜樱折扇',
     en: 'SAKURA FAN',
     desc: '弹板主题：粉色能量扇面，两端展开樱花扇骨，移动时洒落花瓣。',
   },

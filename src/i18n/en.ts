@@ -1237,7 +1237,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         desc: 'Backdrop theme: a garden under the moon, with far hills, stone lanterns, a small bridge and blossom coming down.',
       },
       ocean_paddle: {
-        name: 'Neptune Flow',
+        name: 'Tide Flow',
         desc: 'Paddle theme: water gathered into a bar of light, curling up at both ends and trailing bubbles.',
       },
       ocean_ball: {
@@ -1245,11 +1245,11 @@ export const en: UiDict & { content: ContentOverrides } = {
         desc: 'Ball theme: a glowing blue crystal inside a skin of water, leaving a trail of bubbles.',
       },
       ocean_bg: {
-        name: 'Sunken Temple',
-        desc: 'Backdrop theme: a temple asleep in shafts of daylight, with coral and weed.',
+        name: 'Sunken Ruins',
+        desc: 'Backdrop theme: ancient ruins asleep in shafts of daylight, with coral and weed.',
       },
       forest_paddle: {
-        name: 'Elven Bough',
+        name: 'Verdant Bough',
         desc: 'Paddle theme: a bending bough with leaves along its sides and a life gem at its heart.',
       },
       forest_ball: {
@@ -1257,7 +1257,7 @@ export const en: UiDict & { content: ContentOverrides } = {
         desc: 'Ball theme: a green gem with energy flowing inside, fireflies in its wake.',
       },
       forest_bg: {
-        name: 'Enchanted Forest',
+        name: 'Verdant Forest',
         desc: 'Backdrop theme: old trees, vines and a waterfall, sun through the leaves, fireflies adrift.',
       },
     },
@@ -1273,11 +1273,11 @@ export const en: UiDict & { content: ContentOverrides } = {
       },
       ocean: {
         name: 'Ocean Fantasy',
-        desc: 'A dream of the sea floor in blue and teal: Neptune Flow, the Abyss Crystal and a sunken ruin.',
+        desc: 'A dream of the sea floor in blue and teal: Tide Flow, the Abyss Crystal and a sunken ruin.',
       },
       forest: {
         name: 'Forest Fantasy',
-        desc: 'A healing wood in green: the Elven Bough, the Life Gem and a glade full of light.',
+        desc: 'A healing wood in green: the Verdant Bough, the Life Gem and a glade full of light.',
       },
     },
     ms: {

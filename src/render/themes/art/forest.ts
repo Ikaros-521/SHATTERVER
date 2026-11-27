@@ -2,7 +2,7 @@ import { PK_FIRE, PK_LEAF, PK_RING } from '../../particles';
 import type { ThemeArt } from '../types';
 
 /**
- * 精灵森林 — a glade: daylight coming down in shafts that swing with the canopy, two ancients
+ * 翠影森林 — a glade: daylight coming down in shafts that swing with the canopy, two ancients
  * flanking the field with roots spread wide, a fall on the right, a hut with one lit window,
  * and fireflies in the air.
  */

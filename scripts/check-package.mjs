@@ -66,6 +66,16 @@ const CJK_TERMS = [
   '收费',
   '到账',
   '提现',
+  // Fantasy entities in copy — the rejection after the theme update (魔法/精灵/海神/神殿 were new
+  // in that cycle). Theme wording stays on natural imagery (折扇/潮汐/翠影/古城). These two-char
+  // terms match zh and ja alike (shared kanji).
+  '魔法',
+  '精灵',
+  '精霊',
+  '海神',
+  '神殿',
+  '封禁',
+  '封印',
   // Inflated claims and absolute wording.
   '免安装',
   '极致',
@@ -137,6 +147,12 @@ const LATIN_TERMS = [
   'taiwanindependence',
   'freetibet',
   'xinjiangcamp',
+  // Fantasy entities in copy (theme update).
+  'neptune',
+  'elven',
+  'enchanted',
+  'wizard',
+  'witchcraft',
   // Inflated claims (already rejected twice).
   '0mb',
   // Third-party service branding — the platform package must carry none of it.

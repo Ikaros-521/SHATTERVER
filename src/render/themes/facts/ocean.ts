@@ -8,7 +8,7 @@ export const OCEAN: ThemeFacts<'ocean'> = {
   id: 'ocean',
   name: '深海秘境',
   en: 'OCEAN FANTASY',
-  desc: '蓝青色的梦幻海底：海神水流、深海水晶与光束下的遗迹。',
+  desc: '蓝青色的梦幻海底：潮汐水流、深海水晶与光束下的遗迹。',
   price: 4800,
   colors: {
     primary: 0x16d9f5,
@@ -19,8 +19,8 @@ export const OCEAN: ThemeFacts<'ocean'> = {
   },
   paddle: {
     price: 1200,
-    name: '海神水流',
-    en: 'NEPTUNE FLOW',
+    name: '潮汐水流',
+    en: 'TIDE FLOW',
     desc: '弹板主题：凝聚的水元素能量，两端水流向上卷曲，移动时冒出气泡。',
   },
   ball: {
@@ -35,6 +35,6 @@ export const OCEAN: ThemeFacts<'ocean'> = {
     price: 3000,
     name: '深海遗迹',
     en: 'SUNKEN TEMPLE',
-    desc: '背景主题：海面透下的光束里，沉睡的海底神殿、珊瑚与海草。',
+    desc: '背景主题：海面透下的光束里，沉睡的海底古城、珊瑚与海草。',
   },
 };

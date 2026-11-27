@@ -12,7 +12,7 @@ import { breathe, leanOf } from './common';
 const MEMBRANE = 0xff6fb5;
 
 /**
- * 樱花魔法扇. The collision box is the fan's membrane — a plane of pink light that breathes at
+ * 夜樱折扇. The collision box is the fan's membrane — a plane of pink light that breathes at
  * rest and flares when a ball lands — with the ribs spread from either end, a blossom at each
  * side of it, and a soft light underneath. A landing opens the ribs wide; they ease shut again.
  */

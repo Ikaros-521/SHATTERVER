@@ -62,7 +62,21 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
 - 英文值避免 `pays / buy / wallet`：`earns / grants / Exchange / Stardust`（SHOP 页签名可保留）。
 - `check:package` 词表已含 抽卡/计费/入账/钱包/充值/付费/收费/到账/提现。
 
-### 2.4 不引导站外
+### 2.4 主题/封禁类文案：自然意象，不谈奇幻实体与封禁（第七次驳回）
+
+主题皮肤系统（樱花物语 / 深海秘境 / 精灵森林）与选卡「封禁」功能的文案同样敏感：
+
+- 不用：魔法、精灵、海神、神殿、封禁、封印（本周期这批新词触发驳回）。
+- 用自然意象替代：樱花魔法扇→夜樱折扇、海神水流→潮汐水流、精灵树枝→翠叶枝条、
+  魔法森林→幽绿森林、海底神殿→海底古城；日语 精霊→翠、魔法→天然/翠、封印→除外；
+  韩语 해신→조수、마법→자연/푸른、정령→푸른 잎、봉인→제외；英文 Enchanted→Verdant、
+  Elven→Verdant、Neptune→Tide、Temple→Ruins。
+- 主题母本 `src/render/themes/facts/<id>.ts` 与 `src/i18n/*.ts` 的 `shop.theme.*`/
+  `shop.skin.*` 必须逐字一致（`tests/themes.test.ts` 会比对）——**改一处要同步改另一处**。
+- 「封禁一张卡」的界面动作改用**禁用**（zh）/ 除外（ja）/ 제외（ko），英文 `ban` 值保留不变。
+- `check:package` 词表已含 魔法/精灵/精霊/海神/神殿/封禁/封印 与 neptune/elven/enchanted。
+
+### 2.5 不引导站外
 
 - 文案里不写「网页版」「官网」「链接」「点此下载」之类指向站外的表述。
 - **提审包里不得出现任何站外域名**：既包括项目自己的 GitHub Pages 地址（那是在宣传站外网页版），
@@ -74,10 +88,11 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
   `cheddaboards` 以及 web-only 文件（`llms.txt`/`robots.txt`/`sitemap.xml`/`og-cover.png`）
   判为失败。
 
-### 2.5 四语一起改
+### 2.6 四语一起改
 
 界面文案有 `zh / en / ja / ko` 四份（`src/i18n/`）。新增任何文案必须四份齐全，并同样遵守红线。
-英文避免 `KILLER / WEAPON / DEATH / BOMB` 一类实词（`dead-center`、`deadeye` 这类构词无碍）。
+英文避免 `KILLER / WEAPON / DEATH / BOMB` 一类实词（`dead-center`、`deadeye` 这类构词无碍），
+以及奇幻实体 `Enchanted / Elven / Neptune`（theme 场景用 `Verdant / Tide` 等自然词）。
 
 ## 三、图片红线
 
@@ -115,6 +130,9 @@ pnpm test          # 全量测试，含文案词汇守门
 - 政治敏感词（中文）
 - 色情 / 毒品 / 赌博 / 极端主义词（中英文）
 - 英文 slur
+- 暴力 / 疾病 / 毒 / 血类词汇（中日韩）
+- 商店 / 金融 / 抽卡类词汇（抽卡 / 计费 / 入账 / 钱包 / 充值 / 付费 / 收费 / 到账 / 提现）
+- 奇幻实体与封禁词（魔法 / 精灵 / 精霊 / 海神 / 神殿 / 封禁 / 封印 + neptune / elven / enchanted）
 - 夸大表达（0MB 等）
 - 站外域名（`ikaros-521.github.io` / `github.com` / `cheddaboards.com`）与第三方品牌 `cheddaboards`
 - web-only 文件（`llms.txt` / `robots.txt` / `sitemap.xml` / `og-cover.png`）

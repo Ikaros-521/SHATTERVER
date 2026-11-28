@@ -436,9 +436,14 @@ export class App implements UiActions {
     // Who can be drawn, and how: 绯樱 is drawn with Canvas 2D the moment she is wanted; 薇斯珀 is
     // cut from pictures, which are fetched now so that they are in hand long before her sector.
     this.boss.register(HIYOU.id, () => ({ sheet: HIYOU_SHEET, scale: HIYOU_SCALE }));
-    const vesper = stageSource(loadVESPER, VESPER_STAGES, vesperMotion, VESPER.figure);
-    this.boss.register(VESPER.id, vesper);
-    void vesper.preload();
+    if (!__TOY__) {
+      // The Toy probe package ships no AI-generated imagery: her pictures are generated art the
+      // platform review keeps flagging, so the platform build neither loads nor bundles them
+      // (her sector falls back to its lattice boss; see characterBoss.ts's CAST).
+      const vesper = stageSource(loadVESPER, VESPER_STAGES, vesperMotion, VESPER.figure);
+      this.boss.register(VESPER.id, vesper);
+      void vesper.preload();
+    }
     this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
     this.theme = new ThemeLayer(this.governor.current.quality);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);

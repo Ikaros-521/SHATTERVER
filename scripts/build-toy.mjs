@@ -37,7 +37,10 @@ const HTML_SCRUBBERS = [
   [/\s*<meta[^>]*name="author"[^>]*>/g, 'author'],
   [/\s*<link rel="alternate"[^>]*>/g, 'llms.txt alternate link'],
   // The whole GEO/SEO structured-data block (its url/image/codeRepository pointed off-platform).
-  [/\s*<!-- Structured Data \(GEO \/ SEO\) -->\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, 'json-ld block'],
+  [
+    /\s*<!-- Structured Data \(GEO \/ SEO\) -->\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g,
+    'json-ld block',
+  ],
   [/\s*"url":\s*"https?:\/\/[^"]*",?/g, 'json-ld url'],
   [/\s*"image":\s*"https?:\/\/[^"]*",?/g, 'json-ld image'],
   [/\s*"codeRepository":\s*"https?:\/\/[^"]*",?/g, 'json-ld codeRepository'],
@@ -63,6 +66,22 @@ async function main() {
   }
   fs.writeFileSync(htmlPath, html, 'utf8');
 
+  // The bundle is the package's ground truth: any image asset it does not reference is not
+  // shipped. (Vite still writes webps whose importer was tree-shaken away — the probe build drops
+  // the AI-generated boss art, and those files must not ride along unnoticed.)
+  const assetsDir = path.join(DIST, 'assets');
+  const jsFile = fs.readdirSync(assetsDir).find((f) => /^index-.*\.js$/.test(f));
+  if (jsFile) {
+    const js = fs.readFileSync(path.join(assetsDir, jsFile), 'utf8');
+    for (const file of fs.readdirSync(assetsDir)) {
+      if (!/\.(webp|png|jpe?g)$/i.test(file)) continue;
+      if (!js.includes(file)) {
+        fs.rmSync(path.join(assetsDir, file));
+        removed.push(`assets/${file} (unreferenced by bundle)`);
+      }
+    }
+  }
+
   // Fail loudly rather than shipping web-page machinery or an off-platform link by accident.
   const leftovers = [
     ['ikaros-521.github.io', html],
@@ -76,7 +95,9 @@ async function main() {
     ['name="author"', html],
   ].filter(([needle, text]) => text.includes(needle));
   if (leftovers.length > 0) {
-    console.error(`still web-page machinery or off-platform text in index.html: ${leftovers.map(([n]) => n).join(', ')}`);
+    console.error(
+      `still web-page machinery or off-platform text in index.html: ${leftovers.map(([n]) => n).join(', ')}`,
+    );
     process.exit(1);
   }
 

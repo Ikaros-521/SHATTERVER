@@ -33,8 +33,12 @@ export type LineMoment = 'intro' | 'phase2' | 'phase3' | 'phase4' | 'partDown' |
 /**
  * Who stands on the boss sectors of the campaign, by the sector's boss slot: the first keeps its
  * lattice, the second is 薇斯珀's and the last 绯樱's. Past the campaign the lattice takes over.
+ *
+ * The Toy probe package (`__TOY__`) leaves 薇斯珀 out: her pictures are AI-generated art, which
+ * the platform review has repeatedly flagged, so the package ships none of them and her sector
+ * falls back to its lattice boss until the review question is settled.
  */
-const CAST: readonly (CharacterDef | null)[] = [null, VESPER, HIYOU];
+const CAST: readonly (CharacterDef | null)[] = [null, __TOY__ ? null : VESPER, HIYOU];
 
 /** The character standing on a level, if any: `opts.character` in the world is the build's say on whether she may. */
 export function characterFor(level: number): CharacterDef | null {

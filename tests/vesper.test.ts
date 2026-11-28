@@ -10,6 +10,7 @@ import {
   characterDefeated,
   characterDiscsOf,
   characterFor,
+  characterMuzzlesOf,
   characterPhase,
   hitCharacterPart,
   startCharacterBoss,
@@ -67,9 +68,14 @@ describe('薇斯珀 as a fight', () => {
       expect(part.defense, part.id).toBeLessThan(1);
       for (const disc of part.discs) expect(disc.radius, part.id).toBeGreaterThan(0);
     }
-    // Whole, every hitbox of hers is swept, each under its own negative key.
+    // Whole, in her first picture, every hitbox that picture draws is swept, each under its own
+    // negative key — and nothing it does not draw, the lamp's side included.
     const discs = characterDiscsOf(startCharacterBoss(VESPER));
-    expect(discs).toHaveLength(VESPER.parts.reduce((sum, part) => sum + part.discs.length, 0));
+    expect(discs).toHaveLength(
+      VESPER.parts.reduce((sum, part) => sum + part.discs.filter((disc) => disc.live!.includes(0)).length, 0),
+    );
+    expect(discs).toHaveLength(46);
+    expect(discs.map((disc) => disc.id)).not.toContain('side.R');
     expect(new Set(discs.map((disc) => disc.key)).size).toBe(discs.length);
     expect(discs.every((disc) => disc.key < 0)).toBe(true);
     // No shield and no core: she is worn all over.
@@ -99,9 +105,11 @@ describe('薇斯珀 as a fight', () => {
     const boss = startCharacterBoss(VESPER);
     expect(boss.state.stage).toBe(0);
     expect(boss.stageMix).toBe(1);
-    // Her head is 16 hundredths of her: worn off, the first picture gives way (0.84) and not the second.
+    // Her head is 0.145 of her and her left side a tenth: both worn off, she has come down to
+    // 0.755 — past the first picture's 0.84, and not past the second's 0.68.
     wearOut(boss, 'head');
-    expect(boss.state.integrity).toBeCloseTo(0.84, 5);
+    wearOut(boss, 'side.L');
+    expect(boss.state.integrity).toBeCloseTo(0.755, 5);
     expect(boss.state.stage).toBe(1);
     // The new picture has only begun to come: the one before is still up.
     expect(boss.stageMix).toBe(0);
@@ -118,26 +126,42 @@ describe('薇斯珀 as a fight', () => {
     expect(next.stageMix).toBe(1);
   });
 
-  it('keeps a hitbox off once the picture showing has no drawing where it lay', () => {
+  it('is solid only where the picture showing draws her: a hitbox is swept in the pictures that draw it, and in no other', () => {
     const boss = startCharacterBoss(VESPER);
-    const gone = VESPER.parts
-      .flatMap((part) => part.discs)
-      .filter((disc) => disc.goneAt !== null && disc.goneAt !== undefined);
-    const throughout = VESPER.parts
-      .flatMap((part) => part.discs)
-      .filter((disc) => disc.goneAt === null || disc.goneAt === undefined);
-    // The cut found places that are drawn in some pictures and not in others — a cauldron, a staff.
-    expect(gone.length).toBeGreaterThan(0);
-    expect(throughout.length).toBeGreaterThan(0);
-    const whole = discsOf(VESPER, boss.state.look, { x: 0, y: 0 }, 0, 0);
-    expect(whole).toHaveLength(gone.length + throughout.length);
-    const first = Math.min(...gone.map((disc) => disc.goneAt!));
-    const later = discsOf(VESPER, boss.state.look, { x: 0, y: 0 }, 0, first);
-    // Gone from the picture, gone from the field — while their part is as whole as ever.
-    expect(later.length).toBeLessThan(whole.length);
-    expect(boss.state.look['side.L'].state).toBe('intact');
-    // And back, where the picture before is showing.
-    expect(discsOf(VESPER, boss.state.look, { x: 0, y: 0 }, 0, first - 1)).toHaveLength(whole.length);
+    const swept = (stage: number, id: string): number =>
+      discsOf(VESPER, boss.state.look, { x: 0, y: 0 }, 0, stage).filter((disc) => disc.id === id).length;
+    const drawn = (id: string, stage: number): number =>
+      VESPER.parts.find((part) => part.id === id)!.discs.filter((disc) => disc.live!.includes(stage)).length;
+    // The cut found places that are drawn in some pictures and not in others — a cauldron, a lamp.
+    const pictures = VESPER.parts.flatMap((part) => part.discs.map((disc) => disc.live!.length));
+    expect(Math.min(...pictures)).toBeLessThan(6);
+    // Every region, every picture: hit exactly as often as it is drawn there.
+    for (let stage = 0; stage <= 5; stage++)
+      for (const part of VESPER.parts)
+        expect(swept(stage, part.id), `${part.id} in picture ${stage}`).toBe(drawn(part.id, stage));
+    // Her head and body and skirt are in every picture; the lamp's side only in the last two —
+    // nothing there for a ball to strike while no picture hangs it out.
+    for (const id of ['head', 'body', 'skirt'])
+      for (let stage = 0; stage <= 5; stage++)
+        expect(drawn(id, stage), `${id} in picture ${stage}`).toBeGreaterThan(0);
+    expect(drawn('side.R', 3)).toBe(0);
+    expect(drawn('side.R', 4)).toBe(1);
+    expect(drawn('side.R', 5)).toBe(1);
+  });
+
+  it('can always be finished: whatever regions are left standing, the picture they add up to draws one of them', () => {
+    // A region standing and whole that no picture showing draws would be a fight with no way on:
+    // nothing left to strike, and no blow to change the picture.
+    const parts = VESPER.parts;
+    for (let mask = 1; mask < 1 << parts.length; mask++) {
+      const left = parts.filter((_, at) => mask & (1 << at));
+      const stage = stageOf(
+        VESPER,
+        left.reduce((sum, part) => sum + part.weight, 0),
+      )!;
+      const hittable = left.filter((part) => part.discs.some((disc) => disc.live!.includes(stage)));
+      expect(hittable.length, left.map((part) => part.id).join(' + ')).toBeGreaterThan(0);
+    }
   });
 
   it('makes her four attacks in a circle: lamp, orb, lamp, rain', () => {
@@ -177,13 +201,17 @@ describe('薇斯珀 as a fight', () => {
     boss.attackCd = 0;
     expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['side.R'], shots: 2 });
     expect(boss.attackAt).toBe(1);
-    // From the fourth phase on it is due like any other.
+    // From the fourth phase on it is due like any other — once.
     boss.state.phase = 4;
     boss.attackAt = 4;
     boss.attackCd = 0;
     expect(characterAttack(boss)).toMatchObject({ kind: 'volley', shots: 8 });
     // And the clock wound the same throughout: she attacked no sooner for holding back.
     expect(boss.attackCd).toBe(1.8);
+    // Her one burst is spent: its turn comes round again and the lamp's plain volley is due.
+    boss.attackAt = 4;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['side.R'], shots: 2 });
+    expect(boss.attackAt).toBe(1);
   });
 
   it('is beaten only with every region gone, and shows her last picture before that', () => {
@@ -195,24 +223,45 @@ describe('薇斯珀 as a fight', () => {
     expect(boss.state.stage).toBe(5);
   });
 
-  it('is cut into four phases on how much of her is standing, as any character is', () => {
+  it('is cut into four phases on her gauge, blows inside a state counted, where her later pictures change', () => {
     const boss = startCharacterBoss(VESPER);
-    // Both sides gone is a fifth of her: not yet the 0.215 the second phase is cut at.
+    // Both sides gone is a fifth of her: 0.8 standing, her first phase still.
     wearOut(boss, 'side.L');
     wearOut(boss, 'side.R');
     expect(boss.state.integrity).toBeCloseTo(0.8, 5);
     expect(characterPhase(boss)).toMatchObject({ phase: 1, changed: false });
-    // Her head too: 0.36 lost.
+    // Her head too: 0.655 standing — the second picture showing, and still her first phase.
     wearOut(boss, 'head');
+    expect(boss.state.integrity).toBeCloseTo(0.655, 5);
+    expect(characterPhase(boss).phase).toBe(1);
+    // Her body: 0.485 standing, past 0.5 — the second phase.
+    wearOut(boss, 'body');
     expect(characterPhase(boss)).toMatchObject({ phase: 2, changed: true });
     expect(boss.pendingLine).toBe('phase2');
-    // Her body: 0.66 lost, past 0.55 — the third phase. Her skirt too, and nothing of her stands:
-    // the last phase.
-    wearOut(boss, 'body');
-    expect(characterPhase(boss).phase).toBe(3);
-    wearOut(boss, 'skirt');
-    expect(characterPhase(boss).phase).toBe(4);
-    expect(boss.state.integrity).toBe(0);
+    // Her skirt worn into its second state: a third of it gone, 0.323 standing — not yet 0.32.
+    const skirt = VESPER.parts.find((part) => part.id === 'skirt')!;
+    const strike = (blows: number): void => {
+      for (let i = 0; i < blows; i++) hitCharacterPart(boss, 'skirt', 100, 0, 1);
+    };
+    const standing = (worn: number): number => 0.485 * (2 / 3 - worn / (hitsPerState(skirt) * 3));
+    strike(hitsPerState(skirt));
+    expect(boss.state.integrity).toBeCloseTo(0.485 * (2 / 3), 5);
+    expect(characterPhase(boss).phase).toBe(2);
+    // Ten blows more: 0.283 standing — her third phase, though no part has changed state for it.
+    strike(10);
+    expect(boss.state.integrity).toBeCloseTo(standing(10), 5);
+    expect(characterPhase(boss)).toMatchObject({ phase: 3, changed: true });
+    expect(boss.pendingLine).toBe('phase3');
+    // Her last opens at 0.22, with the fifth picture still showing: her figure all but gone.
+    strike(20);
+    expect(boss.state.integrity).toBeCloseTo(standing(30), 5);
+    expect(characterPhase(boss)).toMatchObject({ phase: 4, changed: true });
+    expect(boss.state.stage).toBe(4);
+    expect(boss.pendingLine).toBe('phase4');
+    // The lamp volley she kept for it is her next move, due within a second — not in its turn.
+    expect(boss.attackAt).toBe(VESPER.attacks.findIndex((attack) => attack.phase === 4));
+    expect(boss.attackCd).toBeLessThanOrEqual(1);
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['side.R'], shots: 8 });
   });
 });
 
@@ -335,8 +384,116 @@ describe('薇斯珀 through the world', () => {
           disc.y,
         );
     }
+    // Her head worn off is 0.855 of her standing: not far enough for the first picture to give way.
+    expect(world.character!.state.stage).toBe(0);
+    expect(stages).toEqual([0]);
+    // Her body too — 0.685 standing, past the first picture's 0.84: the HUD hears of the part with
+    // the picture it fell in.
+    for (let i = 0; i < 2000 && world.character!.state.look.body.state !== 'destroyed'; i++) {
+      const disc = world.characterDiscs().find((each) => each.id === 'body');
+      if (disc)
+        world.onCharacterPartHit(
+          makeBall({ x: disc.x, y: disc.y, angle: 0, speed: 300, radius: 8, mult: 1 }),
+          disc.key,
+          0,
+          1,
+          disc.x,
+          disc.y,
+        );
+    }
     expect(world.character!.state.stage).toBe(1);
-    expect(stages.at(-1)).toBe(1);
+    expect(stages).toEqual([0, 1]);
+  });
+
+  it('throws from the lamp before any picture hangs it out, though there is nothing there for a ball', () => {
+    const world = makeStand();
+    play(world);
+    // The first pictures do not draw her lamp: no hitbox of its side is swept...
+    expect(world.characterDiscs().map((each) => each.id)).not.toContain('side.R');
+    // ...but the side stands, so it is somewhere to throw from: its first disc, drawn or not.
+    const lamp = characterMuzzlesOf(world.character!).find((each) => each.id === 'side.R')!;
+    expect(lamp.x).toBeCloseTo(world.character!.state.x + 109.6656 * VESPER.figure, 5);
+    const before = world.bullets.length;
+    world.character!.attackAt = 0;
+    world.character!.attackCd = 0;
+    world.update(DT);
+    const thrown = world.bullets.slice(before);
+    expect(thrown).toHaveLength(2);
+    for (const bullet of thrown) {
+      // From the lamp's place — a frame's flight on, and her sway with it.
+      const slack = Math.hypot(bullet.vx, bullet.vy) * DT + 1;
+      expect(Math.abs(bullet.x - lamp.x)).toBeLessThan(slack);
+      expect(Math.abs(bullet.y - (lamp.y + lamp.radius * 0.4))).toBeLessThan(slack);
+    }
+    // Torn off, a part is nowhere: not struck and not thrown from.
+    world.character!.state.look['side.R'].state = 'destroyed';
+    expect(characterMuzzlesOf(world.character!).map((each) => each.id)).not.toContain('side.R');
+  });
+
+  it('shakes her stars from the hat the picture showing draws, not from a brim it has left out', () => {
+    const world = makeStand();
+    play(world);
+    const head = VESPER.parts.find((part) => part.id === 'head')!;
+    // The fifth picture bends her hat: the tip of the brim is no longer drawn there.
+    const tip = head.discs.find((disc) => !disc.live!.includes(4))!;
+    expect(head.discs.indexOf(tip)).toBe(0);
+    world.character!.state.stage = 4;
+    const before = world.bullets.length;
+    world.character!.attackAt = 3;
+    world.character!.attackCd = 0;
+    world.update(DT);
+    // Six stars from across the first disc of her head that the picture does draw.
+    const drawn = world.characterDiscs().find((each) => each.id === 'head')!;
+    const stars = world.bullets.slice(before);
+    expect(stars).toHaveLength(6);
+    for (const star of stars) {
+      expect(star.visual).toBe('star');
+      expect(Math.abs(star.x - drawn.x)).toBeLessThan(drawn.radius * 2 + 8);
+      expect(star.y).toBeGreaterThan(drawn.y - 8);
+      expect(star.y).toBeLessThan(drawn.y + 26 + 8);
+    }
+  });
+
+  it('hangs the lamp out with its pictures, and there it can be struck', () => {
+    const world = makeStand();
+    play(world);
+    expect(world.characterDiscs().some((each) => each.id === 'side.R')).toBe(false);
+    world.character!.state.stage = 4;
+    expect(world.characterDiscs().filter((each) => each.id === 'side.R')).toHaveLength(1);
+  });
+
+  it('opens her last stand with the burst, and throws it once', () => {
+    const world = makeStand();
+    play(world);
+    const boss = world.character!;
+    // Steps the world `seconds` and reports the widest volley thrown meanwhile: the shots of a
+    // frame that are neither stars nor the orb.
+    let top = Math.max(0, ...world.bullets.map((bullet) => bullet.id));
+    const widestVolley = (seconds: number): number => {
+      let widest = 0;
+      for (let t = 0; t < seconds * 60; t++) {
+        world.update(DT);
+        const fresh = world.bullets.filter((bullet) => bullet.id > top);
+        for (const bullet of fresh) top = Math.max(top, bullet.id);
+        widest = Math.max(widest, fresh.filter((bullet) => !bullet.visual && !bullet.big).length);
+      }
+      return widest;
+    };
+    // Whole, her lamp throws two at a time.
+    expect(widestVolley(4)).toBe(2);
+    // Worn to her last phase — nothing torn off for it, only worn — and within a second the lamp
+    // empties itself.
+    for (const id of ['skirt', 'body', 'head']) {
+      while (boss.state.phase < 4 && boss.state.look[id].state !== 'destroyed') {
+        hitCharacterPart(boss, id, 100, 0, 1);
+        characterPhase(boss);
+      }
+    }
+    expect(boss.state.phase).toBe(4);
+    expect(boss.state.look.head.state).not.toBe('destroyed');
+    expect(widestVolley(1.2)).toBe(8);
+    // Spent: the rounds that follow hold the lamp's plain volley, and nothing wider.
+    expect(widestVolley(8)).toBe(2);
   });
 });
 

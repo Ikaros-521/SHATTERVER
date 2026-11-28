@@ -17,22 +17,18 @@ export interface DiscAt {
   /** The disc's radius, in figure units. */
   radius: number;
   /**
-   * The first picture, where she is shown one a stage, in which this disc is no longer drawn — a
-   * cauldron that is not in the later pictures. Null where it is drawn throughout.
+   * The pictures, where she is shown one a stage, that draw this disc — it is solid in those and
+   * in no other. A cauldron is hit where the cauldron is drawn, a lamp only from the picture
+   * that hangs it out, and where a picture leaves the place out the ball flies through. Left
+   * out where she is drawn part by part: there throughout.
    */
-  goneAt?: number | null;
+  live?: readonly number[];
 }
 
 export interface CharacterPart {
   id: BossPartId;
   /** Her discs of the part. A wide thing — a hat's brim, a gown's hem — is more than one. */
   discs: readonly DiscAt[];
-  /**
-   * From which picture on each disc is there, where she is shown a picture a stage: the stage a
-   * disc stops being solid (it is gone from the drawing), or null where it is there throughout.
-   * Read off the pictures by the cut; the fight keeps a disc off once its picture is due.
-   */
-  goneAt?: readonly (number | null)[];
   /** How much of every hit the armour turns away. */
   defense: number;
   /** The blows of the standard power it takes, before defence, to be worn through. */
@@ -63,6 +59,13 @@ export interface CharacterDef {
    * `until[i]` is the share of her integrity at which picture `i` gives way to picture `i + 1`.
    */
   stages?: { until: readonly number[] };
+  /**
+   * Where her second, third and fourth phases are cut, as shares of how much of her is standing —
+   * the gauge the player watches, blows inside a state counted. Left out: cut on how much of her
+   * has been torn off whole, which wants a boss of many small parts (a boss of five broad regions
+   * would sit three-quarters broken in her second phase).
+   */
+  phases?: readonly [number, number, number];
   /** The part deep in her that the shield guards, and the shield. Null where she has neither. */
   core: BossPartId | null;
   shield: BossPartId | null;
@@ -170,8 +173,7 @@ export function discsOf(
       const key = -1 - at++;
       if (state === undefined || state === 'destroyed') continue;
       // Not drawn in the picture showing: not there to be hit, though its part still stands.
-      if (disc.goneAt !== null && disc.goneAt !== undefined && stage !== null && stage >= disc.goneAt)
-        continue;
+      if (disc.live && stage !== null && !disc.live.includes(stage)) continue;
       const fx = disc.fx + look[part.id].dx;
       const fy = disc.fy + look[part.id].dy;
       out.push({

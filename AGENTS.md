@@ -156,6 +156,7 @@ pnpm test          # 全量测试，含文案词汇守门
 | `tools/boss-cut/`                 | 立绘 → 对齐的 WebP 与打击区表（Python，不进包；原图在 `art-src/`，不进仓库）           |
 | `src/game/character.ts`           | 角色类 Boss 的通用定义与圆盘；各角色在 `src/game/hiyou.ts`、`src/game/vesper.ts`       |
 | `src/game/bossShots.ts`           | Boss 招式与弹丸：投放图案注册表 + 弹丸规格，加招式/弹丸看 `docs/boss/stages.md` 第七节 |
+| `tests/boss-balance.test.ts`      | 机器人打整场：守住第 10 关 Boss 的时长与残血连发——改 Boss 耐打值必跑，别拍脑袋定数值   |
 
 ## 七、改名的连锁点
 

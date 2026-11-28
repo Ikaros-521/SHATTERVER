@@ -3,12 +3,14 @@ import {
   characterAttack,
   characterDefeated,
   characterDiscsOf,
+  characterMuzzlesOf,
   characterPhase,
   hitCharacterPart,
   startCharacterBoss,
   stepCharacterBoss,
 } from '../src/game/characterBoss';
-import { HIT_ORDER, HIYOU_PARTS, PART_WEIGHT, hitsPerState } from '../src/game/hiyou';
+import type { CharacterDef } from '../src/game/character';
+import { HIT_ORDER, HIYOU, HIYOU_PARTS, PART_WEIGHT, hitsPerState } from '../src/game/hiyou';
 import type { BossPartId } from '../src/render/boss/types';
 
 /** The parts, least weighted first, for tests that want to break her in a known order. */
@@ -248,5 +250,136 @@ describe('her attacks', () => {
     expect(characterAttack(boss)).toMatchObject({ kind: 'volley', scatter: 0 });
     boss.attackCd = 0;
     expect(characterAttack(boss)).toMatchObject({ kind: 'orb', scatter: 10 });
+  });
+});
+
+/** 绯樱 as a boss of few, broad regions would be: her phases cut on her gauge, and one attack kept for her last. */
+const GAUGED: CharacterDef = {
+  ...HIYOU,
+  phases: [0.5, 0.32, 0.22],
+  attacks: [...HIYOU.attacks, { kind: 'volley', from: ['Core'], shots: 8, phase: 4, once: true }],
+};
+const BURST = GAUGED.attacks.length - 1;
+
+/** Wears every blow but the last one out of every part of hers, so many states deep. */
+function wearEverywhere(boss: ReturnType<typeof startCharacterBoss>, states: number): void {
+  for (const part of HIYOU_PARTS) {
+    // The core is behind its shield: a test that wears everything opens it first.
+    if (part.id === 'Core') boss.state.shielded = false;
+    for (let i = 0; i < hitsPerState(part) * states; i++) hitCharacterPart(boss, part.id, 100, 0, 1);
+  }
+}
+
+describe('a character whose phases are cut on her gauge', () => {
+  it('counts the blows her parts have taken inside their states, where nothing has been torn off yet', () => {
+    const boss = startCharacterBoss(GAUGED);
+    // Two-thirds of the way through every part of her: nothing torn off, and by the gauge she is
+    // down to a third — her second phase, where parts torn off whole would have her in her first.
+    wearEverywhere(boss, 2);
+    expect(boss.state.integrity).toBeCloseTo(1 / 3, 5);
+    expect(characterDefeated(boss)).toBe(false);
+    expect(characterPhase(boss)).toMatchObject({ phase: 2, changed: true });
+    expect(boss.pendingLine).toBe('phase2');
+    // 绯樱 as she is written — no cut named — is cut as before, on what has been torn off.
+    const written = startCharacterBoss();
+    wearEverywhere(written, 2);
+    expect(characterPhase(written).phase).toBe(1);
+  });
+
+  it('tears her shield off at the third phase just the same, wherever that phase is cut', () => {
+    const boss = startCharacterBoss(GAUGED);
+    wearEverywhere(boss, 2);
+    // Every part one blow from its last state but whole: the gauge says a twelfth of her stands.
+    for (const part of HIYOU_PARTS) {
+      for (let i = 0; i < hitsPerState(part) - 1; i++) hitCharacterPart(boss, part.id, 100, 0, 1);
+    }
+    expect(boss.state.integrity).toBeLessThan(0.22);
+    expect(characterPhase(boss)).toMatchObject({ phase: 4, changed: true, fell: 'CoreShield' });
+    expect(boss.state.shielded).toBe(false);
+    expect(boss.state.look.CoreShield.state).toBe('destroyed');
+  });
+});
+
+describe('an attack kept for a phase', () => {
+  it('is her next move the moment that phase has come, and no later than a second into it', () => {
+    const boss = startCharacterBoss(GAUGED);
+    boss.attackAt = 2;
+    boss.attackCd = 2.0;
+    wearEverywhere(boss, 2);
+    // The second phase came with that: nothing of hers is kept for it, and her rounds go on from
+    // where they were.
+    expect(characterPhase(boss).phase).toBe(2);
+    expect(boss.attackAt).toBe(2);
+    expect(boss.attackCd).toBe(2.0);
+    // Into her last: the burst is next, and due within a second whatever the clock said.
+    const wearOut = (id: BossPartId): void => {
+      for (let i = 0; i < 60; i++) hitCharacterPart(boss, id, 100, 0, 1);
+    };
+    wearOut('Body');
+    wearOut('CoreShield');
+    hitCharacterPart(boss, 'LeftArm', 100, 0, 1);
+    expect(boss.state.integrity).toBeLessThanOrEqual(0.22);
+    expect(characterPhase(boss).phase).toBe(4);
+    expect(boss.attackAt).toBe(BURST);
+    expect(boss.attackCd).toBe(1.0);
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['Core'], shots: 8 });
+  });
+
+  it('is thrown once: spent, it passes her by like one held back, and the clock winds the same', () => {
+    const boss = startCharacterBoss(GAUGED);
+    boss.state.phase = 4;
+    boss.attackAt = BURST;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', shots: 8 });
+    expect(boss.spent[BURST]).toBe(true);
+    expect(boss.attackCd).toBe(1.5);
+    // Its turn come round again: the next attack is due instead, and the round carries on from there.
+    boss.attackAt = BURST;
+    expect(characterAttack(boss)).toMatchObject({
+      kind: 'volley',
+      from: ['LeftWing', 'RightWing'],
+      shots: 2,
+    });
+    expect(boss.attackAt).toBe(1);
+  });
+
+  it('leaves her nothing to throw once every one of hers is held back or spent, and costs her nothing', () => {
+    const kept: CharacterDef = {
+      ...HIYOU,
+      attacks: [
+        { kind: 'volley', from: ['Core'], shots: 8, phase: 4, once: true },
+        { kind: 'orb', from: ['Core'], phase: 3, once: true },
+      ],
+    };
+    // Held back: before the third phase neither is due, whichever of the two the round has come to.
+    for (const at of [0, 1]) {
+      const early = startCharacterBoss(kept);
+      early.attackAt = at;
+      early.attackCd = 0;
+      expect(characterAttack(early).kind).toBe('');
+      expect(early.attackCd).toBeGreaterThan(0);
+    }
+    // Spent: in her last phase with both thrown, just the same.
+    const late = startCharacterBoss(kept);
+    late.state.phase = 4;
+    late.spent = [true, true];
+    late.attackCd = 0;
+    expect(characterAttack(late).kind).toBe('');
+    expect(late.attackCd).toBeGreaterThan(0);
+  });
+});
+
+describe('where she throws from', () => {
+  it('is where her parts are, one place a part, and nowhere once it is torn off', () => {
+    const boss = startCharacterBoss();
+    const muzzles = characterMuzzlesOf(boss);
+    expect(muzzles.map((disc) => disc.id).sort()).toEqual(HIYOU_PARTS.map((part) => part.id).sort());
+    // For a boss of one disc a part, the place she throws from is the place the ball strikes.
+    const discs = characterDiscsOf(boss);
+    for (const muzzle of muzzles) {
+      const disc = discs.find((each) => each.id === muzzle.id)!;
+      expect([muzzle.x, muzzle.y, muzzle.radius]).toEqual([disc.x, disc.y, disc.radius]);
+    }
+    for (let i = 0; i < 18; i++) hitCharacterPart(boss, 'Head', 100, 0, 1);
+    expect(characterMuzzlesOf(boss).map((disc) => disc.id)).not.toContain('Head');
   });
 });

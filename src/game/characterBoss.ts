@@ -47,6 +47,8 @@ const FLASH_TIME = 0.24;
 /** How far a hit knocks the part it struck, in figure units, and how fast it goes home. */
 const KNOCK = 4;
 const KNOCK_HOME = 9;
+/** Seconds into a phase before she throws what she held back for it. */
+const HELD_DELAY = 1.0;
 
 export interface CharacterBoss {
   /** Who she is: her parts, where she stands, what she throws. */
@@ -64,6 +66,8 @@ export interface CharacterBoss {
   attackCd: number;
   /** Where she is in her list of attacks: which comes next. */
   attackAt: number;
+  /** Whether each attack of hers has been thrown, where it is hers to throw once. */
+  spent: boolean[];
   /** Seconds until she pours bricks into the field again, if she does. */
   reforgeCd: number;
   /** How long a change of picture takes, where she is shown one a stage: the two are cross-faded over it. */
@@ -101,6 +105,7 @@ export function startCharacterBoss(def: CharacterDef = HIYOU): CharacterBoss {
     pendingLine: 'intro',
     attackCd: 2.4,
     attackAt: 0,
+    spent: def.attacks.map(() => false),
     reforgeCd: def.reforge?.every ?? 0,
     stageFade: 0.45,
     stageMix: 1,
@@ -202,18 +207,21 @@ export function hitCharacterPart(
  */
 export function characterAttack(boss: CharacterBoss): CharacterAttack {
   const list = boss.def.attacks;
-  // An attack held back for a later phase passes her by — the clock winds just the same, so she
-  // hesitates — and the one after it is due instead. From where the list left off, not from its
-  // start: what comes next follows the round she is in.
+  // An attack held back for a later phase, or one she has already spent, passes her by — the
+  // clock winds just the same, so she hesitates — and the one after it is due instead. From where
+  // the list left off, not from its start: what comes next follows the round she is in.
   let at = boss.attackAt % Math.max(1, list.length);
   let next = list[at] ?? list[0]!;
-  for (let i = 0; i < list.length && (next.phase ?? 1) > boss.state.phase; i++) {
-    at = (at + 1) % list.length;
+  for (let i = 0; i < list.length && ((next.phase ?? 1) > boss.state.phase || boss.spent[at]); i++) {
+    at = (at + 1) % Math.max(1, list.length);
     next = list[at] ?? list[0]!;
   }
   boss.attackAt = (at + 1) % Math.max(1, list.length);
   // She gets quicker as she loses parts.
   boss.attackCd = boss.def.attackCd[boss.state.phase - 1] ?? boss.def.attackCd[0] ?? 2.5;
+  // Nothing of hers is due — every one held back or spent: she throws nothing, at no cost.
+  if ((next.phase ?? 1) > boss.state.phase || boss.spent[at]) return { ...next, kind: '' };
+  if (next.once) boss.spent[at] = true;
   // An orb scatters wider from the third phase on; an attack that names no burst bursts not at all.
   return { ...next, scatter: boss.state.phase >= 3 ? (next.scatterLate ?? 0) : (next.scatter ?? 0) };
 }
@@ -221,7 +229,8 @@ export function characterAttack(boss: CharacterBoss): CharacterAttack {
 /**
  * The phase she has come to, and whether this step crossed into a new one. Crossing into the third
  * tears her shield off for good, if it is still on her — `fell` names it when it did — and from
- * there the core is fair game.
+ * there the core is fair game. What she held back for the phase she has just come to is her next
+ * move: her last stand opens with it.
  */
 export function characterPhase(boss: CharacterBoss): {
   phase: number;
@@ -229,17 +238,28 @@ export function characterPhase(boss: CharacterBoss): {
   /** The part this step tore off by itself, if any. */
   fell: BossPartId | null;
 } {
-  let standing = 0;
-  let total = 0;
-  for (const part of boss.def.parts) {
-    const weight = part.weight;
-    total += weight;
-    if (boss.state.look[part.id]?.state !== 'destroyed') standing += weight;
+  const cut = boss.def.phases;
+  let phase: number;
+  if (cut) {
+    // On her gauge itself, the blows her parts have taken inside their states counted: she is in
+    // her second phase once no more than cut[0] of her stands, her third at cut[1], her last at
+    // cut[2]. A hair under a threshold is at it, as with her pictures.
+    const { integrity } = boss.state;
+    phase =
+      integrity <= cut[2] + 1e-9 ? 4 : integrity <= cut[1] + 1e-9 ? 3 : integrity <= cut[0] + 1e-9 ? 2 : 1;
+  } else {
+    let standing = 0;
+    let total = 0;
+    for (const part of boss.def.parts) {
+      const weight = part.weight;
+      total += weight;
+      if (boss.state.look[part.id]?.state !== 'destroyed') standing += weight;
+    }
+    // By what she has lost, not what stands: the phases fall as the fight goes on, and a part half
+    // broken has not lost its whole weight.
+    const lost = 1 - standing / total;
+    phase = lost >= 0.85 ? 4 : lost >= 0.55 ? 3 : lost >= 0.215 ? 2 : 1;
   }
-  // By what she has lost, not what stands: the phases fall as the fight goes on, and a part half
-  // broken has not lost its whole weight.
-  const lost = 1 - standing / total;
-  const phase = lost >= 0.85 ? 4 : lost >= 0.55 ? 3 : lost >= 0.215 ? 2 : 1;
   const changed = phase > boss.state.phase;
   let fell: BossPartId | null = null;
   if (changed) {
@@ -258,6 +278,13 @@ export function characterPhase(boss: CharacterBoss): {
     if (phase === 2) boss.pendingLine = 'phase2';
     if (phase === 3) boss.pendingLine = 'phase3';
     if (phase === 4) boss.pendingLine = 'phase4';
+    // What she kept for this phase is due now, not when its turn comes round: thrown within
+    // HELD_DELAY of the phase opening — sooner only where her clock was about to fire anyway.
+    const held = boss.def.attacks.findIndex((attack, at) => attack.phase === phase && !boss.spent[at]);
+    if (held >= 0) {
+      boss.attackAt = held;
+      boss.attackCd = Math.min(boss.attackCd, HELD_DELAY);
+    }
   }
   return { phase, changed, fell };
 }
@@ -270,6 +297,24 @@ export function characterDefeated(boss: CharacterBoss): boolean {
 /** Her discs this moment, for the sweep and the renderer alike. */
 export function characterDiscsOf(boss: CharacterBoss): BossDisc[] {
   return discsOf(boss.def, boss.state.look, boss.state, boss.tilt, boss.state.stage);
+}
+
+/**
+ * Where she throws from: one place a part still on its feet — its first disc the picture showing
+ * draws, and where the picture leaves the whole part out, the first of it anywhere. The ball only
+ * meets what is drawn; what she holds is hers while the part stands, so a picture that does not
+ * draw her lamp does not take it out of her hand. Nothing here is swept.
+ */
+export function characterMuzzlesOf(boss: CharacterBoss): BossDisc[] {
+  const drawn = characterDiscsOf(boss);
+  const out: BossDisc[] = [];
+  for (const part of hitOrder(boss.def)) {
+    const here =
+      drawn.find((disc) => disc.id === part.id) ??
+      discsOf(boss.def, boss.state.look, boss.state, boss.tilt).find((disc) => disc.id === part.id);
+    if (here) out.push(here);
+  }
+  return out;
 }
 
 /** Reused resting look, so that a headless test can build a frame without the renderer. */

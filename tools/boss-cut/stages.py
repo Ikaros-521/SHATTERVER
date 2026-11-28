@@ -275,7 +275,8 @@ REGIONS = [
     ('head', 0.0, 0.27, 0.0, 2.0),
     ('body', 0.27, (waist / height), 0.0, 1.25),
     ('skirt', (waist / height), 1.0, 0.0, 1.35),
-    ('side.L', 0.2, 0.95, 1.0, 1.0),
+    # `side` says which way of her middle a region lies: -1.0 her left, 1.0 her right.
+    ('side.L', 0.2, 0.95, -1.0, 1.0),
     ('side.R', 0.2, 0.95, 1.0, 1.0),
 ]
 

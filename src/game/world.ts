@@ -79,6 +79,7 @@ import {
   characterFor,
   startCharacterBoss,
   characterDiscsOf,
+  characterMuzzlesOf,
   characterPhase,
   hitCharacterPart,
   stepCharacterBoss,
@@ -1048,9 +1049,10 @@ export class World {
         this.reforge(forge);
       }
     }
-    // Her attacks fire from where her parts actually are this frame. What a kind of attack does is
-    // the shot module's business (`bossShots.ts`); the world only hands over the field it may
-    // fire into, and a part that is torn off fires nothing.
+    // Her attacks fire from where her parts actually are this frame — drawn in the picture
+    // showing or not, so long as the part stands; only the ball is turned away by what is drawn.
+    // What a kind of attack does is the shot module's business (`bossShots.ts`); the world only
+    // hands over the field it may fire into, and a part that is torn off fires nothing.
     boss.attackCd -= dt;
     if (boss.attackCd > 0) return;
     const attack = characterAttack(boss);
@@ -1067,7 +1069,7 @@ export class World {
         shootStandard: (x, y) => this.shoot(x, y),
         announce: (x, y) => this.events.emit('shoot', { x, y }),
       },
-      this.characterDiscs(),
+      characterMuzzlesOf(boss),
       attack,
     );
   }

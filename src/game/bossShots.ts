@@ -39,8 +39,16 @@ export interface ShotSpec {
 
 /** One of her attacks: where from, how the shots leave her, and what they are. */
 export interface CharacterAttack {
-  /** The phase this attack is held back for: before it, the clock winds but nothing is thrown. */
+  /**
+   * The phase this attack is held back for: before it, the clock winds but nothing is thrown. It
+   * is the first thing she throws once that phase has come.
+   */
   phase?: number;
+  /**
+   * Hers to throw once a fight: after that it passes her by like one held back, the clock winding
+   * just the same — for the one thing she keeps for the end.
+   */
+  once?: boolean;
   /** Where it comes from: a volley fires from every part named; the others from the first standing. */
   from: readonly BossPartId[];
   /** How the shots leave her: a key of the pattern registry (`PATTERNS`). */

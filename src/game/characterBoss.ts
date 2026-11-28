@@ -146,7 +146,8 @@ export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
 
 /** Keeps what follows from how her parts are in step with how they are: how much of her stands, and which picture of her shows. */
 function settle(boss: CharacterBoss): void {
-  boss.state.integrity = integrityOf(boss.def, boss.state.look);
+  // With the blows each part has taken inside its state: the gauge falls per blow, not per state.
+  boss.state.integrity = integrityOf(boss.def, boss.state.look, boss.wear);
   const stage = stageOf(boss.def, boss.state.integrity);
   // A new picture begins to come the moment it is due: the one before stays while it settles.
   if (stage !== boss.state.stage) {

@@ -8,7 +8,7 @@ import {
   startCharacterBoss,
   stepCharacterBoss,
 } from '../src/game/characterBoss';
-import { HIT_ORDER, HIYOU_PARTS, PART_WEIGHT } from '../src/game/hiyou';
+import { HIT_ORDER, HIYOU_PARTS, PART_WEIGHT, hitsPerState } from '../src/game/hiyou';
 import type { BossPartId } from '../src/render/boss/types';
 
 /** The parts, least weighted first, for tests that want to break her in a known order. */
@@ -163,6 +163,23 @@ describe('绯樱 as a fight', () => {
       for (let i = 0; i < 100; i++) hitCharacterPart(boss, part.id, 100, 0, 1);
     }
     expect(characterDefeated(boss)).toBe(false);
+  });
+
+  it('lets her gauge fall with every blow, not in steps when a part changes state', () => {
+    const boss = startCharacterBoss();
+    const body = HIYOU_PARTS.find((part) => part.id === 'Body')!;
+    const hps = hitsPerState(body);
+    const seen: number[] = [];
+    for (let i = 0; i < hps; i++) {
+      hitCharacterPart(boss, 'Body', 100, 0, 1);
+      seen.push(boss.state.integrity);
+    }
+    // Every blow moves the gauge, none of them backwards.
+    expect(new Set(seen).size).toBe(seen.length);
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThan(seen[i - 1]!);
+    // The last of them is the step the state change names: a third of the part's weight.
+    expect(seen[seen.length - 1]!).toBeCloseTo(1 - PART_WEIGHT.Body! / 3, 3);
+    expect(boss.state.look.Body.state).toBe('damaged_1');
   });
 
   it('fades the white of a hit, and eases a knocked part home', () => {

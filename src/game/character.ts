@@ -211,22 +211,32 @@ export function stageOf(def: CharacterDef, integrity: number): number | null {
   return stage;
 }
 
-/** How much of her is standing, by her parts' weights: a part half broken has not lost its whole weight. */
-export function integrityOf(def: CharacterDef, look: Record<BossPartId, PartLookState>): number {
+/**
+ * How much of her is standing, by her parts' weights — and, with `wear` given, by how beaten each
+ * standing part is inside its state: a third of a part's blows is a third of its weight gone, so
+ * that her gauge falls with every blow instead of in steps when a part changes state. Without
+ * `wear` it is the step function the pictures were cut against.
+ */
+export function integrityOf(
+  def: CharacterDef,
+  look: Record<BossPartId, PartLookState>,
+  wear?: Record<BossPartId, number>,
+): number {
   let whole = 0;
   for (const part of def.parts) {
     const state = look[part.id]?.state;
-    whole +=
-      part.weight *
-      (state === undefined
-        ? 0
-        : state === 'intact'
-          ? 1
-          : state === 'damaged_1'
-            ? 0.66
-            : state === 'damaged_2'
-              ? 0.33
-              : 0);
+    if (state === undefined) continue;
+    let share: number;
+    if (state === 'destroyed') share = 0;
+    else {
+      const step = state === 'intact' ? 0 : state === 'damaged_1' ? 1 : 2;
+      share = 1 - step / 3;
+      if (wear) {
+        const blows = hitsPerState(part);
+        share -= Math.min(1 / 3, (wear[part.id] ?? 0) / (blows * 3));
+      }
+    }
+    whole += part.weight * Math.max(0, share);
   }
   return whole;
 }

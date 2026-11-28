@@ -297,6 +297,10 @@ def in_region(x, y, top, bottom, side, reach):
 
 
 radius = float(np.clip(0.075 * fh, 12, 24))
+# The share of a disc's area the drawing must cover before a region without a live disc there
+# gets one anyway. Tests/vesper.test.ts guards the fight is always finishable; if that guard
+# ever fails for a region, lower this or re-cut the picture.
+WIDEN_MIN = 0.25
 rr = int(np.ceil(radius))
 yy, xx = np.mgrid[-rr:rr + 1, -rr:rr + 1]
 kernel = ((xx ** 2 + yy ** 2) <= radius ** 2).astype(np.float32)
@@ -331,6 +335,47 @@ for name, top, bottom, side, reach in REGIONS:
             xx_ = x + (step / 2 if row % 2 else 0)
             discs.append((name, xx_, y, mask))
             row += 1
+
+# A standing region must stay strikable for as long as any picture draws it. The grid spots are
+# fixed, but a prop held a little differently in one picture (the lamp, say) can leave the spot a
+# disc sits on just uncovered there — and a fight whose last standing region has nothing left to
+# strike on the picture showing is a fight with no way on. Where a picture draws a region that
+# owns discs but none of them is live there, widen that region's nearest disc to the stage.
+for name_, top, bottom, side, reach in REGIONS:
+    mine = [i for i, d in enumerate(discs) if d[0] == name_]
+    if not mine:
+        continue
+    for s_, cov in enumerate(per_stage):
+        if any(discs[i][3] >> s_ & 1 for i in mine):
+            continue
+        drawn_here = False
+        for y in np.arange(frame[1] + top * fh, frame[1] + bottom * fh, radius):
+            if drawn_here:
+                break
+            for x in np.arange(frame[0], frame[0] + fw, radius):
+                if not in_region(x, y, top, bottom, side, reach):
+                    continue
+                px, py = int(round(x - frame[0])), int(round(y - frame[1]))
+                if 0 <= px < width and 0 <= py < height and cov[py, px] >= 0.4:
+                    drawn_here = True
+                    break
+        if not drawn_here:
+            continue
+        best_i, best_c = None, 0.0
+        for i in mine:
+            _, x, y, _ = discs[i]
+            px, py = int(round(x - frame[0])), int(round(y - frame[1]))
+            if 0 <= px < width and 0 <= py < height and cov[py, px] > best_c:
+                best_i, best_c = i, float(cov[py, px])
+        # A disc is widened only where the drawing genuinely sits under it: below this share the
+        # picture merely grazes the region (hair at the edge), and a hitbox widened there would
+        # hang in half-empty air — and hand an early stage a target the art does not show.
+        if best_c >= WIDEN_MIN:
+            nm, x, y, mask = discs[best_i]
+            discs[best_i] = (nm, x, y, mask | (1 << s_))
+            print('region %s is drawn in picture %d but had no hitbox there — widened its nearest disc (coverage %.2f)' % (name_, s_, best_c))
+        elif best_c > 0:
+            print('region %s in picture %d: drawing grazes its disc spot only (coverage %.2f) — left unhittable there' % (name_, s_, best_c))
 print('hitboxes: ' + ', '.join('%s %d' % (n, sum(1 for d in discs if d[0] == n)) for n, *_ in REGIONS) + ' (%d of radius %.1f units)' % (len(discs), radius))
 print('pictures total %d B (%.2f MB)' % (total, total / 1048576))
 

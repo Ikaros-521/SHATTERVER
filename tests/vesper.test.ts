@@ -74,7 +74,7 @@ describe('薇斯珀 as a fight', () => {
     expect(discs).toHaveLength(
       VESPER.parts.reduce((sum, part) => sum + part.discs.filter((disc) => disc.live!.includes(0)).length, 0),
     );
-    expect(discs).toHaveLength(46);
+    expect(discs).toHaveLength(47);
     expect(discs.map((disc) => disc.id)).not.toContain('side.R');
     expect(new Set(discs.map((disc) => disc.key)).size).toBe(discs.length);
     expect(discs.every((disc) => disc.key < 0)).toBe(true);
@@ -412,7 +412,7 @@ describe('薇斯珀 through the world', () => {
     expect(world.characterDiscs().map((each) => each.id)).not.toContain('side.R');
     // ...but the side stands, so it is somewhere to throw from: its first disc, drawn or not.
     const lamp = characterMuzzlesOf(world.character!).find((each) => each.id === 'side.R')!;
-    expect(lamp.x).toBeCloseTo(world.character!.state.x + 109.6656 * VESPER.figure, 5);
+    expect(lamp.x).toBeCloseTo(world.character!.state.x + 112.5987 * VESPER.figure, 5);
     const before = world.bullets.length;
     world.character!.attackAt = 0;
     world.character!.attackCd = 0;

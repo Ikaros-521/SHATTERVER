@@ -102,8 +102,14 @@ export const HIYOU: CharacterDef = {
   attackCd: [2.7, 2.3, 1.9, 1.5],
   // Her wings volley, and her core's heavy orb bursts into scatter shots — wider late.
   attacks: [
-    { kind: 'volley', from: ['LeftWing', 'RightWing'], shots: 2, scatter: 0, scatterLate: 0 },
-    { kind: 'orb', from: ['Core'], shots: 1, scatter: 8, scatterLate: 10 },
+    { kind: 'volley', from: ['LeftWing', 'RightWing'], shots: 2 },
+    {
+      kind: 'orb',
+      from: ['Core'],
+      scatter: 8,
+      scatterLate: 10,
+      shot: { radius: 16, visual: 'orb', fuse: 1.15 },
+    },
   ],
   color: 0xff5fd8,
   reforge: null,

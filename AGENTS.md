@@ -139,22 +139,23 @@ pnpm test          # 全量测试，含文案词汇守门
 
 ## 六、相关文件索引
 
-| 文件                              | 作用                                                                  |
-| --------------------------------- | --------------------------------------------------------------------- |
-| `vite.toy.config.ts`              | Toy 构建（`__TOY__ = true`、无 sourcemap）                            |
-| `scripts/build-toy.mjs`           | Toy 包构建 + 剥离站外产物                                             |
-| `tests/tutorial.test.ts`          | 教程文案的「平台审核词汇」正则守门（禁 死/杀/血/武器/弹药/军事/尸体） |
-| `tests/blocklist.test.ts`         | 词表编码与文档母本的一致性守门                                        |
-| `docs/nickname-blocklist.md`      | 屏蔽词表的可读母本（不进 dist）                                       |
-| `scripts/encode-blocklist.mjs`    | 重新生成编码词表                                                      |
-| `scripts/check-package.mjs`       | 发布包扫描（词表 + 站外 + 夸大表达）                                  |
-| `promo/scripts/make_og_cover.mjs` | 网页版 og 封面重生成（勿手改 PNG，不进提审包）                        |
-| `src/render/themes/`              | 主题皮肤系统（目录、美术、绘制器、运行时——见第八节）                  |
-| `src/render/shaders/sprites.ts`   | 主题精灵的独立着色器程序（按需编译，不进 `instances.ts`）             |
-| `tests/themes.test.ts`            | 主题目录、判定、存档、「不改物理」与文案的守门                        |
-| `docs/boss/stages.md`            | 图组 Boss（薇斯珀）：一个角色每个阶段换一张图，怎么加下一个                |
-| `tools/boss-cut/`               | 立绘 → 对齐的 WebP 与打击区表（Python，不进包；原图在 `art-src/`，不进仓库） |
-| `src/game/character.ts`  | 角色类 Boss 的通用定义与圆盘；各角色在 `src/game/hiyou.ts`、`src/game/vesper.ts` |
+| 文件                              | 作用                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `vite.toy.config.ts`              | Toy 构建（`__TOY__ = true`、无 sourcemap）                                             |
+| `scripts/build-toy.mjs`           | Toy 包构建 + 剥离站外产物                                                              |
+| `tests/tutorial.test.ts`          | 教程文案的「平台审核词汇」正则守门（禁 死/杀/血/武器/弹药/军事/尸体）                  |
+| `tests/blocklist.test.ts`         | 词表编码与文档母本的一致性守门                                                         |
+| `docs/nickname-blocklist.md`      | 屏蔽词表的可读母本（不进 dist）                                                        |
+| `scripts/encode-blocklist.mjs`    | 重新生成编码词表                                                                       |
+| `scripts/check-package.mjs`       | 发布包扫描（词表 + 站外 + 夸大表达）                                                   |
+| `promo/scripts/make_og_cover.mjs` | 网页版 og 封面重生成（勿手改 PNG，不进提审包）                                         |
+| `src/render/themes/`              | 主题皮肤系统（目录、美术、绘制器、运行时——见第八节）                                   |
+| `src/render/shaders/sprites.ts`   | 主题精灵的独立着色器程序（按需编译，不进 `instances.ts`）                              |
+| `tests/themes.test.ts`            | 主题目录、判定、存档、「不改物理」与文案的守门                                         |
+| `docs/boss/stages.md`             | 图组 Boss（薇斯珀）：一个角色每个阶段换一张图，怎么加下一个                            |
+| `tools/boss-cut/`                 | 立绘 → 对齐的 WebP 与打击区表（Python，不进包；原图在 `art-src/`，不进仓库）           |
+| `src/game/character.ts`           | 角色类 Boss 的通用定义与圆盘；各角色在 `src/game/hiyou.ts`、`src/game/vesper.ts`       |
+| `src/game/bossShots.ts`           | Boss 招式与弹丸：投放图案注册表 + 弹丸规格，加招式/弹丸看 `docs/boss/stages.md` 第七节 |
 
 ## 七、改名的连锁点
 

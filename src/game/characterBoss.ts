@@ -214,8 +214,8 @@ export function characterAttack(boss: CharacterBoss): CharacterAttack {
   boss.attackAt = (at + 1) % Math.max(1, list.length);
   // She gets quicker as she loses parts.
   boss.attackCd = boss.def.attackCd[boss.state.phase - 1] ?? boss.def.attackCd[0] ?? 2.5;
-  // An orb scatters wider from the third phase on.
-  return { ...next, scatter: boss.state.phase >= 3 ? next.scatterLate : next.scatter };
+  // An orb scatters wider from the third phase on; an attack that names no burst bursts not at all.
+  return { ...next, scatter: boss.state.phase >= 3 ? (next.scatterLate ?? 0) : (next.scatter ?? 0) };
 }
 
 /**

@@ -43,20 +43,12 @@ export interface CharacterPart {
   order: number;
 }
 
-/** One of her attacks. */
-export interface CharacterAttack {
-  /** A volley fires from every part it names; an orb and a rain from the first of them standing. */
-  kind: 'volley' | 'orb' | 'rain';
-  /** The phase this attack is held back for: before it, the clock winds but nothing is thrown. */
-  phase?: number;
-  /** The parts it comes from. */
-  from: readonly BossPartId[];
-  /** Shots a volley fires from each part; stars a rain lets fall. */
-  shots: number;
-  /** What an orb bursts into, early in the fight and from the third phase on. */
-  scatter: number;
-  scatterLate: number;
-}
+// An attack is a table entry of the shot module: where from, a pattern, and what the projectile
+// is. It is defined there (`bossShots.ts`) with the patterns that throw it, and re-exported here
+// because her definition is read together with it.
+import type { CharacterAttack, ShotSpec } from './bossShots';
+
+export type { CharacterAttack, ShotSpec };
 
 export interface CharacterDef {
   /** What the fight, the renderer and the dictionary know her by. */

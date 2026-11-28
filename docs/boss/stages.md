@@ -38,12 +38,12 @@ python tools/boss-cut/stages.py art-src/boss/<id> src/render/boss/<id> --id <id>
 
 它会生成：
 
-| 文件 | 内容 |
-| --- | --- |
-| `art/stage-N.webp` | 每个阶段一张图（已对齐、底部渐隐、压好） |
-| `art/glow-N.webp` | 每张图throw的光晕 |
-| `layout.ts` | 每张图在人物坐标系里的位置，以及**打击区**（哪些位置能被打） |
-| `art.ts` | 加载这些图的页面 |
+| 文件               | 内容                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| `art/stage-N.webp` | 每个阶段一张图（已对齐、底部渐隐、压好）                     |
+| `art/glow-N.webp`  | 每张图的光晕                                                 |
+| `layout.ts`        | 每张图在人物坐标系里的位置，以及**打击区**（哪些位置能被打） |
+| `art.ts`           | 加载这些图的页面                                             |
 
 `--preview` 会写一张 `preview.png`：六张图排在夜空底上，青色圈是打击区。**先看这张**，
 圈没盖到的地方球会穿过去。
@@ -108,15 +108,35 @@ python tools/boss-cut/stages.py sheet.png src/render/boss/<id> --id <id> --rows 
 
 ## 六、调数值
 
-| 要调什么 | 在哪 |
-| --- | --- |
-| 她多大、站哪 | `src/game/<id>.ts` 的 `figure` / `x` / `y` |
-| 多耐打、哪个区域多重 | 同上，`REGION` |
-| 什么时候换图 | 同上，`stages.until` |
-| 进攻节奏与招式 | 同上，`attackCd` / `attacks` |
-| 换图快慢 | `src/game/characterBoss.ts` 的 `stageFade` |
-| 摆动、光、受击多亮、换图多亮 | `src/render/boss/<id>/motion.ts` |
-| 打击区的大小和分区 | `tools/boss-cut/stages.py` 的 `REGIONS` 与 `radius` |
+| 要调什么                     | 在哪                                                |
+| ---------------------------- | --------------------------------------------------- |
+| 她多大、站哪                 | `src/game/<id>.ts` 的 `figure` / `x` / `y`          |
+| 多耐打、哪个区域多重         | 同上，`REGION`                                      |
+| 什么时候换图                 | 同上，`stages.until`                                |
+| 进攻节奏与招式               | 同上，`attackCd` / `attacks`                        |
+| 换图快慢                     | `src/game/characterBoss.ts` 的 `stageFade`          |
+| 摆动、光、受击多亮、换图多亮 | `src/render/boss/<id>/motion.ts`                    |
+| 打击区的大小和分区           | `tools/boss-cut/stages.py` 的 `REGIONS` 与 `radius` |
+
+## 七、加一种招式 / 加一种弹丸（`src/game/bossShots.ts`）
+
+一个招式是 `attacks` 里的一行数据：
+
+```ts
+{ kind: 'volley', from: ['side.R'], shots: 2, phase: 4,
+  shot: { speed: 340, radius: 11, visual: 'shard', damage: 2, fuse: 1.2 } }
+```
+
+- `kind`：投放图案，注册表 `PATTERNS` 里的键。现有 `volley`（每个部位朝挡板齐射）、
+  `orb`（单个慢速大球）、`rain`（横排下落）。**加一种投放 = 注册表加一个函数**，只拿到
+  「发射场」（挡板位置、随机数、容量、spawn），碰不到战斗状态。
+- `shot`：弹丸规格——速度（缺省用图案自己的节奏）、半径、`visual`（外观画师的键）、
+  `fuse`（爆裂引信秒数，爆出 `scatter` 发）、`damage`（落底扣几格，缺省 1）。
+- `scatter` / `scatterLate`：爆裂数（后期更宽）；`phase`：阶段未到时这招被跳过。
+- **加一种弹丸外观 = `src/render/scene.ts` 的 `SHOT_PAINTERS` 加一个画师**——不一定是圆形：
+  `star`（十字星）、`shard`（沿速度方向的长条）都在那里，照抄改形状即可。
+
+要看行为，`tests/boss-shots.test.ts` 用一个记录用的发射场逐个图案断言。
 
 调试图：`__shatterverse.character({}, 3)` 直接看她第 4 张图（配 `freeze(true)` 截图）；
 `__shatterverse.character()` 读完整度、当前图号、淡入进度、打击区数量与图集情况。

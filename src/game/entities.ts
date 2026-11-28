@@ -267,6 +267,13 @@ export interface Bullet {
   big?: boolean;
   splitT?: number;
   splitN?: number;
+  /**
+   * How it is drawn: a key of the renderer's shot painters (`render/scene.ts`). Absent on the
+   * standard pink diamond — and on an orb, which the `big` flag names.
+   */
+  visual?: string;
+  /** Shields lost when it reaches the floor. Absent: 1. */
+  damage?: number;
 }
 
 /** A temporary gravity well that chews bricks and bends ball trajectories. */

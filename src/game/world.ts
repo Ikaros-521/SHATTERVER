@@ -84,8 +84,8 @@ import {
   stepCharacterBoss,
   type CharacterBoss,
 } from './characterBoss';
+import { fireAttack } from './bossShots';
 import type { BossDisc, CharacterDef } from './character';
-import type { BossPartId } from '../render/boss/types';
 import { BUFFS, BUFF_MAP, COVER, OFFENCE, type ActiveBuff, type BuffDef, type BuffId } from './buffs/defs';
 import { withBuffs } from './buffs/live';
 import {
@@ -844,7 +844,7 @@ export class World {
       if (bullet.y > ARENA_H + 12) {
         bullet.dead = true;
         this.events.emit('bulletPass', { x: bullet.x, y: ARENA_H });
-        this.damagePlayer(1);
+        this.damagePlayer(bullet.damage ?? 1);
         continue;
       }
       if (
@@ -1048,68 +1048,28 @@ export class World {
         this.reforge(forge);
       }
     }
-    // Her attacks fire from where her parts actually are this frame: a volley from every part it
-    // names, an orb and a rain from the first of them standing. The orb grows from its part and
-    // bursts into scatter shots on a fuse. A part that is torn off fires nothing.
+    // Her attacks fire from where her parts actually are this frame. What a kind of attack does is
+    // the shot module's business (`bossShots.ts`); the world only hands over the field it may
+    // fire into, and a part that is torn off fires nothing.
     boss.attackCd -= dt;
     if (boss.attackCd > 0) return;
-    const discs = this.characterDiscs();
-    const discOf = (id: BossPartId): BossDisc | undefined => discs.find((disc) => disc.id === id);
     const attack = characterAttack(boss);
-    const first = attack.from.map(discOf).find((disc) => disc !== undefined);
-    if (attack.kind === 'volley') {
-      for (const id of attack.from) {
-        const part = discOf(id);
-        if (!part) continue;
-        for (let i = 0; i < attack.shots; i++) this.shoot(part.x, part.y + part.radius * 0.4);
-      }
-    } else if (attack.kind === 'rain') {
-      if (first) this.starRain(first, attack.shots);
-    } else if (first) {
-      const aim = Math.atan2(this.paddle.y - first.y, this.paddle.x - first.x);
-      const speed = 190 + this.level.index * 3;
-      // A burst this blow, the orb carries a fuse and bursts into scatter shots while still over
-      // the open field; none this blow, it is only a heavy ball, and flies on until it is blocked
-      // or reaches the floor — an orb that quietly vanished mid-air would read as a bug.
-      const bursts = attack.scatter > 0;
-      this.bullets.push({
-        id: allocId(),
-        x: first.x,
-        y: first.y,
-        vx: Math.cos(aim) * speed,
-        vy: Math.sin(aim) * speed,
-        r: 16,
-        dead: false,
-        big: true,
-        ...(bursts ? { splitT: 1.15, splitN: attack.scatter } : {}),
-      });
-      this.events.emit('shoot', { x: first.x, y: first.y });
-    }
-  }
-
-  /**
-   * Stars shaken loose from above: they fall in a loose line towards the paddle, a wall with gaps
-   * in it to find a way through.
-   */
-  private starRain(from: BossDisc, count: number): void {
-    const speed = Math.min(320, 230 + this.level.index * 2) * (1 - this.live.slowField);
-    for (let i = 0; i < count; i++) {
-      if (this.bullets.length >= MAX_BULLETS) break;
-      const x = from.x + ((i + 0.5) / count - 0.5) * from.radius * 4 + this.rng.range(-8, 8);
-      const y = from.y + this.rng.range(0, 26);
-      // Each falls at the paddle, a little off true: a line of them, not one point.
-      const aim = Math.atan2(this.paddle.y - y, this.paddle.x - x) + this.rng.range(-0.16, 0.16);
-      this.bullets.push({
-        id: allocId(),
-        x,
-        y,
-        vx: Math.cos(aim) * speed,
-        vy: Math.sin(aim) * speed,
-        r: 8,
-        dead: false,
-      });
-    }
-    this.events.emit('shoot', { x: from.x, y: from.y });
+    fireAttack(
+      {
+        paddle: this.paddle,
+        level: this.level.index,
+        pace: 1 - this.live.slowField,
+        rng: this.rng,
+        capacity: () => this.bullets.length < MAX_BULLETS,
+        spawn: (bullet) => {
+          this.bullets.push({ ...bullet, id: allocId() });
+        },
+        shootStandard: (x, y) => this.shoot(x, y),
+        announce: (x, y) => this.events.emit('shoot', { x, y }),
+      },
+      this.characterDiscs(),
+      attack,
+    );
   }
 
   /**

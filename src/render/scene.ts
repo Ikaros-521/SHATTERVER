@@ -1,6 +1,6 @@
 import { TAU, clamp, easeOutCubic } from '../core/math';
 import { AEGIS_Y, ARENA_H, ARENA_W, DANGER_BAND, DANGER_Y, PADDLE_H, WALL } from '../game/config';
-import type { Brick } from '../game/entities';
+import type { Brick, Bullet } from '../game/entities';
 import { BUFF_MAP, type BuffId } from '../game/buffs/defs';
 import type { ChapterDef } from '../game/levels/definitions';
 import type { World } from '../game/world';
@@ -444,34 +444,61 @@ function drawHazards(pen: Pen, world: World, time: number): void {
         2.5,
       );
     }
-    if (bullet.big) {
-      // Her heavy orb: a breathing pink sphere whose shell blinks faster the closer the burst is.
-      // The ring sits exactly where it is hit — a hitbox wider or narrower than the drawing reads
-      // as the ball missing, or the orb vanishing unstruck.
-      const fuse = bullet.splitT;
-      const blink =
-        fuse !== undefined && fuse < 0.45 ? (Math.sin(time * 40) + 1) / 2 : (Math.sin(time * 8) + 1) / 2;
-      const pulse = 1 + 0.08 * Math.sin(time * 9);
-      pen.light(bullet.x, bullet.y, bullet.r * 2.6, bullet.r * 2.6, [2.2, 0.5, 2.5], 0.5, 0.55);
-      pen.surface(bullet.x, bullet.y, bullet.r * pulse, bullet.r * pulse, 0xff5fd8, {
-        rot: time * 2.2,
-        radius: 0.55,
-        halo: 0.7,
-      });
-      pen.surface(bullet.x, bullet.y, bullet.r * 0.62, bullet.r * 0.62, 0xffd0f4, {
-        rot: -time * 1.6,
-        radius: 0.5,
-        halo: 0.4,
-      });
-      pen.stroke(bullet.x, bullet.y, bullet.r, 1.6, 0xff5fd8, 1.2, 0.25 + 0.55 * blink, 0);
-      return;
-    }
+    // What a projectile looks like is a painter's key on the bullet (`game/bossShots.ts` names
+    // it); a key with no painter falls back to the standard diamond, so an unknown shot is a
+    // known shot rather than nothing.
+    const painter =
+      SHOT_PAINTERS[bullet.visual ?? (bullet.big ? 'orb' : 'standard')] ?? SHOT_PAINTERS.standard!;
+    painter(pen, bullet, time);
+  }
+}
+
+/** The shot painters a character boss's attacks may name. Adding a projectile is an entry here. */
+export const SHOT_PAINTERS: Record<string, (pen: Pen, bullet: Bullet, time: number) => void> = {
+  // The standard pink diamond, trailing a little of itself.
+  standard(pen, bullet) {
     pen.surface(bullet.x, bullet.y, 7, 7, 0xff2fb0, { rot: Math.PI / 4, radius: 1.6, halo: 0.6 });
     pen.light(bullet.x, bullet.y, 12, 12, [2.4, 0.5, 2.8], 0.85, 0.6);
     const angle = Math.atan2(bullet.vy, bullet.vx);
     pen.light(bullet.x - bullet.vx * 0.035, bullet.y - bullet.vy * 0.035, 18, 4, 0xff2fb0, 0.4, 0.3, angle);
-  }
-}
+  },
+  // Her heavy orb: a breathing pink sphere whose shell blinks faster the closer the burst is. The
+  // ring sits exactly where it is hit — a hitbox wider or narrower than the drawing reads as the
+  // ball missing, or the orb vanishing unstruck.
+  orb(pen, bullet, time) {
+    const fuse = bullet.splitT;
+    const blink =
+      fuse !== undefined && fuse < 0.45 ? (Math.sin(time * 40) + 1) / 2 : (Math.sin(time * 8) + 1) / 2;
+    const pulse = 1 + 0.08 * Math.sin(time * 9);
+    pen.light(bullet.x, bullet.y, bullet.r * 2.6, bullet.r * 2.6, [2.2, 0.5, 2.5], 0.5, 0.55);
+    pen.surface(bullet.x, bullet.y, bullet.r * pulse, bullet.r * pulse, 0xff5fd8, {
+      rot: time * 2.2,
+      radius: 0.55,
+      halo: 0.7,
+    });
+    pen.surface(bullet.x, bullet.y, bullet.r * 0.62, bullet.r * 0.62, 0xffd0f4, {
+      rot: -time * 1.6,
+      radius: 0.5,
+      halo: 0.4,
+    });
+    pen.stroke(bullet.x, bullet.y, bullet.r, 1.6, 0xff5fd8, 1.2, 0.25 + 0.55 * blink, 0);
+  },
+  // A star: a small burning core with two crossed rays, the rays creeping round as it falls.
+  star(pen, bullet, time) {
+    pen.light(bullet.x, bullet.y, 22, 22, [2.4, 1.6, 0.6], 0.6, 0.5);
+    pen.surface(bullet.x, bullet.y, 4.5, 4.5, 0xffe089, { rot: time * 1.4, radius: 0.2, halo: 0.55 });
+    const turn = Math.sin(time * 2.1) * 0.5;
+    pen.stroke(bullet.x, bullet.y, 12, 1.8, 0xffd27a, 1.1, 0.75, turn);
+    pen.stroke(bullet.x, bullet.y, 12, 1.8, 0xffd27a, 1.1, 0.6, turn + Math.PI / 2);
+  },
+  // A shard: an elongated lozenge laid along its own velocity — fast, and read as an edge.
+  shard(pen, bullet) {
+    const angle = Math.atan2(bullet.vy, bullet.vx);
+    pen.light(bullet.x, bullet.y, 16, 8, [2.6, 0.7, 1.9], 0.5, 0.45, angle);
+    pen.surface(bullet.x, bullet.y, 3.4, 12, 0xff7ad9, { rot: angle, radius: 0.35, halo: 0.5 });
+    pen.stroke(bullet.x, bullet.y, 3.4, 12, 0xffd0f4, 1, 0.5, angle);
+  },
+};
 
 /** The Aegis: a live wire under the paddle that bullets die on, for as long as the buff stands. */
 function drawAegis(pen: Pen, time: number): void {

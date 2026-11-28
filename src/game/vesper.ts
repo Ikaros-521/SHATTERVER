@@ -70,15 +70,16 @@ export const VESPER: CharacterDef = {
   tilt: 0.012,
   attackCd: [3.0, 2.6, 2.2, 1.8],
   attacks: [
-    // From the side her lamp hangs on, twice; a molten orb that bursts; and stars from her hat.
-    // None of them scatter: her one burst is kept for the last phase, where it is all she has left.
-    { kind: 'volley', from: ['side.R'], shots: 2, scatter: 0, scatterLate: 0 },
-    { kind: 'orb', from: ['side.L', 'body'], shots: 1, scatter: 0, scatterLate: 0 },
-    { kind: 'volley', from: ['side.R'], shots: 2, scatter: 0, scatterLate: 0 },
-    { kind: 'rain', from: ['head'], shots: 6, scatter: 0, scatterLate: 0 },
+    // From the side her lamp hangs on, twice; a molten orb; and stars shaken from her hat. None of
+    // them burst: her one burst is the lamp volley kept for the last phase, where it is all she
+    // has left. A non-circular projectile is a `visual` the renderer paints (`render/scene.ts`).
+    { kind: 'volley', from: ['side.R'], shots: 2 },
+    { kind: 'orb', from: ['side.L', 'body'] },
+    { kind: 'volley', from: ['side.R'], shots: 2 },
+    { kind: 'rain', from: ['head'], shots: 6, shot: { radius: 8, visual: 'star' } },
     // Her last stand, from the fourth phase on (she is nearly out): the lamp empties itself in
-    // one wide burst. Kept for the last phase, where it is all she has left.
-    { kind: 'volley', from: ['side.R'], shots: 8, phase: 4, scatter: 0, scatterLate: 0 },
+    // one wide burst.
+    { kind: 'volley', from: ['side.R'], shots: 8, phase: 4 },
   ],
   color: 0xffb347,
   reforge: { every: 11, late: 7, row: 18, count: 4 },

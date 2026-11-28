@@ -198,6 +198,12 @@ def save(rgba, name, quality):
     im = Image.fromarray((np.clip(rgba, 0, 1) * 255 + 0.5).astype(np.uint8))
     path = os.path.join(art, name + '.webp')
     im.save(path, 'WEBP', quality=quality, method=6)
+    if name.startswith('stage-'):
+        # The stage art ships inside the game package, and platform review rejects blood in
+        # imagery: recolour blood-red pixels toward the costume violet before they can ship.
+        import deblood
+
+        deblood.deblood(path, quality=quality)
     return im.size, os.path.getsize(path)
 
 

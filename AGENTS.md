@@ -94,9 +94,16 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
 英文避免 `KILLER / WEAPON / DEATH / BOMB` 一类实词（`dead-center`、`deadeye` 这类构词无碍），
 以及奇幻实体 `Enchanted / Elven / Neptune`（theme 场景用 `Verdant / Tide` 等自然词）。
 
-## 三、图片红线
+## 三、图片红线（第八次驳回：立绘血迹）
 
 - 图片里**不要出现文字**，除非确有必要；有必要时，文字同样遵守第二节全部规则（会被 OCR 扫描）。
+- **图片内容同样审核，血迹一票否决**（第八次驳回：薇斯珀 stage-4/5 立绘的血痕/血污随包上线
+  被点名）。Boss 立绘是打进包的真实图片资源——**所有出场图片（webp/png）都要过目检**：
+  血、断肢、裸露、恐怖意象都不行。
+- 立绘清洗已自动化：`tools/boss-cut/deblood.py` 把血红像素（含暗褐 dried blood）移向服装紫调，
+  保亮度压饱和；`stages.py` 出图时自动调用，**重跑管线不会回退**。新人设/新图组的原图若自带
+  血迹，要么让画师改原图，要么扩 `deblood.py` 的捕获带并逐张目检。
+- `check:package` 扫不了图片内容——每轮提审前人工看一遍 `dist/assets/*.webp`（尤其是新图）。
 - `og-cover.png` 不进提审包（`build:toy` 会删）；网页版需要改它时用
   `promo/scripts/make_og_cover.mjs` 重生成，不要手改 PNG。
 - 新增任何 `public/` 图片或 SVG：先自查是否有站外 logo、二维码、绝对化文案、军事/死亡意象。

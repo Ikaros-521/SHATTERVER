@@ -15,3 +15,4 @@ project.private.config.json
 # The illustrations the character bosses' art is cut from (tools/boss-cut). Too heavy for the
 # repo, and not the game's to publish: keep your own, see docs/boss/vesper.md.
 art-src/
+__pycache__/

@@ -16,7 +16,9 @@ pnpm build:toy     # tsc + vite（vite.toy.config.ts）+ 剥离站外产物
 - `__TOY__ = true`：只走平台排行榜通道，**Chedda 客户端被 tree-shake 掉**（包里没有第三方服务与品牌）
 - **无 sourcemap**（`.map` 会嵌入全量源码，是巨大的扫描面）
 - 删除 `llms.txt` / `robots.txt` / `sitemap.xml` / `og-cover.png`（它们只为站外网页版存在）
-- 清除 `index.html` 里的 canonical、og:url、og:image*、twitter:image、JSON-LD 的 url/image/codeRepository
+- 清除 `index.html` 里**整套网页版机器**（第十次驳回教训）：canonical、**全部 og:\*、全部
+  twitter:\***、robots、keywords、author、llms.txt 的 alternate 链接（指向被删文件的死链）、
+  **整个 JSON-LD 结构化数据块**——这些在平台包里只传达一件事：这是外部个人网页的打包壳
 
 普通 `pnpm build` 仍用于网页版（GitHub Pages），**不要拿它的 dist 提审**。
 

@@ -210,6 +210,27 @@ for (const name of WEB_ONLY_FILES) {
   }
 }
 
+// Web-page machinery in the shipped HTML: sharing metadata, crawler directives, authorship and
+// the SEO structured-data block all say "wrapped external web page" to a reviewer (2026-11-28).
+const htmlPath = path.join(DIST, 'index.html');
+if (fs.existsSync(htmlPath)) {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  const markers = [
+    'property="og:',
+    'name="twitter:',
+    'ld+json',
+    'llms.txt',
+    'name="robots"',
+    'name="keywords"',
+    'name="author"',
+    'rel="canonical"',
+  ];
+  for (const marker of markers) {
+    const count = html.split(marker).length - 1;
+    if (count > 0) problems.push({ rel: 'index.html', term: `web-page machinery ${marker}`, count });
+  }
+}
+
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
   const rel = path.relative(DIST, file);

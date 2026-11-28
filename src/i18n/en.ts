@@ -103,6 +103,12 @@ export const en: UiDict & { content: ContentOverrides } = {
     endlessEyebrow: 'ENDLESS · NO FINAL SECTOR',
     crystals: '+{n} crystals',
     diffRowLabel: 'Difficulty',
+    sort: {
+      label: 'SORT',
+      default: 'Default',
+      frequent: 'Frequent',
+      name: 'Name',
+    },
   },
   draft: {
     title: 'Pick one upgrade',

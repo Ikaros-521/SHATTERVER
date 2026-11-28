@@ -103,6 +103,12 @@ export const ja: UiDict & { content: ContentOverrides } = {
     endlessEyebrow: 'ENDLESS · 終わりのない階層',
     crystals: '+{n} クリスタル',
     diffRowLabel: '難易度',
+    sort: {
+      label: '並び順',
+      default: '既定',
+      frequent: 'よく使う',
+      name: '名前順',
+    },
   },
   draft: {
     title: 'アップグレードを1つ選択',

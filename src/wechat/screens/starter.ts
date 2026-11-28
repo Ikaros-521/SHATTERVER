@@ -2,18 +2,25 @@
  * The starter screen (选择初始协议) as a widget tree.
  *
  * Mirrors the DOM dialog: mode eyebrow, the difficulty selector with its modifier line, the
- * carried-supply chips when the player owns any, and the protocol cards — free starters first,
- * then shop-unlocked ones in price order, same as `ui.ts`. Tapping a card is the start action
- * (the DOM has no separate start button either); the back button stays pinned below the scroll.
+ * carried-supply chips when the player owns any, the roster's sort chips once a shop protocol
+ * joins, and the protocol cards — free starters first, then shop-unlocked ones in price order,
+ * arranged by the chosen sort, same as `ui.ts`. Tapping a card is the start action (the DOM has
+ * no separate start button either); the back button stays pinned below the scroll.
  *
- * The difficulty choice persists through the shell (settings + storeSave), matching
- * `ui.ts`'s `updateSettings({ difficulty })`.
+ * The difficulty and sort choices persist through the shell (settings + storeSave), matching
+ * `ui.ts`'s `updateSettings({ ... })`.
  */
 
 import { t } from '../../core/i18n';
 import type { SaveData } from '../../core/storage';
 import { PROTOCOLS, supplyCost, slotLimit } from '../../game/economy/catalog';
-import { STARTERS, type Starter } from '../../game/starters';
+import {
+  STARTERS,
+  STARTER_SORT_IDS,
+  sortStarters,
+  type Starter,
+  type StarterSortId,
+} from '../../game/starters';
 import { DIFFICULTIES, type DifficultyId } from '../../game/difficulty';
 import {
   difficultyDetail,
@@ -41,11 +48,13 @@ import {
 export interface StarterState {
   mode: RunMode;
   difficulty: DifficultyId;
+  sort: StarterSortId;
 }
 
 export interface StarterActions {
   back(): void;
   setDifficulty(id: DifficultyId): void;
+  setSort(id: StarterSortId): void;
   /** Toggling is validated and persisted by the shell; the screen just rebuilds. */
   toggleLoadout(id: string): void;
   start(starter: Starter): void;
@@ -61,8 +70,17 @@ export function starterTree(
 ): Widget {
   const pad = Math.max(16, Math.min(26, width * 0.045));
 
-  // Free starters first, then shop-unlocked protocols in price order — the DOM order.
-  const roster: Starter[] = [...STARTERS, ...PROTOCOLS.filter((p) => save.economy.protocols.includes(p.id))];
+  // Free starters first, then shop-unlocked protocols in price order — the DOM order — then the
+  // chosen sort arranges the whole roster.
+  const roster: Starter[] = sortStarters(
+    [...STARTERS, ...PROTOCOLS.filter((p) => save.economy.protocols.includes(p.id))],
+    state.sort,
+    save.economy.picksByStarter,
+    starterName,
+  );
+  // Past the free four plus one shop protocol, tall cards stop fitting any screen: the
+  // description leaves the tile and the roster reads as compact tiles, same as the DOM.
+  const compact = roster.length > STARTERS.length + 1;
 
   const children: Widget[] = [
     label(state.mode === 'campaign' ? t('starter.campaignEyebrow') : t('starter.endlessEyebrow'), {
@@ -118,30 +136,47 @@ export function starterTree(
     );
   }
 
+  // The roster's sort chips, once any shop protocol joins the four free starters.
+  if (roster.length > STARTERS.length) {
+    children.push(
+      row(
+        [
+          label(t('starter.sort.label'), { size: 11, color: 'inkFaint' }),
+          ...STARTER_SORT_IDS.map((id) =>
+            button(t(`starter.sort.${id}`), () => actions.setSort(id), {
+              variant: state.sort === id ? 'primary' : 'ghost',
+              size: 12,
+              paddingH: 10,
+            }),
+          ),
+        ],
+        { gap: 8, align: 'start' },
+      ),
+    );
+  }
+
   roster.forEach((starter, index) => {
     const grants = Object.entries(starter.grants)
       .map(([id, level]) => (upgradeNameById(id) ? `${upgradeNameById(id)} Lv${level}` : null))
       .filter((text): text is string => text !== null);
-    children.push(
-      panel(
-        [
-          button(starterName(starter), () => actions.start(starter), {
-            size: 17,
-            paddingH: 14,
-            sub: starter.en,
-            trailing: `0${index + 1}`,
-            stretch: true,
-          }),
-          paragraph(starterDesc(starter), { size: 12, color: 'inkDim' }),
-          label(grants.length > 0 ? grants.join(' · ') : t('starter.crystals', { n: starter.crystals }), {
-            size: 12,
-            color: 'gold',
-            alpha: 0.85,
-          }),
-        ],
-        { padding: 12, gap: 4, bg: false, stroke: false },
-      ),
+    const card: Widget[] = [
+      button(starterName(starter), () => actions.start(starter), {
+        size: compact ? 15 : 17,
+        paddingH: compact ? 10 : 14,
+        sub: starter.en,
+        ...(compact ? {} : { trailing: `0${index + 1}` }),
+        stretch: true,
+      }),
+    ];
+    if (!compact) card.push(paragraph(starterDesc(starter), { size: 12, color: 'inkDim' }));
+    card.push(
+      label(grants.length > 0 ? grants.join(' · ') : t('starter.crystals', { n: starter.crystals }), {
+        size: 12,
+        color: 'gold',
+        alpha: 0.85,
+      }),
     );
+    children.push(panel(card, { padding: compact ? 8 : 12, gap: 4, bg: false, stroke: false }));
   });
 
   const build = (viewportH: number): Widget =>

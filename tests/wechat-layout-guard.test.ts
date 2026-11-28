@@ -73,8 +73,14 @@ function screens(width: number, height: number): [string, Widget][] {
       'starter',
       starterTree(
         save,
-        { mode: 'campaign', difficulty: 'standard' },
-        { back(): void {}, setDifficulty(): void {}, toggleLoadout(): void {}, start(): void {} },
+        { mode: 'campaign', difficulty: 'standard', sort: 'default' },
+        {
+          back(): void {},
+          setDifficulty(): void {},
+          setSort(): void {},
+          toggleLoadout(): void {},
+          start(): void {},
+        },
         width,
         height,
         m,

@@ -31,7 +31,7 @@ import { CAMPAIGN_LENGTH } from '../game/levels/generator';
 import { CHAPTERS, REACTIONS } from '../game/levels/definitions';
 import type { RunMode } from '../game/run';
 import type { SectorReward, Session, SessionEvents } from '../game/session';
-import { STARTERS, type Starter } from '../game/starters';
+import { STARTERS, STARTER_SORT_IDS, sortStarters, type Starter, type StarterSortId } from '../game/starters';
 import {
   PROTOCOLS,
   PROTOCOL_MAP,
@@ -202,6 +202,8 @@ export class UI implements HudHost {
   private starterMode: RunMode = 'campaign';
   /** Difficulty preselected on the starter screen; remembered across sessions via settings. */
   private difficulty: DifficultyId;
+  /** Roster sort on the starter screen; remembered across sessions via settings. */
+  private starterSort: StarterSortId;
   private codexTab = 'upgrades';
   private historyTab: 'campaign' | 'endless' = 'campaign';
   private shopTab: 'protocols' | 'supplies' | 'skins' | 'progress' = 'protocols';
@@ -246,6 +248,7 @@ export class UI implements HudHost {
     private readonly save: SaveData,
   ) {
     this.difficulty = save.settings.difficulty;
+    this.starterSort = save.settings.starterSort;
     this.hud = new HUD(this);
     this.cloudPanel = actions.cloud ? new CloudPanel(actions.cloud, audio) : null;
     this.nicknamePrompt = actions.cloud ? new NicknamePrompt(audio, actions.cloud) : null;
@@ -546,18 +549,52 @@ export class UI implements HudHost {
     byId('starter-eyebrow').textContent =
       mode === 'campaign' ? t('starter.campaignEyebrow') : t('starter.endlessEyebrow');
     this.renderDifficulty();
+    this.renderStarterSort();
     const grid = byId('starter-grid');
-    // The four free protocols first, then whatever the shop has unlocked, in price order.
+    // The four free protocols first, then whatever the shop has unlocked, in price order —
+    // then the chosen sort arranges the whole roster.
     const unlocked = [...STARTERS, ...PROTOCOLS.filter((p) => this.save.economy.protocols.includes(p.id))];
+    const roster = sortStarters(unlocked, this.starterSort, this.save.economy.picksByStarter, starterName);
+    // A second shop protocol pushes the roster past what tall cards fit on any screen — six of
+    // them would squeeze the desktop's single row to slivers: compact tiles keep every protocol
+    // findable without a long pull-down scroll.
+    const compact = roster.length > STARTERS.length + 1;
+    grid.classList.toggle('compact', compact);
     grid.replaceChildren(
-      ...unlocked.map((starter, i) => {
-        const card = this.starterCard(starter, i);
+      ...roster.map((starter, i) => {
+        const card = compact ? this.starterCardCompact(starter) : this.starterCard(starter, i);
         card.style.animationDelay = `${i * 80}ms`;
         return card;
       }),
     );
     this.renderLoadout();
     this.show('starter');
+  }
+
+  /** The roster's sort chips: shown once any shop protocol joins the four free starters. */
+  private renderStarterSort(): void {
+    const row = byId('starter-sort');
+    row.hidden = this.save.economy.protocols.length === 0;
+    if (row.hidden) return;
+    row.replaceChildren(
+      el('span', { class: 'sort-label', text: t('starter.sort.label') }),
+      ...STARTER_SORT_IDS.map((id) => {
+        const chip = el('button', {
+          class: `sort-chip${this.starterSort === id ? ' on' : ''}`,
+          type: 'button',
+          'aria-pressed': String(this.starterSort === id),
+          text: t(`starter.sort.${id}`),
+        });
+        chip.addEventListener('click', () => {
+          if (this.starterSort === id) return;
+          this.starterSort = id;
+          this.actions.updateSettings({ starterSort: id });
+          this.audio.ui('uiClick');
+          this.showStarter(this.starterMode);
+        });
+        return chip;
+      }),
+    );
   }
 
   /** The tier selector row plus the chosen tier's modifier list underneath it. */
@@ -2071,10 +2108,15 @@ export class UI implements HudHost {
     return card;
   }
 
-  private starterCard(starter: Starter, index: number): HTMLElement {
+  /** The gold footnote under a protocol's name: its opening grants, or the crystals it carries. */
+  private starterGrantsLine(starter: Starter): string {
     const grants = Object.entries(starter.grants)
       .map(([id, level]) => (UPGRADE_MAP[id] ? `${upgradeNameById(id)} Lv${level}` : null))
       .filter((text): text is string => text !== null);
+    return grants.length > 0 ? grants.join(' · ') : t('starter.crystals', { n: starter.crystals });
+  }
+
+  private starterCard(starter: Starter, index: number): HTMLElement {
     const card = el(
       'button',
       {
@@ -2093,10 +2135,35 @@ export class UI implements HudHost {
       el('h3', { class: 'card-name', text: starterName(starter) }),
       el('div', { class: 'card-code', text: starter.en }),
       el('p', { class: 'card-flavor', text: starterDesc(starter) }),
-      el('div', {
-        class: 'card-level',
-        text: grants.length > 0 ? grants.join(' · ') : t('starter.crystals', { n: starter.crystals }),
-      }),
+      el('div', { class: 'card-level', text: this.starterGrantsLine(starter) }),
+    );
+    this.tilt(card);
+    return card;
+  }
+
+  /**
+   * The compact tile a long roster renders instead of the tall card: art, name and the grant
+   * line. The full description rides on the desktop tooltip; the shop screen carries it too.
+   */
+  private starterCardCompact(starter: Starter): HTMLElement {
+    const card = el(
+      'button',
+      {
+        class: 'card card-starter compact',
+        type: 'button',
+        style: `--rarity:${hexCss(starter.color)};--c:${hexCss(starter.color)}`,
+        'aria-label': starterName(starter),
+        title: starterDesc(starter),
+        onClick: () => this.actions.startRun(this.starterMode, starter, this.difficulty),
+      },
+      el(
+        'div',
+        { class: 'card-art' },
+        el('img', { src: sigil(`starter:${starter.id}`, starter.color), alt: '', draggable: 'false' }),
+      ),
+      el('h3', { class: 'card-name', text: starterName(starter) }),
+      el('div', { class: 'card-code', text: starter.en }),
+      el('div', { class: 'card-level', text: this.starterGrantsLine(starter) }),
     );
     this.tilt(card);
     return card;

@@ -151,6 +151,10 @@ function boot(): void {
             rerollCost: session.rerollCost,
             skipReward: session.skipReward,
             reward: session.sectorReward,
+            banCosts: session.draft.map((def) => session.banCost(def)),
+            armedBan,
+            build: Object.entries(session.run.upgrades).map(([id, level]) => ({ id, level })),
+            armedDiscard,
           },
           draftActions,
           width,
@@ -371,6 +375,9 @@ function boot(): void {
       startRunFor(current.mode, starter, current.difficulty);
     },
   };
+  /** The card whose ban confirm is open; cleared by any state change (pick/skip/reroll). */
+  let armedBan: string | null = null;
+  let armedDiscard: string | null = null;
   const draftActions = {
     pick: (id: string): void => {
       if (!world || current.kind !== 'draft') return;
@@ -386,6 +393,28 @@ function boot(): void {
       if (!world || current.kind !== 'draft') return;
       world.session.skip();
       leaveDraftIfDone();
+    },
+    banArm: (id: string | null): void => {
+      armedBan = id;
+      armedDiscard = null;
+      rebuild();
+    },
+    ban: (id: string): void => {
+      if (!world || current.kind !== 'draft') return;
+      armedBan = null;
+      armedDiscard = null;
+      if (!world.session.ban(id)) rebuild(); // refused: the wallet or the table said no
+    },
+    discardArm: (id: string | null): void => {
+      armedDiscard = id;
+      armedBan = null;
+      rebuild();
+    },
+    discard: (id: string): void => {
+      if (!world || current.kind !== 'draft') return;
+      armedDiscard = null;
+      armedBan = null;
+      if (!world.session.discard(id)) rebuild(); // refused: a dependent stands on this level
     },
   };
   /** A settled draft hands control back to the live world; a re-rolled one stays on the screen. */

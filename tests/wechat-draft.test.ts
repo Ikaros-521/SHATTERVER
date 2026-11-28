@@ -31,14 +31,22 @@ function model(over: Partial<DraftModel> = {}): DraftModel {
     crystals: 30,
     rerollCost: 25,
     skipReward: 15,
+    banCosts: options().map(() => 30),
+    armedBan: null,
+    build: [{ id: options()[0]!.id, level: 2 }],
+    armedDiscard: null,
     ...over,
   };
 }
 
-function actions(): { acts: DraftActions; state: { picked: string[]; rerolled: number; skipped: number } } {
-  const state = { picked: [] as string[], rerolled: 0, skipped: 0 };
+function actions(): { acts: DraftActions; state: { picked: string[]; rerolled: number; skipped: number; banned: string[] } } {
+  const state = { picked: [] as string[], rerolled: 0, skipped: 0, banned: [] as string[] };
   const acts: DraftActions = {
     pick: (id) => state.picked.push(id),
+    banArm: () => {},
+    ban: (id) => state.banned.push(id),
+    discardArm: () => {},
+    discard: (id) => state.banned.push(id),
     reroll: () => state.rerolled++,
     skip: () => state.skipped++,
   };
@@ -62,11 +70,15 @@ describe('draftTree', () => {
     const tree = draftTree(model(), acts, 400, 800, m);
     layoutWidget(tree, 0, 0, 400, m);
     const all = buttons(tree);
-    // Three option cards + reroll + skip.
-    expect(all).toHaveLength(5);
-    const cards = all.slice(0, 3);
+    // Three option cards + a ban pill each + a build tile + reroll + skip.
+    expect(all).toHaveLength(9);
+    const cards = all.filter((b) => b.sub?.includes(rarityName(options()[0]!.rarity)) ?? false);
     expect(cards[0]?.sub).toContain(rarityName(options()[0]!.rarity));
     expect(cards[0]?.strokeOverride).toBe(rgba(RARITY_INFO[options()[0]!.rarity].color, 0.9));
+    // Each card's ban pill quotes its own price.
+    const bans = all.filter((b) => b.text.startsWith(t('draft.ban')));
+    expect(bans).toHaveLength(3);
+    for (const pill of bans) expect(pill.text).toContain('◆30');
   });
 
   it('words the level jump, NEW and maxed states like the DOM cards', () => {
@@ -92,9 +104,9 @@ describe('draftTree', () => {
     expect(skip?.disabled).toBe(false);
 
     const rich = buttons(draftTree(model({ crystals: 100 }), acts, 400, 800, m));
+    rich.find((b) => b.sub?.includes(rarityName(options()[0]!.rarity)))?.onTap();
     rich.find((b) => b.text === t('draft.reroll'))?.onTap();
     rich.find((b) => b.text === t('draft.skip'))?.onTap();
-    rich[0]?.onTap();
     expect(state.rerolled).toBe(1);
     expect(state.skipped).toBe(1);
     expect(state.picked).toEqual([options()[0]?.id]);

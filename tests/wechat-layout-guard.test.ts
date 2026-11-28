@@ -51,6 +51,10 @@ const draft: DraftModel = {
   crystals: 85,
   rerollCost: 63,
   skipReward: 20,
+  banCosts: [30, 30, 30],
+  armedBan: null,
+  build: [{ id: (UPGRADES[0] ?? longName).id, level: 2 }],
+  armedDiscard: null,
 };
 
 function screens(width: number, height: number): [string, Widget][] {
@@ -90,7 +94,24 @@ function screens(width: number, height: number): [string, Widget][] {
       'history',
       historyTree(save, { tab: 'campaign' }, { back(): void {}, setTab(): void {} }, width, height, m),
     ],
-    ['draft', draftTree(draft, { pick(): void {}, reroll(): void {}, skip(): void {} }, width, height, m)],
+    [
+      'draft',
+      draftTree(
+        draft,
+        {
+          pick(): void {},
+          reroll(): void {},
+          skip(): void {},
+          banArm(): void {},
+          ban(): void {},
+          discardArm(): void {},
+          discard(): void {},
+        },
+        width,
+        height,
+        m,
+      ),
+    ],
     [
       'results',
       resultsTree(

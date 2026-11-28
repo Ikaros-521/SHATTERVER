@@ -270,6 +270,25 @@ describe('薇斯珀 through the world', () => {
     expect(spread).toBeGreaterThan(40);
   });
 
+  it('lob her orb without a fuse at all — her burst is the lamp volley, not the orb', () => {
+    const world = makeStand();
+    play(world);
+    const orb = (): { big: number; fused: number } => {
+      const before = world.bullets.length;
+      world.character!.attackAt = 1;
+      world.character!.attackCd = 0;
+      world.update(DT);
+      const big = world.bullets.slice(before).filter((bullet) => bullet.big);
+      return { big: big.length, fused: big.filter((bullet) => bullet.splitT !== undefined).length };
+    };
+    // Early and late alike: a heavy ball only, flying on until it is blocked or it reaches the
+    // floor — an orb that quietly vanished mid-air would read as a bug, and a burst there would
+    // pile on her last-phase volley.
+    expect(orb()).toEqual({ big: 1, fused: 0 });
+    world.character!.state.phase = 4;
+    expect(orb()).toEqual({ big: 1, fused: 0 });
+  });
+
   it('lob her orb from her left side, and from her body once that side is gone', () => {
     const world = makeStand();
     play(world);

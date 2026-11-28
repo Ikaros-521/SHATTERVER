@@ -1068,6 +1068,10 @@ export class World {
     } else if (first) {
       const aim = Math.atan2(this.paddle.y - first.y, this.paddle.x - first.x);
       const speed = 190 + this.level.index * 3;
+      // A burst this blow, the orb carries a fuse and bursts into scatter shots while still over
+      // the open field; none this blow, it is only a heavy ball, and flies on until it is blocked
+      // or reaches the floor — an orb that quietly vanished mid-air would read as a bug.
+      const bursts = attack.scatter > 0;
       this.bullets.push({
         id: allocId(),
         x: first.x,
@@ -1077,9 +1081,7 @@ export class World {
         r: 16,
         dead: false,
         big: true,
-        // The fuse runs out while the orb is still over the open field, short of the paddle line.
-        splitT: 1.15,
-        splitN: attack.scatter,
+        ...(bursts ? { splitT: 1.15, splitN: attack.scatter } : {}),
       });
       this.events.emit('shoot', { x: first.x, y: first.y });
     }

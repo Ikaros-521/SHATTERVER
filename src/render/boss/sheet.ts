@@ -108,6 +108,17 @@ export interface Layer {
    * takes it; a painting is washed out by all of it, and takes a little.
    */
   flash?: number;
+  /**
+   * The white of a hit this layer shows, 0 to 1, where it has no part of its own to be hit — a
+   * whole picture, lit by whatever landed on any of her. Left out: the white of its part's look.
+   * What this says is taken before `flash`'s share.
+   */
+  flashOf?: (frame: BossFrame) => number;
+  /**
+   * Light thrown on this layer that no blow did, 0 to 1: a change of picture's own flash. Taken
+   * as it comes, with no share of `flash` taken off it.
+   */
+  glowOf?: (frame: BossFrame) => number;
 }
 
 /** A light thrown under the field, in figure units. */
@@ -173,6 +184,8 @@ export function place(sheet: Sheet, frame: BossFrame, out: Placed[] = [], still 
     if (!shot) continue;
     const pose = still || gone ? undefined : layer.move ? layer.move(frame, look) : undefined;
     const home = layer.home;
+    const struck =
+      (layer.flashOf ? layer.flashOf(frame) : look.flash) * (layer.flash ?? 1) + (layer.glowOf?.(frame) ?? 0);
     const placed: Placed = {
       shot,
       group: layer.group,
@@ -183,7 +196,7 @@ export function place(sheet: Sheet, frame: BossFrame, out: Placed[] = [], still 
       mirror: (home?.mirror ?? false) || (pose?.mirror ?? false),
       alpha: pose?.alpha ?? 1,
       look,
-      flash: look.flash * (layer.flash ?? 1),
+      flash: Math.min(1, struck),
       ghost: 0,
     };
     if (gone) {

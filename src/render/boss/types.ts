@@ -5,6 +5,12 @@
  */
 
 /**
+ * What a fight says about a character boss right now, as her painters see it. Presentation only:
+ * the simulation owns every hitbox and every point of durability, and nothing here is ever written
+ * back to it.
+ */
+
+/**
  * The name of a part a character boss is made of. Each character names her own (`game/hiyou.ts`,
  * `game/vesper.ts`); a sheet, a frame and a fight agree on them and nothing above knows them.
  */
@@ -52,6 +58,16 @@ export interface BossFrame {
   face: FaceId;
   /** How each of her parts is, by the part's name. */
   look: Readonly<Record<BossPartId, PartLook>>;
+  /**
+   * Which picture of her shows, where she is shown one whole picture a stage of her fight
+   * (`render/boss/stage`); null where she is drawn part by part.
+   */
+  stage?: number | null;
+  /**
+   * How far the change from the picture before `stage` has come, 0 to 1: at 0 the last picture
+   * still shows whole, at 1 the new one does. 1 where there is no change under way.
+   */
+  stageMix?: number;
 }
 
 /** Every one of `parts` intact and at rest. */

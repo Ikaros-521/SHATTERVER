@@ -1,16 +1,15 @@
-# boss-cut：把一张立绘切成角色 Boss 的图层
+# boss-cut：把一张立绘变成角色 Boss 的美术
 
-把 `art-src/boss/<id>/master.png` 那样的一张白底立绘，切成游戏能用的透明图层
-（`src/render/boss/<id>/art/*.webp`）与它的布局（`layout.ts`）。
+`stages.py` 把一组「每个阶段一张」的立绘变成游戏能用的东西（`src/render/boss/<id>/`）：
+对齐好的 WebP、光晕、打击区表（`layout.ts`）和加载页（`art.ts`）。
 
 需要 Python 3.10+ 与 numpy、scipy、Pillow。项目自己的工具链不依赖它们，这些脚本也不进任何包。
-用法、每一步在做什么、以及怎么再加一个角色：见 `docs/boss/vesper.md`。
+用法、每一步在做什么、以及怎么再加一个角色：见 `docs/boss/stages.md`。
 
 ```sh
-python tools/boss-cut/matte.py   <原图.png> <抠好的.png>
-python tools/boss-cut/segment.py <抠好的.png> <输出目录> --overlay
-python tools/boss-cut/finalize.py <输出目录> src/render/boss/<id>/art
+# 一个文件夹的透明 PNG（1.png、2.png……），或一张没切开的拼图
+python tools/boss-cut/stages.py <文件夹或拼图> src/render/boss/<id> --id <id> --preview /tmp/<id>
 ```
 
-`segment.py` 里的多边形是照薇斯珀那张原图量的像素坐标，换一张图要重新量。
-`finalize.py` 末尾写出的 `layout.ts` 是生成物，不要手改。
+`paper.py` 是它用的抠图模块（拼图模式下把人物从纸上取下来）。
+`layout.ts` 与 `art.ts` 是生成物，不要手改。

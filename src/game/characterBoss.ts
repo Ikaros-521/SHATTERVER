@@ -4,6 +4,7 @@ import {
   hitOrder,
   integrityOf,
   hitsPerState,
+  stageOf,
   WEAR,
   type BossDisc,
   type CharacterAttack,
@@ -65,6 +66,10 @@ export interface CharacterBoss {
   attackAt: number;
   /** Seconds until she pours bricks into the field again, if she does. */
   reforgeCd: number;
+  /** How long a change of picture takes, where she is shown one a stage: the two are cross-faded over it. */
+  stageFade: number;
+  /** 0..1, how far the change to the picture showing has come; 1 when it is settled. */
+  stageMix: number;
 }
 
 /** Starts her, whole, at the top of the arena. 绯樱 if nobody is named. */
@@ -85,6 +90,7 @@ export function startCharacterBoss(def: CharacterDef = HIYOU): CharacterBoss {
       phase: 1,
       shielded: def.shield !== null,
       integrity: 1,
+      stage: stageOf(def, 1),
       line: null,
       defeated: false,
     },
@@ -96,6 +102,8 @@ export function startCharacterBoss(def: CharacterDef = HIYOU): CharacterBoss {
     attackCd: 2.4,
     attackAt: 0,
     reforgeCd: def.reforge?.every ?? 0,
+    stageFade: 0.45,
+    stageMix: 1,
   };
 }
 
@@ -111,6 +119,8 @@ export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
   boss.tilt = Math.sin(boss.swayT * def.swayRate) * def.tilt;
 
   boss.quietFor += dt;
+  // A picture part-way in settles, whatever else is happening to her.
+  if (boss.stageMix < 1) boss.stageMix = Math.min(1, boss.stageMix + dt / boss.stageFade);
   boss.state.line = null;
   if (boss.pendingLine && boss.quietFor > 1.2) {
     boss.state.line = boss.pendingLine;
@@ -131,6 +141,17 @@ export function stepCharacterBoss(boss: CharacterBoss, dt: number): void {
         look.dy = 0;
       }
     }
+  }
+}
+
+/** Keeps what follows from how her parts are in step with how they are: how much of her stands, and which picture of her shows. */
+function settle(boss: CharacterBoss): void {
+  boss.state.integrity = integrityOf(boss.def, boss.state.look);
+  const stage = stageOf(boss.def, boss.state.integrity);
+  // A new picture begins to come the moment it is due: the one before stays while it settles.
+  if (stage !== boss.state.stage) {
+    boss.state.stage = stage;
+    boss.stageMix = 0;
   }
 }
 
@@ -170,7 +191,7 @@ export function hitCharacterPart(
   // A shield torn off by blows opens the core as surely as the third phase does.
   if (id === boss.def.shield && look.state === 'destroyed') boss.state.shielded = false;
 
-  boss.state.integrity = integrityOf(boss.def, boss.state.look);
+  settle(boss);
   return dealt;
 }
 
@@ -221,7 +242,7 @@ export function characterPhase(boss: CharacterBoss): {
       if (shield && shield.state !== 'destroyed') {
         shield.state = 'destroyed';
         boss.wear[boss.def.shield] = 0;
-        boss.state.integrity = integrityOf(boss.def, boss.state.look);
+        settle(boss);
         fell = boss.def.shield;
       }
     }
@@ -239,7 +260,7 @@ export function characterDefeated(boss: CharacterBoss): boolean {
 
 /** Her discs this moment, for the sweep and the renderer alike. */
 export function characterDiscsOf(boss: CharacterBoss): BossDisc[] {
-  return discsOf(boss.def, boss.state.look, boss.state, boss.tilt);
+  return discsOf(boss.def, boss.state.look, boss.state, boss.tilt, boss.state.stage);
 }
 
 /** Reused resting look, so that a headless test can build a frame without the renderer. */

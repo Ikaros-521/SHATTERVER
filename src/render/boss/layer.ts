@@ -144,6 +144,9 @@ export function frameOf(world: World): BossFrame {
     time: boss.swayT,
     face: boss.state.face,
     look: boss.state.look,
+    // Which picture of her shows, where she is shown in pictures, and how far in it is.
+    stage: boss.state.stage,
+    stageMix: boss.stageMix,
   };
 }
 

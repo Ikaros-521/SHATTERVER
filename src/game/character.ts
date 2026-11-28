@@ -16,12 +16,23 @@ export interface DiscAt {
   fy: number;
   /** The disc's radius, in figure units. */
   radius: number;
+  /**
+   * The first picture, where she is shown one a stage, in which this disc is no longer drawn — a
+   * cauldron that is not in the later pictures. Null where it is drawn throughout.
+   */
+  goneAt?: number | null;
 }
 
 export interface CharacterPart {
   id: BossPartId;
   /** Her discs of the part. A wide thing — a hat's brim, a gown's hem — is more than one. */
   discs: readonly DiscAt[];
+  /**
+   * From which picture on each disc is there, where she is shown a picture a stage: the stage a
+   * disc stops being solid (it is gone from the drawing), or null where it is there throughout.
+   * Read off the pictures by the cut; the fight keeps a disc off once its picture is due.
+   */
+  goneAt?: readonly (number | null)[];
   /** How much of every hit the armour turns away. */
   defense: number;
   /** The blows of the standard power it takes, before defence, to be worn through. */
@@ -51,6 +62,13 @@ export interface CharacterDef {
   /** Her name as the run's records keep it. */
   name: string;
   parts: readonly CharacterPart[];
+  /**
+   * How she is shown, where she is not drawn part by part but as one whole picture a stage of the
+   * fight (`render/boss/stage`): which of her parts being still on their feet means which picture.
+   * The fight is the same either way — parts, wear, phases — only the picture changes whole.
+   * `until[i]` is the share of her integrity at which picture `i` gives way to picture `i + 1`.
+   */
+  stages?: { until: readonly number[] };
   /** The part deep in her that the shield guards, and the shield. Null where she has neither. */
   core: BossPartId | null;
   shield: BossPartId | null;
@@ -75,7 +93,9 @@ export interface CharacterDef {
   reforge: { every: number; late: number; row: number; count: number } | null;
 }
 
-/** A disc of hers at one moment, in world units: what the sweep and the renderer both read. The id is the part's for the renderer, and a negative number for the ball sweep, which keys by brick id. */
+/**
+ * A disc of hers at one moment, in world units: what the sweep and the renderer both read. The id is the part's for the renderer, and a negative number for the ball sweep, which keys by brick id.
+ */
 export interface BossDisc {
   id: BossPartId;
   /** The disc as a sweep key: negative, and so never a brick's id. */
@@ -102,6 +122,11 @@ export interface CharacterBossState {
   shielded: boolean;
   /** 0..1, how much of her is still standing, by the parts' weights. */
   integrity: number;
+  /**
+   * Which picture of her shows, where she is shown a picture a stage: 0 whole, the last one
+   * finished. Null where she is drawn part by part. See `CharacterDef.stages`.
+   */
+  stage: number | null;
   /** The line waiting to be said, if this is the moment for one. */
   line: string | null;
   /** Set once when the fight is over: she has no parts left. */
@@ -138,6 +163,7 @@ export function discsOf(
   look: Record<BossPartId, PartLookState>,
   anchor: { x: number; y: number },
   tilt: number,
+  stage: number | null = null,
 ): BossDisc[] {
   const c = Math.cos(tilt);
   const s = Math.sin(tilt);
@@ -149,6 +175,9 @@ export function discsOf(
       // The key is the disc's place among all of hers, standing or not, so that it never changes.
       const key = -1 - at++;
       if (state === undefined || state === 'destroyed') continue;
+      // Not drawn in the picture showing: not there to be hit, though its part still stands.
+      if (disc.goneAt !== null && disc.goneAt !== undefined && stage !== null && stage >= disc.goneAt)
+        continue;
       const fx = disc.fx + look[part.id].dx;
       const fy = disc.fy + look[part.id].dy;
       out.push({
@@ -163,6 +192,21 @@ export function discsOf(
     }
   }
   return out;
+}
+
+/**
+ * Which picture of her shows at an integrity: the first picture whose `until` she has not come down
+ * to. Nothing where she is not shown in pictures. Each threshold is the integrity at which its
+ * picture gives way — reached is enough — and they fall, so 1 is whole and the last picture has none.
+ */
+export function stageOf(def: CharacterDef, integrity: number): number | null {
+  const until = def.stages?.until;
+  if (!until) return null;
+  let stage = 0;
+  // A hair under the threshold counts as reaching it: an integrity of 0.84 arrived at by sums of
+  // weights is not always the 0.84 written down.
+  for (const share of until) if (integrity <= share + 1e-9) stage++;
+  return stage;
 }
 
 /** How much of her is standing, by her parts' weights: a part half broken has not lost its whole weight. */

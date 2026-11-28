@@ -152,8 +152,8 @@ pnpm test          # 全量测试，含文案词汇守门
 | `src/render/themes/`              | 主题皮肤系统（目录、美术、绘制器、运行时——见第八节）                  |
 | `src/render/shaders/sprites.ts`   | 主题精灵的独立着色器程序（按需编译，不进 `instances.ts`）             |
 | `tests/themes.test.ts`            | 主题目录、判定、存档、「不改物理」与文案的守门                        |
-| `docs/boss/vesper.md`    | 角色类 Boss（绯樱、薇斯珀）：一个角色由什么组成、立绘怎么切层、怎么再加一个 |
-| `tools/boss-cut/`        | 立绘 → 透明图层的切图脚本（Python，不进包；原图在 `art-src/`，不进仓库） |
+| `docs/boss/stages.md`            | 图组 Boss（薇斯珀）：一个角色每个阶段换一张图，怎么加下一个                |
+| `tools/boss-cut/`               | 立绘 → 对齐的 WebP 与打击区表（Python，不进包；原图在 `art-src/`，不进仓库） |
 | `src/game/character.ts`  | 角色类 Boss 的通用定义与圆盘；各角色在 `src/game/hiyou.ts`、`src/game/vesper.ts` |
 
 ## 七、改名的连锁点

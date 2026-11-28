@@ -35,7 +35,10 @@ import { drawScene, type BallSkinOverride, type PaddleSkinOverride, type SceneIn
 import { BossLayer, frameOf } from './render/boss/layer';
 import type { PartState } from './render/boss/types';
 import { HIYOU_SHEET, HIYOU_SCALE } from './render/boss/hiyou/draw/pieces';
-import { loadVesperArt, vesperArt } from './render/boss/vesper/art';
+import { loadVESPER } from './render/boss/vesper/art';
+import { VESPER_STAGES } from './render/boss/vesper/layout';
+import { vesperMotion } from './render/boss/vesper/motion';
+import { stageSource } from './render/boss/stage/source';
 import { HIYOU } from './game/hiyou';
 import { VESPER } from './game/vesper';
 import { THEMES } from './render/themes';
@@ -289,7 +292,7 @@ export class App implements UiActions {
      * her parts is. Given a part-to-state map, she is put into it first — for looking at her worn
      * and torn without playing her there.
      */
-    character: (states?: Record<string, PartState>): Record<string, unknown> | null => {
+    character: (states?: Record<string, PartState>, stage?: number): Record<string, unknown> | null => {
       const boss = this.session.world.character;
       if (!boss) return null;
       for (const [id, state] of Object.entries(states ?? {})) {
@@ -297,13 +300,23 @@ export class App implements UiActions {
         // Put at rest as well: no white of a blow left on her, nothing knocked out of place.
         if (look) Object.assign(look, { state, flash: 0, dx: 0, dy: 0 });
       }
+      // A picture asked for by number is shown settled: for looking at each of them without
+      // wearing her down to it. How much of her stands is left as it is.
+      if (stage !== undefined && boss.def.stages) {
+        boss.state.stage = Math.max(0, Math.min(boss.def.stages.until.length, Math.floor(stage)));
+        boss.stageMix = 1;
+      }
       return {
         id: boss.def.id,
         phase: boss.state.phase,
         shielded: boss.state.shielded,
         integrity: +boss.state.integrity.toFixed(3),
         face: boss.state.face,
+        // Which picture of her shows, and how far in it is (1: settled).
+        stage: boss.state.stage,
+        stageMix: +boss.stageMix.toFixed(3),
         parts: Object.fromEntries(Object.entries(boss.state.look).map(([id, look]) => [id, look.state])),
+        hitboxes: this.session.world.characterDiscs().length,
         art: this.boss.status(),
       };
     },
@@ -423,8 +436,9 @@ export class App implements UiActions {
     // Who can be drawn, and how: 绯樱 is drawn with Canvas 2D the moment she is wanted; 薇斯珀 is
     // cut from pictures, which are fetched now so that they are in hand long before her sector.
     this.boss.register(HIYOU.id, () => ({ sheet: HIYOU_SHEET, scale: HIYOU_SCALE }));
-    this.boss.register(VESPER.id, () => vesperArt(VESPER.figure));
-    void loadVesperArt();
+    const vesper = stageSource(loadVESPER, VESPER_STAGES, vesperMotion, VESPER.figure);
+    this.boss.register(VESPER.id, vesper);
+    void vesper.preload();
     this.fx = new Fx(particleCapacity(this.governor.current.quality), this.fxSettings());
     this.theme = new ThemeLayer(this.governor.current.quality);
     this.audio.setVolumes(this.save.settings.music, this.save.settings.sfx);

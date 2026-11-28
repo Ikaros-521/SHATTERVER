@@ -79,7 +79,9 @@ export const HIT_ORDER: readonly BossPart[] = [...HIYOU_PARTS].sort((a, b) => b.
 /** She as a fight reads her. */
 export const HIYOU: CharacterDef = {
   id: 'hiyou',
-  name: '樱之誓约·绯樱',
+  // The Toy probe package spawns no character bosses, so her name is never read there — and must
+  // not ride along in its bundle (AGENTS.md §三).
+  name: __TOY__ ? '' : '樱之誓约·绯樱',
   parts: HIYOU_PARTS.map((part): CharacterPart => ({
     id: part.id,
     discs: [{ fx: part.fx, fy: part.fy, radius: part.radius }],

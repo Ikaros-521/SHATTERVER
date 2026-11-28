@@ -33,6 +33,63 @@ export interface ChangelogEntry {
   notes: string[];
 }
 
+/**
+ * The character bosses' copy. The Toy probe package (`__TOY__`) ships no character bosses, so
+ * none of this copy may reach its bundle: an all-empty stub keeps every line out of the platform
+ * package while the full copy below serves every other build (and the tests, which run un-gated).
+ */
+const characterBossCopy = __TOY__
+  ? {
+      hiyou: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', phase4: '', partDown: '', defeated: '' },
+      },
+      vesper: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', partDown: '', phase4: '', defeated: '' },
+      },
+    }
+  : {
+      hiyou: {
+        name: '樱之誓约·绯樱',
+        title: '崩界绽放的誓约之樱',
+        code: 'HIYOU',
+        armor: '装甲完整度',
+        shieldUp: '护盾未破',
+        lines: {
+          intro: '又有人闯进我的樱园了。请便——就让花瓣为你引路。',
+          phase2: '有点意思。那就，再深一点。',
+          phase3: '护盾放下了。看清楚，这才是我的全貌。',
+          phase4: '下一击之后，天空会开满樱花。',
+          partDown: '装甲……碎了一片，还有点疼。',
+          defeated: '花落了。这一局，是你赢了。',
+        },
+      },
+      vesper: {
+        name: '星炉占星师·薇斯珀',
+        title: '熔火核心的守炉人',
+        code: 'VESPER',
+        armor: '星装完整度',
+        shieldUp: '星炉未破',
+        lines: {
+          intro: '星炉已沸。坐吧，今夜我为你占上一卦。',
+          phase2: '有点意思。可星轨从不为谁拐弯。',
+          phase3: '炉盖开了——当心，别被星屑烫到。',
+          partDown: '碎了一角。无妨，不过是换一种方式发光。',
+          phase4: '也罢。让你看看，一整片星空有多重。',
+          defeated: '这一卦……是我输了。夜还长，后会有期。',
+        },
+      },
+    };
+
 export const zh = {
   common: {
     back: '返回',
@@ -89,38 +146,7 @@ export const zh = {
     wave: '波次 {n}/{total}',
   },
   // A character boss, each by the name her fight knows her by (`game/character.ts`).
-  characterBoss: {
-    hiyou: {
-      name: '樱之誓约·绯樱',
-      title: '崩界绽放的誓约之樱',
-      code: 'HIYOU',
-      armor: '装甲完整度',
-      shieldUp: '护盾未破',
-      lines: {
-        intro: '又有人闯进我的樱园了。请便——就让花瓣为你引路。',
-        phase2: '有点意思。那就，再深一点。',
-        phase3: '护盾放下了。看清楚，这才是我的全貌。',
-        phase4: '下一击之后，天空会开满樱花。',
-        partDown: '装甲……碎了一片，还有点疼。',
-        defeated: '花落了。这一局，是你赢了。',
-      },
-    },
-    vesper: {
-      name: '星炉占星师·薇斯珀',
-      title: '熔火核心的守炉人',
-      code: 'VESPER',
-      armor: '星装完整度',
-      shieldUp: '星炉未破',
-      lines: {
-        intro: '星炉已沸。坐吧，今夜我为你占上一卦。',
-        phase2: '有点意思。可星轨从不为谁拐弯。',
-        phase3: '炉盖开了——当心，别被星屑烫到。',
-        partDown: '碎了一角。无妨，不过是换一种方式发光。',
-        phase4: '也罢。让你看看，一整片星空有多重。',
-        defeated: '这一卦……是我输了。夜还长，后会有期。',
-      },
-    },
-  },
+  characterBoss: characterBossCopy,
   starter: {
     title: '选择初始协议',
     sub: '协议决定这局构筑的起点。之后的每一次三选一，都由你决定。',

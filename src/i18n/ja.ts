@@ -7,6 +7,63 @@ import type { UiDict } from './zh';
  * 正本があるゲーム内文字列（アップグレード名・フレーバー・説明、ステージ名、BOSS、変異、
  * 元素反応など）の日本語上書きテーブル。
  */
+/**
+ * The character bosses' copy. The Toy probe package (`__TOY__`) ships no character bosses, so
+ * none of this copy may reach its bundle: an all-empty stub keeps every line out of the platform
+ * package while the full copy below serves every other build (and the tests, which run un-gated).
+ */
+const characterBossCopy = __TOY__
+  ? {
+      hiyou: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', phase4: '', partDown: '', defeated: '' },
+      },
+      vesper: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', partDown: '', phase4: '', defeated: '' },
+      },
+    }
+  : {
+      hiyou: {
+        name: '桜の誓約・緋桜',
+        title: '崩れゆく世界に咆く誓いの桜',
+        code: 'HIYOU',
+        armor: '装甲ゲージ',
+        shieldUp: '盾は健在',
+        lines: {
+          intro: 'また花見の客が来たのね。いいわ——花びらが道しるべになるから。',
+          phase2: 'なかなかやるじゃない。もっと深く。',
+          phase3: '盾は下ろした。よく見て、これが私の全て。',
+          phase4: '次の一撃の後、空いっぱいに桜が咲くわ。',
+          partDown: '装甲がひび割れた……。少し痛いわ。',
+          defeated: '花は散った……この勝ち、あなたのものよ。',
+        },
+      },
+      vesper: {
+        name: '星炉の占星師・ヴェスパー',
+        title: '熔火の炉を守る者',
+        code: 'VESPER',
+        armor: '星装の状態',
+        shieldUp: '星炉は無傷',
+        lines: {
+          intro: '星の炉は煮えています。お座りなさい。今夜はあなたの星を占いましょう。',
+          phase2: 'おもしろい。けれど、星の軌道は誰のために曲がりません。',
+          phase3: 'ふたが開きました——お気をつけて。星屑は熱いですよ。',
+          partDown: 'ひと欠けました。かまいません。光り方が変わっただけですから。',
+          phase4: 'しかたありません。空ひとつの重さ、見せてあげましょう。',
+          defeated: 'この占いは……あなたの勝ちです。夜は長い。また会いましょう。',
+        },
+      },
+    };
+
 export const ja: UiDict & { content: ContentOverrides } = {
   common: {
     back: '戻る',
@@ -64,38 +121,7 @@ export const ja: UiDict & { content: ContentOverrides } = {
     wave: 'WAVE {n}/{total}',
   },
   // A character boss, each by the name her fight knows her by (`game/character.ts`).
-  characterBoss: {
-    hiyou: {
-      name: '桜の誓約・緋桜',
-      title: '崩れゆく世界に咆く誓いの桜',
-      code: 'HIYOU',
-      armor: '装甲ゲージ',
-      shieldUp: '盾は健在',
-      lines: {
-        intro: 'また花見の客が来たのね。いいわ——花びらが道しるべになるから。',
-        phase2: 'なかなかやるじゃない。もっと深く。',
-        phase3: '盾は下ろした。よく見て、これが私の全て。',
-        phase4: '次の一撃の後、空いっぱいに桜が咲くわ。',
-        partDown: '装甲がひび割れた……。少し痛いわ。',
-        defeated: '花は散った……この勝ち、あなたのものよ。',
-      },
-    },
-    vesper: {
-      name: '星炉の占星師・ヴェスパー',
-      title: '熔火の炉を守る者',
-      code: 'VESPER',
-      armor: '星装の状態',
-      shieldUp: '星炉は無傷',
-      lines: {
-        intro: '星の炉は煮えています。お座りなさい。今夜はあなたの星を占いましょう。',
-        phase2: 'おもしろい。けれど、星の軌道は誰のために曲がりません。',
-        phase3: 'ふたが開きました——お気をつけて。星屑は熱いですよ。',
-        partDown: 'ひと欠けました。かまいません。光り方が変わっただけですから。',
-        phase4: 'しかたありません。空ひとつの重さ、見せてあげましょう。',
-        defeated: 'この占いは……あなたの勝ちです。夜は長い。また会いましょう。',
-      },
-    },
-  },
+  characterBoss: characterBossCopy,
   starter: {
     title: '初期プロトコルを選択',
     sub: 'プロトコルはビルドの起点。その後の3択はすべて、あなたが決めます。',

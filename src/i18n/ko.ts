@@ -7,6 +7,63 @@ import type { UiDict } from './zh';
  * 중국어 정본이 있는 게임 내 문자열(업그레이드 이름·플레이버·설명, 스테이지 이름, 보스, 변이,
  * 원소 반응 등)의 한국어 덮어쓰기 테입니다.
  */
+/**
+ * The character bosses' copy. The Toy probe package (`__TOY__`) ships no character bosses, so
+ * none of this copy may reach its bundle: an all-empty stub keeps every line out of the platform
+ * package while the full copy below serves every other build (and the tests, which run un-gated).
+ */
+const characterBossCopy = __TOY__
+  ? {
+      hiyou: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', phase4: '', partDown: '', defeated: '' },
+      },
+      vesper: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', partDown: '', phase4: '', defeated: '' },
+      },
+    }
+  : {
+      hiyou: {
+        name: '벚꽃 서약·희벚꽃',
+        title: '무너지는 세계에 피어나는 서약의 벚꽃',
+        code: 'HIYOU',
+        armor: '장갑 게이지',
+        shieldUp: '방어막 유지',
+        lines: {
+          intro: '또 내 벚꽃 정원에 온 손님이네. 좋아요 — 꽃잎이 길을 비춰줄 거예요.',
+          phase2: '제법하네요. 더 깊이 들어와 보세요.',
+          phase3: '방어막을 내렸어요. 잘 보세요, 이게 저의 전부예요.',
+          phase4: '다음 일격이 닿으면, 하늘 가득 벚꽃이 필 거예요.',
+          partDown: '장갑에 금이 갔어요…… 조금 아리네요.',
+          defeated: '꽃잎이 흩어졌어요…… 이번 승리는 당신의 거예요.',
+        },
+      },
+      vesper: {
+        name: '별화로 점성술사·베스퍼',
+        title: '용암 핵의 화로지기',
+        code: 'VESPER',
+        armor: '별장식 상태',
+        shieldUp: '가마솥 온전함',
+        lines: {
+          intro: '별화로가 끓고 있어. 앉아 봐. 오늘 밤은 너의 별을 점쳐 주지.',
+          phase2: '흥미롭네. 하지만 별의 궤도는 누구를 위해서도 꺾이지 않아.',
+          phase3: '뚜껑이 열렸어 — 조심해. 별가루가 뜨거우니까.',
+          partDown: '한 조각 떨어졌네. 괜찮아. 빛나는 방식이 바뀌었을 뿐이야.',
+          phase4: '좋아. 밤하늘 하나의 무게가 얼마나 되는지 보여 주지.',
+          defeated: '이번 점괘는… 네가 이겼어. 밤은 아직 기니, 다시 만나자.',
+        },
+      },
+    };
+
 export const ko: UiDict & { content: ContentOverrides } = {
   common: {
     back: '뒤로',
@@ -64,38 +121,7 @@ export const ko: UiDict & { content: ContentOverrides } = {
     wave: '웨이브 {n}/{total}',
   },
   // A character boss, each by the name her fight knows her by (`game/character.ts`).
-  characterBoss: {
-    hiyou: {
-      name: '벚꽃 서약·희벚꽃',
-      title: '무너지는 세계에 피어나는 서약의 벚꽃',
-      code: 'HIYOU',
-      armor: '장갑 게이지',
-      shieldUp: '방어막 유지',
-      lines: {
-        intro: '또 내 벚꽃 정원에 온 손님이네. 좋아요 — 꽃잎이 길을 비춰줄 거예요.',
-        phase2: '제법하네요. 더 깊이 들어와 보세요.',
-        phase3: '방어막을 내렸어요. 잘 보세요, 이게 저의 전부예요.',
-        phase4: '다음 일격이 닿으면, 하늘 가득 벚꽃이 필 거예요.',
-        partDown: '장갑에 금이 갔어요…… 조금 아리네요.',
-        defeated: '꽃잎이 흩어졌어요…… 이번 승리는 당신의 거예요.',
-      },
-    },
-    vesper: {
-      name: '별화로 점성술사·베스퍼',
-      title: '용암 핵의 화로지기',
-      code: 'VESPER',
-      armor: '별장식 상태',
-      shieldUp: '가마솥 온전함',
-      lines: {
-        intro: '별화로가 끓고 있어. 앉아 봐. 오늘 밤은 너의 별을 점쳐 주지.',
-        phase2: '흥미롭네. 하지만 별의 궤도는 누구를 위해서도 꺾이지 않아.',
-        phase3: '뚜껑이 열렸어 — 조심해. 별가루가 뜨거우니까.',
-        partDown: '한 조각 떨어졌네. 괜찮아. 빛나는 방식이 바뀌었을 뿐이야.',
-        phase4: '좋아. 밤하늘 하나의 무게가 얼마나 되는지 보여 주지.',
-        defeated: '이번 점괘는… 네가 이겼어. 밤은 아직 기니, 다시 만나자.',
-      },
-    },
-  },
+  characterBoss: characterBossCopy,
   starter: {
     title: '초기 프로토콜 선택',
     sub: '프로토콜은 빌드의 출발점입니다. 이후의 모든 3택은 당신이 결정합니다.',

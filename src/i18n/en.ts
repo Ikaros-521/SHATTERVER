@@ -7,6 +7,63 @@ import type { UiDict } from './zh';
  * English override table for the game-content strings whose Chinese text is canonical in `game/`
  * (upgrade names/flavors/descriptions, level names, bosses, mutators, reactions, …).
  */
+/**
+ * The character bosses' copy. The Toy probe package (`__TOY__`) ships no character bosses, so
+ * none of this copy may reach its bundle: an all-empty stub keeps every line out of the platform
+ * package while the full copy below serves every other build (and the tests, which run un-gated).
+ */
+const characterBossCopy = __TOY__
+  ? {
+      hiyou: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', phase4: '', partDown: '', defeated: '' },
+      },
+      vesper: {
+        name: '',
+        title: '',
+        code: '',
+        armor: '',
+        shieldUp: '',
+        lines: { intro: '', phase2: '', phase3: '', partDown: '', phase4: '', defeated: '' },
+      },
+    }
+  : {
+      hiyou: {
+        name: 'Vow of Sakura · Hiyou',
+        title: 'The vow that blooms through the fall',
+        code: 'HIYOU',
+        armor: 'Armour integrity',
+        shieldUp: 'Shield up',
+        lines: {
+          intro: 'Another visitor to my garden of sakura. Come — let the petals light your way.',
+          phase2: 'Interesting. Go deeper, then.',
+          phase3: 'The shield is down. Look closely: all of me.',
+          phase4: 'When the next strike falls, the sky will bloom.',
+          partDown: 'A plate… cracked. That one stung.',
+          defeated: 'The petals fall. This round is yours.',
+        },
+      },
+      vesper: {
+        name: 'Vesper the Stargazer',
+        title: 'Keeper of the molten core',
+        code: 'VESPER',
+        armor: 'Star-gear integrity',
+        shieldUp: 'Cauldron intact',
+        lines: {
+          intro: 'The star-furnace is boiling. Sit — tonight I shall read the sky for you.',
+          phase2: 'Interesting. But the star-tracks never bend for anyone.',
+          phase3: 'The lid is off — mind you, the stardust is hot.',
+          partDown: 'A piece has come away. No matter: it only shines another way.',
+          phase4: 'Very well. Let me show you how heavy a whole sky is.',
+          defeated: 'This reading… is yours. The night is long; we shall meet again.',
+        },
+      },
+    };
+
 export const en: UiDict & { content: ContentOverrides } = {
   common: {
     back: 'Back',
@@ -64,38 +121,7 @@ export const en: UiDict & { content: ContentOverrides } = {
     wave: 'Wave {n}/{total}',
   },
   // A character boss, each by the name her fight knows her by (`game/character.ts`).
-  characterBoss: {
-    hiyou: {
-      name: 'Vow of Sakura · Hiyou',
-      title: 'The vow that blooms through the fall',
-      code: 'HIYOU',
-      armor: 'Armour integrity',
-      shieldUp: 'Shield up',
-      lines: {
-        intro: 'Another visitor to my garden of sakura. Come — let the petals light your way.',
-        phase2: 'Interesting. Go deeper, then.',
-        phase3: 'The shield is down. Look closely: all of me.',
-        phase4: 'When the next strike falls, the sky will bloom.',
-        partDown: 'A plate… cracked. That one stung.',
-        defeated: 'The petals fall. This round is yours.',
-      },
-    },
-    vesper: {
-      name: 'Vesper the Stargazer',
-      title: 'Keeper of the molten core',
-      code: 'VESPER',
-      armor: 'Star-gear integrity',
-      shieldUp: 'Cauldron intact',
-      lines: {
-        intro: 'The star-furnace is boiling. Sit — tonight I shall read the sky for you.',
-        phase2: 'Interesting. But the star-tracks never bend for anyone.',
-        phase3: 'The lid is off — mind you, the stardust is hot.',
-        partDown: 'A piece has come away. No matter: it only shines another way.',
-        phase4: 'Very well. Let me show you how heavy a whole sky is.',
-        defeated: 'This reading… is yours. The night is long; we shall meet again.',
-      },
-    },
-  },
+  characterBoss: characterBossCopy,
   starter: {
     title: 'Pick a starting protocol',
     sub: 'The protocol is where your build begins. Every three-way draft after that is yours to call.',

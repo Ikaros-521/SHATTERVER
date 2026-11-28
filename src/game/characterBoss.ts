@@ -201,8 +201,16 @@ export function hitCharacterPart(
  */
 export function characterAttack(boss: CharacterBoss): CharacterAttack {
   const list = boss.def.attacks;
-  const next = list[boss.attackAt] ?? list[0]!;
-  boss.attackAt = (boss.attackAt + 1) % Math.max(1, list.length);
+  // An attack held back for a later phase passes her by — the clock winds just the same, so she
+  // hesitates — and the one after it is due instead. From where the list left off, not from its
+  // start: what comes next follows the round she is in.
+  let at = boss.attackAt % Math.max(1, list.length);
+  let next = list[at] ?? list[0]!;
+  for (let i = 0; i < list.length && (next.phase ?? 1) > boss.state.phase; i++) {
+    at = (at + 1) % list.length;
+    next = list[at] ?? list[0]!;
+  }
+  boss.attackAt = (at + 1) % Math.max(1, list.length);
   // She gets quicker as she loses parts.
   boss.attackCd = boss.def.attackCd[boss.state.phase - 1] ?? boss.def.attackCd[0] ?? 2.5;
   // An orb scatters wider from the third phase on.

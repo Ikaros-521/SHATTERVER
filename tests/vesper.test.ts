@@ -158,11 +158,32 @@ describe('薇斯珀 as a fight', () => {
       'rain:3',
     ]);
     boss.state.phase = 4;
+    boss.attackAt = 0;
     boss.attackCd = 0;
     expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['side.R'], shots: 2 });
     expect(boss.attackCd).toBe(1.8);
+  });
+
+  it('keeps her one burst for the last phase: before it the attack passes her by, and none of them scatter', () => {
+    const boss = startCharacterBoss(VESPER);
+    // No attack of hers scatters before the last: the orb bursts into nothing early.
+    boss.state.phase = 2;
+    boss.attackAt = 1;
     boss.attackCd = 0;
-    expect(characterAttack(boss)).toMatchObject({ kind: 'orb', scatter: 10 });
+    expect(characterAttack(boss)).toMatchObject({ kind: 'orb', scatter: 0 });
+    // The burst is in her list, but the fourth phase has not come: the next attack is due instead,
+    // and the round carries on from there — attackAt always names the one after what was thrown.
+    boss.attackAt = 4;
+    boss.attackCd = 0;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', from: ['side.R'], shots: 2 });
+    expect(boss.attackAt).toBe(1);
+    // From the fourth phase on it is due like any other.
+    boss.state.phase = 4;
+    boss.attackAt = 4;
+    boss.attackCd = 0;
+    expect(characterAttack(boss)).toMatchObject({ kind: 'volley', shots: 8 });
+    // And the clock wound the same throughout: she attacked no sooner for holding back.
+    expect(boss.attackCd).toBe(1.8);
   });
 
   it('is beaten only with every region gone, and shows her last picture before that', () => {

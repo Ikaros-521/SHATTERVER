@@ -71,10 +71,14 @@ export const VESPER: CharacterDef = {
   attackCd: [3.0, 2.6, 2.2, 1.8],
   attacks: [
     // From the side her lamp hangs on, twice; a molten orb that bursts; and stars from her hat.
+    // None of them scatter: her one burst is kept for the last phase, where it is all she has left.
     { kind: 'volley', from: ['side.R'], shots: 2, scatter: 0, scatterLate: 0 },
-    { kind: 'orb', from: ['side.L', 'body'], shots: 1, scatter: 8, scatterLate: 10 },
+    { kind: 'orb', from: ['side.L', 'body'], shots: 1, scatter: 0, scatterLate: 0 },
     { kind: 'volley', from: ['side.R'], shots: 2, scatter: 0, scatterLate: 0 },
     { kind: 'rain', from: ['head'], shots: 6, scatter: 0, scatterLate: 0 },
+    // Her last stand, from the fourth phase on (she is nearly out): the lamp empties itself in
+    // one wide burst. Kept for the last phase, where it is all she has left.
+    { kind: 'volley', from: ['side.R'], shots: 8, phase: 4, scatter: 0, scatterLate: 0 },
   ],
   color: 0xffb347,
   reforge: { every: 11, late: 7, row: 18, count: 4 },

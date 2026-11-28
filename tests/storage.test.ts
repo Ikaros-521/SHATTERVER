@@ -167,6 +167,7 @@ describe('economy state (save v2)', () => {
           loadout: ['nope'],
           wishlist: 5,
           milestones: 'all',
+          picksByStarter: { chrono: 'many', venom: 3, bogus: 0 },
           counters: { perfects: 'many' },
         },
       }),
@@ -177,6 +178,7 @@ describe('economy state (save v2)', () => {
     expect(save.economy.loadout).toEqual([]);
     expect(save.economy.wishlist).toBeNull();
     expect(save.economy.milestones).toEqual([]);
+    expect(save.economy.picksByStarter).toEqual({ venom: 3 });
     expect(save.economy.counters.perfects).toBe(0);
   });
 
@@ -191,6 +193,8 @@ describe('economy state (save v2)', () => {
     save.economy.milestones = ['perfect', 'win1'];
     save.economy.firstUsed = { fire: true };
     save.economy.bestCombo = 412;
+    save.economy.winsByStarter = { blank: 2, barrage: 7 };
+    save.economy.picksByStarter = { blank: 9, barrage: 20, chrono: 1 };
     storeSave(save);
     const again = loadSave();
     expect(again.economy.stardust).toBe(4321);
@@ -200,6 +204,21 @@ describe('economy state (save v2)', () => {
     expect(again.economy.milestones).toEqual(['perfect', 'win1']);
     expect(again.economy.firstUsed).toEqual({ fire: true });
     expect(again.economy.bestCombo).toBe(412);
+    expect(again.economy.winsByStarter).toEqual({ blank: 2, barrage: 7 });
+    expect(again.economy.picksByStarter).toEqual({ blank: 9, barrage: 20, chrono: 1 });
+  });
+});
+
+describe('starter screen state', () => {
+  it('a fresh save sorts the roster by default', () => {
+    expect(defaultSave().settings.starterSort).toBe('default');
+  });
+
+  it('keeps a real roster sort and repairs a lookalike', () => {
+    store.set(KEY, JSON.stringify({ version: 2, settings: { starterSort: 'name' }, records: {} }));
+    expect(loadSave().settings.starterSort).toBe('name');
+    store.set(KEY, JSON.stringify({ version: 2, settings: { starterSort: 'cheapest' }, records: {} }));
+    expect(loadSave().settings.starterSort).toBe('default');
   });
 });
 

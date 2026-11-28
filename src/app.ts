@@ -783,6 +783,9 @@ export class App implements UiActions {
       // deeper debug runs (level > 1) neither spend nor touch the save's run count.
       econ.trialSupply = null;
       this.save.records.runs++;
+      // The habit counter behind the starter screen's 「常用」 sort: every opened run counts,
+      // wins or not (winsByStarter stays the milestone's campaign-wins record).
+      econ.picksByStarter[starter.id] = (econ.picksByStarter[starter.id] ?? 0) + 1;
       storeSave(this.save);
       // Opens the server-side window for this run. Fire-and-forget: the first frame must not wait.
       this.cloud?.beginRun();

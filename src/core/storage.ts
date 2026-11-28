@@ -1,6 +1,7 @@
 import { DEFAULT_LANG, isLang, type Lang } from './i18n';
 import { wxStorageRead, wxStorageWrite } from './wxstorage';
 import { DEFAULT_DIFFICULTY, isDifficultyId, type DifficultyId } from '../game/difficulty';
+import { isStarterSort, type StarterSortId } from '../game/starters';
 import { isSupplyId } from '../game/economy/catalog';
 import { DAILY_MISSION_MAP, isDailyMissionId } from '../game/economy/dailies';
 import { isBallSkinId, isBgSkinId, isPaddleSkinId, isSkinId } from '../render/skins';
@@ -20,6 +21,8 @@ export interface Settings {
   seed: string;
   /** The difficulty tier preselected on the starter screen. */
   difficulty: DifficultyId;
+  /** The sort order the starter screen arranges its protocol roster in. */
+  starterSort: StarterSortId;
   /** True once the first-run tutorial has been shown (finished or skipped) on this device. */
   tutorialSeen: boolean;
   /**
@@ -164,6 +167,8 @@ export interface EconomyState {
   winsByDifficulty: Partial<Record<DifficultyId, number>>;
   /** Campaign wins per opening protocol; the styles milestone reads the free four. */
   winsByStarter: Record<string, number>;
+  /** Runs opened with each protocol; the starter screen's 「常用」 sort reads this. */
+  picksByStarter: Record<string, number>;
   counters: EconomyCounters;
 }
 
@@ -198,6 +203,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   seed: '',
   difficulty: DEFAULT_DIFFICULTY,
+  starterSort: 'default',
   tutorialSeen: false,
   changelogSeen: APP_VERSION,
   language: DEFAULT_LANG,
@@ -235,6 +241,7 @@ export const DEFAULT_ECONOMY: EconomyState = {
   bestCombo: 0,
   winsByDifficulty: {},
   winsByStarter: {},
+  picksByStarter: {},
   counters: { perfects: 0, capsules: 0, overdrives: 0, reactions: 0, bosses: 0, flawless: 0, swift: 0 },
 };
 
@@ -250,6 +257,7 @@ export function defaultEconomy(): EconomyState {
     firstUsed: {},
     winsByDifficulty: {},
     winsByStarter: {},
+    picksByStarter: {},
     counters: { ...DEFAULT_ECONOMY.counters },
     daily: { ...DEFAULT_ECONOMY.daily, missions: [] },
   };
@@ -354,6 +362,7 @@ export function parseEconomyState(raw: unknown): EconomyState | null {
   economy.bestCombo = num(e.bestCombo);
   count(e.winsByDifficulty, economy.winsByDifficulty as Record<string, number>);
   count(e.winsByStarter, economy.winsByStarter);
+  count(e.picksByStarter, economy.picksByStarter);
   if (e.counters && typeof e.counters === 'object') {
     for (const key of Object.keys(economy.counters) as (keyof EconomyCounters)[]) {
       economy.counters[key] = num((e.counters as unknown as Record<string, unknown>)[key]);
@@ -396,6 +405,7 @@ export function loadSave(): SaveData {
         : 'high',
     seed: typeof settings.seed === 'string' ? settings.seed.slice(0, 24) : '',
     difficulty: isDifficultyId(settings.difficulty) ? settings.difficulty : DEFAULT_DIFFICULTY,
+    starterSort: isStarterSort(settings.starterSort) ? settings.starterSort : DEFAULT_SETTINGS.starterSort,
     tutorialSeen: bool(settings.tutorialSeen, DEFAULT_SETTINGS.tutorialSeen),
     // Deliberately not the default: only a save that predates the field lacks it, and that
     // device has never seen the notes.

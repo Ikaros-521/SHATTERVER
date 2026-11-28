@@ -9,6 +9,43 @@ export interface Starter {
   crystals: number;
 }
 
+/** The orders the starter screen can arrange its protocol roster in. */
+export type StarterSortId = 'default' | 'frequent' | 'name';
+
+export const STARTER_SORT_IDS: readonly StarterSortId[] = ['default', 'frequent', 'name'];
+
+export function isStarterSort(value: unknown): value is StarterSortId {
+  return typeof value === 'string' && (STARTER_SORT_IDS as readonly string[]).includes(value);
+}
+
+/**
+ * Arranges the starter roster: `default` keeps free starters first and shop unlocks in price
+ * order (the catalog order), `frequent` lifts the protocols this player actually opens runs
+ * with (the economy's picks counter), and `name` sorts by the localized display name so a long
+ * roster stays findable. Ties keep the catalog order, and `nameOf` keeps the game layer free
+ * of i18n — each screen passes its own localized accessor.
+ */
+export function sortStarters<T extends Starter>(
+  roster: readonly T[],
+  sort: StarterSortId,
+  picks: Readonly<Record<string, number>>,
+  nameOf: (starter: T) => string,
+): T[] {
+  if (sort === 'default') return [...roster];
+  const entries = roster.map((starter, index) => ({ starter, index }));
+  entries.sort((a, b) => {
+    if (sort === 'name') {
+      const byName = nameOf(a.starter).localeCompare(nameOf(b.starter));
+      if (byName !== 0) return byName;
+    } else {
+      const byPicks = (picks[b.starter.id] ?? 0) - (picks[a.starter.id] ?? 0);
+      if (byPicks !== 0) return byPicks;
+    }
+    return a.index - b.index;
+  });
+  return entries.map((entry) => entry.starter);
+}
+
 export const STARTERS: Starter[] = [
   {
     id: 'blank',

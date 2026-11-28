@@ -103,6 +103,12 @@ export const ko: UiDict & { content: ContentOverrides } = {
     endlessEyebrow: 'ENDLESS · 끝이 없는 층',
     crystals: '+{n} 크리스털',
     diffRowLabel: '난이도',
+    sort: {
+      label: '정렬',
+      default: '기본',
+      frequent: '자주 사용',
+      name: '이름순',
+    },
   },
   draft: {
     title: '업그레이드 하나를 선택',

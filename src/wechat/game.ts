@@ -23,7 +23,7 @@ import { setLang, type Lang } from '../core/i18n';
 import { AudioDirector } from '../audio/director';
 
 import { SUPPLY_MAP, isSupplyId, slotLimit, supplyCost } from '../game/economy/catalog';
-import type { Starter } from '../game/starters';
+import type { Starter, StarterSortId } from '../game/starters';
 import { RNG, randomSeed } from '../core/rng';
 import { UPGRADES } from '../game/upgrades/defs';
 import { settleFinishedRun } from '../game/finish';
@@ -61,7 +61,7 @@ const DPR_CAP = 2;
 /** The screens the shell can show so far. Remaining screens join as they are ported. */
 type ShellScreen =
   | { kind: 'menu' }
-  | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId }
+  | { kind: 'starter'; mode: RunMode; difficulty: DifficultyId; sort: StarterSortId }
   | ({ kind: 'history' } & HistoryState)
   | { kind: 'run' }
   | { kind: 'pause' }
@@ -126,7 +126,7 @@ function boot(): void {
       ui.setTree(
         starterTree(
           save,
-          { mode: current.mode, difficulty: current.difficulty },
+          { mode: current.mode, difficulty: current.difficulty, sort: current.sort },
           starterActions,
           width,
           uiH,
@@ -272,11 +272,21 @@ function boot(): void {
 
   const menuActions: MenuActions = {
     campaign: (): void => {
-      current = { kind: 'starter', mode: 'campaign', difficulty: save.settings.difficulty };
+      current = {
+        kind: 'starter',
+        mode: 'campaign',
+        difficulty: save.settings.difficulty,
+        sort: save.settings.starterSort,
+      };
       rebuild();
     },
     endless: (): void => {
-      current = { kind: 'starter', mode: 'endless', difficulty: save.settings.difficulty };
+      current = {
+        kind: 'starter',
+        mode: 'endless',
+        difficulty: save.settings.difficulty,
+        sort: save.settings.starterSort,
+      };
       rebuild();
     },
     shop: (): void => {
@@ -330,6 +340,14 @@ function boot(): void {
       current = { ...current, difficulty: id };
       // Same persistence path as the DOM's `updateSettings({ difficulty })`.
       save.settings.difficulty = id;
+      storeSave(save);
+      rebuild();
+    },
+    setSort: (id: StarterSortId): void => {
+      if (current.kind !== 'starter') return;
+      current = { ...current, sort: id };
+      // Same persistence path as the DOM's `updateSettings({ starterSort })`.
+      save.settings.starterSort = id;
       storeSave(save);
       rebuild();
     },
@@ -517,6 +535,8 @@ function boot(): void {
     );
     econ.trialSupply = null;
     save.records.runs++;
+    // Same habit counter the DOM records at run start: the 「常用」 sort reads it.
+    econ.picksByStarter[starter.id] = (econ.picksByStarter[starter.id] ?? 0) + 1;
     storeSave(save);
     if ((current as ShellScreen).kind === 'draft') rebuild();
     // The previous screen's tree stays installed but is not composited during a run.

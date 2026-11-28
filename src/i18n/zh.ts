@@ -128,6 +128,12 @@ export const zh = {
     endlessEyebrow: 'ENDLESS · 没有终点',
     crystals: '+{n} 碎晶',
     diffRowLabel: '难度',
+    sort: {
+      label: '排序',
+      default: '默认',
+      frequent: '常用',
+      name: '名称',
+    },
   },
   draft: {
     title: '选择一项强化',
